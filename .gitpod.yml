@@ -1,5 +1,5 @@
-tasks:
-  - init: npm install && make
+#tasks:
+#  - init: npm install && make
 image:
   file: docker-compose.yml
 ports:
