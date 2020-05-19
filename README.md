@@ -51,6 +51,13 @@ Enable`, and `Maps API dashboard > APIs > Places API for Web > Enable`).
 
 ### Run the application
 
+    (Linux) Setup permissions
+
+If you are using Linux, you will need to allow the user www-data used by the php docker container to write files to your local disk. You can do this by running the following commands in the directory containing your local clone of the repository:
+
+sudo chown -R $(id -u):82 coopcycle-web
+sudo chmod -R g+w coopcycle-web
+
 #### Start the Docker containers
 
 ```
