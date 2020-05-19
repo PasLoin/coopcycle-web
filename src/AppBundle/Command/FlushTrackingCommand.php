@@ -7,7 +7,7 @@ use AppBundle\Entity\TrackingPosition;
 use Doctrine\ORM\EntityManagerInterface;
 use FOS\UserBundle\Model\UserInterface;
 use FOS\UserBundle\Model\UserManagerInterface;
-use Predis\Client as Redis;
+use Redis;
 use Symfony\Bundle\FrameworkBundle\Command\ContainerAwareCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -78,7 +78,7 @@ class FlushTrackingCommand extends Command
 
     private function flushTracking(UserInterface $user, $key, OutputInterface $output)
     {
-        $key = str_replace($this->redis->getOptions()->prefix->getPrefix(), '', $key);
+        $key = str_replace($this->redis->getOption(Redis::OPT_PREFIX), '', $key);
 
         $length = $this->redis->llen($key);
         $output->writeln(sprintf('<info>Found %d events to flush for user %s</info>', $length, $user->getUsername()));

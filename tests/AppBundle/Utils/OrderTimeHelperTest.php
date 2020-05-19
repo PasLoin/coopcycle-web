@@ -2,12 +2,15 @@
 
 namespace Tests\AppBundle\Utils;
 
+use AppBundle\Entity\LocalBusiness\FulfillmentMethod;
 use AppBundle\Entity\Restaurant;
 use AppBundle\Sylius\Order\OrderInterface;
 use AppBundle\Utils\OrderTimeHelper;
 use AppBundle\Utils\PreparationTimeCalculator;
 use AppBundle\Utils\ShippingDateFilter;
 use AppBundle\Utils\ShippingTimeCalculator;
+use Carbon\Carbon;
+use Doctrine\Common\Collections\ArrayCollection;
 use PHPUnit\Framework\TestCase;
 use Prophecy\Argument;
 use Prophecy\PhpUnit\ProphecyTrait;
@@ -33,6 +36,11 @@ class OrderTimeHelperTest extends TestCase
         );
     }
 
+    public function tearDown(): void
+    {
+        Carbon::setTestNow();
+    }
+
     private function createOrder($total, $shippedAt)
     {
         $restaurant = new Restaurant();
@@ -54,6 +62,8 @@ class OrderTimeHelperTest extends TestCase
 
     public function testAsapWithSameDayShippingChoices()
     {
+        Carbon::setTestNow(Carbon::parse('2020-03-31T14:25:00+02:00'));
+
         $restaurant = $this->prophesize(Restaurant::class);
 
         $sameDayChoices = [
@@ -61,48 +71,38 @@ class OrderTimeHelperTest extends TestCase
             '2020-03-31T14:45:00+02:00',
         ];
 
-        $sameDayAndNextDayChoices = [
-            // Same day
-            '2020-03-31T14:30:00+02:00',
-            '2020-03-31T14:45:00+02:00',
-            // Next day
-            '2020-04-01T13:00:00+02:00',
-            '2020-04-01T13:15:00+02:00',
-            '2020-04-01T13:30:00+02:00',
-            '2020-04-01T13:45:00+02:00',
-            '2020-04-01T14:00:00+02:00',
-            '2020-04-01T14:15:00+02:00',
-            '2020-04-01T14:30:00+02:00',
-            '2020-04-01T14:45:00+02:00',
-        ];
-
-        $restaurant
-            ->getAvailabilities()
-            ->willReturn(
-                // Mock multiple method calls
-                $sameDayChoices,
-                $sameDayAndNextDayChoices
-            );
-
         $cart = $this->prophesize(OrderInterface::class);
         $cart
             ->getRestaurant()
             ->willReturn($restaurant->reveal());
+        $cart
+            ->getFulfillmentMethod()
+            ->willReturn('delivery');
+
+        $fulfillmentMethod = new FulfillmentMethod();
+        $fulfillmentMethod->setOpeningHours(["Mo-Su 13:00-15:00"]);
+        $fulfillmentMethod->setOpeningHoursBehavior('asap');
 
         $restaurant
             ->getShippingOptionsDays()
             ->willReturn(1);
-        $restaurant
-            ->getOpeningHoursBehavior()
-            ->willReturn('asap');
 
         $restaurant
-            ->setShippingOptionsDays(2)
-            ->shouldBeCalled();
+            ->getOpeningHours('delivery')
+            ->willReturn($fulfillmentMethod->getOpeningHours());
+        $restaurant
+            ->getOpeningHoursBehavior('delivery')
+            ->willReturn($fulfillmentMethod->getOpeningHoursBehavior());
+        $restaurant
+            ->getFulfillmentMethod('delivery')
+            ->willReturn($fulfillmentMethod);
 
         $restaurant
-            ->setShippingOptionsDays(1)
-            ->shouldBeCalled();
+            ->getOrderingDelayMinutes()
+            ->willReturn(0);
+        $restaurant
+            ->getClosingRules()
+            ->willReturn(new ArrayCollection());
 
         $this->shippingDateFilter
             ->accept($cart, Argument::type(\DateTime::class))

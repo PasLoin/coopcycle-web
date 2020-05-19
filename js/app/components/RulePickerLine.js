@@ -1,6 +1,7 @@
 import React from 'react'
 import i18n from '../i18n'
 import _ from 'lodash'
+import isScalar from 'locutus/php/var/is_scalar'
 
 /*
 
@@ -38,7 +39,7 @@ class RulePickerLine extends React.Component {
     this.state = {
       type: props.type || '',         // the variable the rule is built upon
       operator: props.operator || '', // the operator/function used to build the rule
-      value: props.value || '',       // the value(s) which complete the rule
+      value: isScalar(props.value) ? `${props.value}` : (props.value || ''),       // the value(s) which complete the rule
     }
 
     this.onTypeSelect = this.onTypeSelect.bind(this)
@@ -91,13 +92,28 @@ class RulePickerLine extends React.Component {
   }
 
   onOperatorSelect (ev) {
+
     ev.preventDefault()
+
     const operator = ev.target.value
-    let newState = { operator }
+
+    let state = { operator }
+
     if ('in' === operator) {
-      newState = Object.assign(newState, { value: ['', ''] })
+      state = {
+        ...state,
+        value: ['', '']
+      }
     }
-    this.setState(newState)
+
+    if (_.includes(['==', '<', '>'], operator) && Array.isArray(this.state.value)) {
+      state = {
+        ...state,
+        value: ''
+      }
+    }
+
+    this.setState(state)
   }
 
   delete (evt) {
@@ -106,9 +122,8 @@ class RulePickerLine extends React.Component {
   }
 
   renderNumberInput() {
-
     return (
-      <input className="form-control input-sm" value={this.state.value} onChange={this.handleValueChange} type="number"></input>
+      <input className="form-control input-sm" value={this.state.value} onChange={this.handleValueChange} type="number" min="0" required></input>
     )
   }
 
@@ -160,10 +175,10 @@ class RulePickerLine extends React.Component {
       return (
         <div className="row">
           <div className="col-md-6">
-            <input className="form-control input-sm" value={this.state.value[0]} onChange={this.handleFirstBoundChange} type="number"></input>
+            <input className="form-control input-sm" value={this.state.value[0]} onChange={this.handleFirstBoundChange} type="number" min="0" required></input>
           </div>
           <div className="col-md-6">
-            <input className="form-control input-sm" value={this.state.value[1]} onChange={this.handleSecondBoundChange} type="number"></input>
+            <input className="form-control input-sm" value={this.state.value[1]} onChange={this.handleSecondBoundChange} type="number" min="0" required></input>
           </div>
         </div>
       )

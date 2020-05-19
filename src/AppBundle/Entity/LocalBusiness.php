@@ -18,12 +18,15 @@ use AppBundle\Entity\LocalBusiness\FulfillmentMethod;
 use AppBundle\Entity\LocalBusiness\ImageTrait;
 use AppBundle\Enum\FoodEstablishment;
 use AppBundle\Enum\Store;
+use AppBundle\Form\Type\AsapChoiceLoader;
 use AppBundle\LoopEat\OAuthCredentialsTrait as LoopEatOAuthCredentialsTrait;
+use AppBundle\OpeningHours\OpenCloseInterface;
+use AppBundle\OpeningHours\OpenCloseTrait;
 use AppBundle\Sylius\Product\ProductInterface;
 use AppBundle\Utils\OpeningHoursSpecification;
-use AppBundle\Validator\Constraints as CustomAssert;
+use AppBundle\Utils\TimeRange;
+use AppBundle\Validator\Constraints\IsActivableRestaurant as AssertIsActivableRestaurant;
 use Carbon\Carbon;
-use Carbon\CarbonPeriod;
 use Doctrine\Common\Collections\ArrayCollection;
 use Gedmo\SoftDeleteable\Traits\SoftDeleteableEntity;
 use Gedmo\Timestampable\Traits\Timestampable;
@@ -89,10 +92,10 @@ use Vich\UploaderBundle\Mapping\Annotation as Vich;
  *   }
  * )
  * @Vich\Uploadable
- * @CustomAssert\IsActivableRestaurant(groups="activable")
+ * @AssertIsActivableRestaurant(groups="activable")
  * @Enabled
  */
-class LocalBusiness extends BaseLocalBusiness implements CatalogInterface
+class LocalBusiness extends BaseLocalBusiness implements CatalogInterface, OpenCloseInterface
 {
     use Timestampable;
     use SoftDeleteableEntity;
@@ -100,6 +103,7 @@ class LocalBusiness extends BaseLocalBusiness implements CatalogInterface
     use CatalogTrait;
     use FoodEstablishmentTrait;
     use ImageTrait;
+    use OpenCloseTrait;
 
     /**
      * @var int
@@ -158,8 +162,8 @@ class LocalBusiness extends BaseLocalBusiness implements CatalogInterface
     protected $orderingDelayMinutes = 0;
 
     /**
-     * @Assert\GreaterThan(0)
-     * @Assert\LessThanOrEqual(30)
+     * @Assert\GreaterThan(1)
+     * @Assert\LessThanOrEqual(6)
      */
     protected $shippingOptionsDays = 2;
 
@@ -216,8 +220,6 @@ class LocalBusiness extends BaseLocalBusiness implements CatalogInterface
 
     protected $preparationTimeRules;
 
-    protected $nextOpeningDateCache = [];
-
     protected $reusablePackagings;
 
     protected $promotions;
@@ -228,6 +230,7 @@ class LocalBusiness extends BaseLocalBusiness implements CatalogInterface
 
     /**
      * @Groups({"restaurant"})
+     * @Assert\Valid()
      */
     protected $fulfillmentMethods;
 
@@ -353,178 +356,23 @@ class LocalBusiness extends BaseLocalBusiness implements CatalogInterface
     }
 
     /**
-     * @param \DateTime|null $now
-     * @return boolean
-     */
-    public function hasClosingRuleForNow(\DateTime $now = null)
-    {
-        $closingRules = $this->getClosingRules();
-
-        if (count($closingRules) === 0) {
-            return false;
-        }
-
-        if (!$now) {
-            $now = Carbon::now();
-        }
-
-        // WARNING
-        // This method may be called a *lot* of times (see getAvailabilities)
-        // Thus, we avoid using Criteria, because it would trigger a query every time
-        foreach ($closingRules as $closingRule) {
-            if ($now >= $closingRule->getStartDate() && $now <= $closingRule->getEndDate()) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    public function isOpen(\DateTime $now = null)
-    {
-        if (!$now) {
-            $now = Carbon::now();
-        }
-
-        if ($this->hasClosingRuleForNow($now)) {
-
-            return false;
-        }
-
-        return parent::isOpen($now);
-    }
-
-    public function getNextOpeningDate(\DateTime $now = null)
-    {
-        if (!$now) {
-            $now = Carbon::now();
-        }
-
-        if (!isset($this->nextOpeningDateCache[$now->getTimestamp()])) {
-
-            $nextOpeningDate = null;
-
-            if ($this->hasClosingRuleForNow($now)) {
-                foreach ($this->getClosingRules() as $closingRule) {
-                    if ($now >= $closingRule->getStartDate() && $now <= $closingRule->getEndDate()) {
-
-                        $nextOpeningDate = parent::getNextOpeningDate($closingRule->getEndDate());
-                        break;
-                    }
-                }
-            }
-
-            if (null === $nextOpeningDate) {
-                $nextOpeningDate = parent::getNextOpeningDate($now);
-            }
-
-            $this->nextOpeningDateCache[$now->getTimestamp()] = $nextOpeningDate;
-        }
-
-        return $this->nextOpeningDateCache[$now->getTimestamp()];
-    }
-
-    public function getNextClosingDate(\DateTime $now = null)
-    {
-        if (!$now) {
-            $now = Carbon::now();
-        }
-
-        $nextClosingDates = [];
-        if ($nextClosingDate = parent::getNextClosingDate($now)) {
-            $nextClosingDates[] = $nextClosingDate;
-        }
-
-        foreach ($this->getClosingRules() as $closingRule) {
-            if ($closingRule->getEndDate() < $now) {
-                continue;
-            }
-            $nextClosingDates[] = $closingRule->getStartDate();
-        }
-
-        $nextClosingDates = array_filter($nextClosingDates, function (\DateTime $date) use ($now) {
-            return $date >= $now;
-        });
-
-        sort($nextClosingDates);
-
-        return array_shift($nextClosingDates);
-    }
-
-    /**
-     * Return potential delivery times for a restaurant, pickables by the customer.
-     * WARNING This function may be called a *LOT* of times, it needs to be *FAST*.
-     *
+     * @deprecated
      * @param \DateTime|null $now
      * @return array
      */
     public function getAvailabilities(\DateTime $now = null)
     {
-        if (!$now) {
-            $now = Carbon::now();
-        }
+        $choiceLoader = new AsapChoiceLoader(
+            $this->getOpeningHours(/* $fulfillmentMethod */),
+            $this->getClosingRules(),
+            $this->getShippingOptionsDays(),
+            $this->getOrderingDelayMinutes(),
+            $now
+        );
 
-        if ($this->getOrderingDelayMinutes() > 0) {
-            $now->modify(sprintf('+%d minutes', $this->getOrderingDelayMinutes()));
-        }
+        $choiceList = $choiceLoader->loadChoiceList();
 
-        $nextOpeningDate = $this->getNextOpeningDate($now);
-
-        if (is_null($nextOpeningDate)) {
-            return [];
-        }
-
-        $availabilities = [];
-
-        $nextClosingDate = $this->getNextClosingDate($nextOpeningDate);
-
-        $shippingOptionsDays = $this->shippingOptionsDays ?? 2;
-
-        if ($shippingOptionsDays > 30) {
-            $shippingOptionsDays = 30;
-        }
-
-        if (!$nextClosingDate) { // It is open 24/7
-            $nextClosingDate = Carbon::instance($now)->add($shippingOptionsDays, 'days');
-
-            $period = CarbonPeriod::create(
-                $nextOpeningDate, '15 minutes', $nextClosingDate,
-                CarbonPeriod::EXCLUDE_END_DATE
-            );
-            foreach ($period as $date) {
-                $availabilities[] = $date->format(\DateTime::ATOM);
-            }
-
-            return $availabilities;
-        }
-
-        $numberOfDays = 0;
-        $days = [];
-        while ($numberOfDays < $shippingOptionsDays) {
-            while (true) {
-
-                $period = CarbonPeriod::create(
-                    $nextOpeningDate, '15 minutes', $nextClosingDate,
-                    CarbonPeriod::EXCLUDE_END_DATE
-                );
-                foreach ($period as $date) {
-                    $availabilities[] = $date->format(\DateTime::ATOM);
-                    $days[] = $date->format('Y-m-d');
-                    $numberOfDays = count(array_unique($days));
-                }
-
-                $nextOpeningDate = $this->getNextOpeningDate($nextClosingDate);
-
-                if (!Carbon::instance($nextOpeningDate)->isSameDay($nextClosingDate)) {
-                    $nextClosingDate = $this->getNextClosingDate($nextOpeningDate);
-                    break;
-                }
-
-                $nextClosingDate = $this->getNextClosingDate($nextOpeningDate);
-            }
-        }
-
-        return $availabilities;
+        return $choiceList->getValues();
     }
 
     public function getStripeAccounts()
@@ -981,6 +829,18 @@ class LocalBusiness extends BaseLocalBusiness implements CatalogInterface
         return $this->fulfillmentMethods;
     }
 
+    public function getFulfillmentMethod(string $method)
+    {
+        foreach ($this->getFulfillmentMethods() as $fulfillmentMethod) {
+            if ($method === $fulfillmentMethod->getType()) {
+
+                return $fulfillmentMethod;
+            }
+        }
+
+        return null;
+    }
+
     public function addFulfillmentMethod($method, $enabled = true)
     {
         $fulfillmentMethod = $this->fulfillmentMethods->filter(function (FulfillmentMethod $fulfillmentMethod) use ($method): bool {
@@ -999,12 +859,6 @@ class LocalBusiness extends BaseLocalBusiness implements CatalogInterface
         $fulfillmentMethod->setEnabled($enabled);
     }
 
-    /**
-     * @var array
-     * @Assert\All({
-     *   @CustomAssert\TimeRange(),
-     * })
-     */
     public function getOpeningHours($method = 'delivery')
     {
         foreach ($this->getFulfillmentMethods() as $fulfillmentMethod) {

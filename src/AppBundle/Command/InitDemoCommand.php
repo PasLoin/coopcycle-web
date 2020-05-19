@@ -17,7 +17,7 @@ use Fidry\AliceDataFixtures\LoaderInterface;
 use Fidry\AliceDataFixtures\Persistence\PurgeMode;
 use FOS\UserBundle\Util\UserManipulator;
 use libphonenumber\PhoneNumberUtil;
-use Predis\Client as Redis;
+use Redis;
 use Sylius\Component\Locale\Model\Locale;
 use Sylius\Component\Resource\Factory\FactoryInterface;
 use Sylius\Component\Resource\Repository\RepositoryInterface;
@@ -446,10 +446,6 @@ class InitDemoCommand extends Command
         $shop->addAddress($address);
         $shop->setAddress($address);
         $shop->setName($this->faker->storeName);
-        $shop->addOpeningHour('Mo-Fr ' . $this->createRandomTimeRange('09:30', '14:30'));
-        $shop->addOpeningHour('Mo-Fr ' . $this->createRandomTimeRange('19:30', '23:30'));
-        $shop->addOpeningHour('Sa-Su ' . $this->createRandomTimeRange('08:30', '15:30'));
-        $shop->addOpeningHour('Sa-Su ' . $this->createRandomTimeRange('19:00', '01:30'));
 
         return $shop;
     }

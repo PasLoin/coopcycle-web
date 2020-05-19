@@ -13,7 +13,7 @@ imports:
 # http://symfony.com/doc/current/best_practices/configuration.html#application-related-configuration
 parameters:
     locale: "%coopcycle.locale%"
-    locale_regex: ca|fr|en|es|de|pl
+    locale_regex: ca|fr|en|es|de|it|pl
     router.request_context.host: '%host%'
     loopeat_enabled: '%env(bool:LOOPEAT_ENABLED)%'
     loopeat_base_url: '%env(LOOPEAT_BASE_URL)%'
@@ -257,21 +257,17 @@ gesdinet_jwt_refresh_token:
 snc_redis:
     clients:
         default:
-            type: predis
+            type: phpredis
             alias: default
             dsn: "%redis_dsn%"
             options:
                 prefix: "%database_name%:"
-                # https://github.com/nrk/predis/issues/33
-                read_write_timeout: 0
         session:
-            type: predis
+            type: phpredis
             alias: session
             dsn: "%redis_dsn%"
             options:
                 prefix: "%database_name%:"
-                # https://github.com/nrk/predis/issues/33
-                read_write_timeout: 0
         tile38:
             type: predis
             alias: tile38
@@ -282,6 +278,12 @@ snc_redis:
     session:
         client: session
         prefix: "session:"
+        # Disable session locking for performance (?)
+        # https://github.com/snc/SncRedisBundle/issues/132
+        # https://github.com/snc/SncRedisBundle/issues/182
+        # https://github.com/snc/SncRedisBundle/issues/250
+        # https://github.com/snc/SncRedisBundle/pull/404
+        # locking: false
 
 oneup_flysystem:
     adapters:
