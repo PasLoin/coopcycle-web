@@ -6,6 +6,7 @@ import _ from 'lodash'
 import AddressBook from '../delivery/AddressBook'
 import DateTimePicker from '../widgets/DateTimePicker'
 import TagsInput from '../widgets/TagsInput'
+import i18n from '../i18n'
 
 class DeliveryForm {
   disable() {
@@ -19,6 +20,21 @@ class DeliveryForm {
 }
 
 let store
+
+function setPackages(name) {
+  const packages = []
+  $(`#${name}_packages_list`).children().each(function() {
+    packages.push({
+      type: $(this).find('select').val(),
+      quantity: $(this).find('input[type="number"]').val()
+    })
+  })
+
+  store.dispatch({
+    type: 'SET_PACKAGES',
+    packages
+  })
+}
 
 function createAddressWidget(name, type, cb) {
 
@@ -127,28 +143,69 @@ function createTagsWidget(name, type, tags) {
   })
 }
 
+function createPackageForm($list) {
+
+  var counter = $list.data('widget-counter') || $list.children().length
+  var newWidget = $list.attr('data-prototype')
+
+  newWidget = newWidget.replace(/__name__/g, counter)
+
+  counter++
+  $list.data('widget-counter', counter)
+
+  var newElem = $(newWidget)
+  newElem.find('input[type="number"]').val(1)
+  newElem.find('input[type="number"]').on('change', () => setPackages(name))
+  newElem.appendTo($list)
+}
+
+
+function createPackagesWidget(name, packagesRequired) {
+
+  if (packagesRequired) {
+    createPackageForm(
+      $(`#${name}_packages_list`)
+    )
+  }
+
+  $(`#${name}_packages_add`).click(function() {
+    const selector = $(this).attr('data-target')
+    createPackageForm(
+      $(selector)
+    )
+    setPackages(name)
+  })
+
+  $(`#${name}_packages`).on('click', '[data-delete]', function() {
+    const $target = $($(this).attr('data-target'))
+
+    if ($target.length === 0) {
+      return
+    }
+
+    const $list = $target.parent()
+
+    if (packagesRequired && $list.children().length === 1) {
+      return
+    }
+
+    $target.remove()
+    setPackages(name)
+  })
+
+  $(`#${name}_packages`).on('change', 'select', function() {
+    setPackages(name)
+  })
+}
+
 function parseWeight(value) {
-  const intValue = parseInt((value || 0), 10)
-  if (isNaN(intValue)) {
+
+  const floatValue = parseFloat((value || '0.0'))
+  if (isNaN(floatValue)) {
     return 0
   }
 
-  return intValue
-}
-
-function setPackages(name) {
-  const packages = []
-  $(`#${name}_packages_list`).children().each(function() {
-    packages.push({
-      type: $(this).find('select').val(),
-      quantity: $(this).find('input[type="number"]').val()
-    })
-  })
-
-  store.dispatch({
-    type: 'SET_PACKAGES',
-    packages
-  })
+  return parseInt((floatValue * 1000), 10)
 }
 
 function reducer(state = {}, action) {
@@ -263,35 +320,42 @@ export default function(name, options) {
     const packages = document.querySelector(`#${name}_packages`)
 
     if (packages) {
-      $(`#${name}_packages_add`).click(function() {
+      const packagesRequired = JSON.parse(packages.dataset.packagesRequired)
+      createPackagesWidget(name, packagesRequired)
+    }
 
-        var list = $($(this).attr('data-target'))
+    el.addEventListener('submit', (e) => {
 
-        var counter = list.data('widget-counter') || list.children().length
-        var newWidget = list.attr('data-prototype')
+      _.find(['pickup', 'dropoff'], type => {
 
-        newWidget = newWidget.replace(/__name__/g, counter)
-
-        counter++
-        list.data('widget-counter', counter)
-
-        var newElem = $(newWidget)
-        newElem.find('input[type="number"]').val(1)
-        newElem.find('input[type="number"]').on('change', () => setPackages(name))
-        newElem.appendTo(list)
-
-        setPackages(name)
-      })
-
-      $(`#${name}_packages`).on('click', '[data-delete]', function() {
-        const $target = $($(this).attr('data-target'))
-        if ($target.length > 0) {
-          $target.remove()
+        const isNewAddrInput = document.querySelector(`#${name}_${type}_address_isNewAddress`)
+        if (!isNewAddrInput) {
+          return false
         }
 
-        setPackages(name)
+        const searchInput = document.querySelector(`#${name}_${type}_address input[type="search"]`);
+        const latInput = document.querySelector(`#${name}_${type}_address [data-address-prop="latitude"]`)
+        const lngInput = document.querySelector(`#${name}_${type}_address [data-address-prop="longitude"]`)
+        const streetAddrInput = document.querySelector(`#${name}_${type}_address_newAddress_streetAddress`)
+
+        if (searchInput.validity.valid) {
+          if (_.isEmpty(latInput.value) || _.isEmpty(lngInput.value)
+          || (searchInput.value !== streetAddrInput.value)) {
+            e.preventDefault();
+            searchInput.setCustomValidity(i18n.t('PLEASE_SELECT_ADDRESS'))
+            if (HTMLInputElement.prototype.reportValidity) {
+              searchInput.reportValidity()
+            }
+
+            return true
+          }
+        }
+
+        return false
+
       })
-    }
+
+    }, false)
 
   }
 

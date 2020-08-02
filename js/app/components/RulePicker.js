@@ -1,6 +1,7 @@
 import React from 'react'
 import PropTypes from 'prop-types'
-import i18n from '../i18n'
+import { withTranslation } from 'react-i18next'
+
 import RulePickerLine from './RulePickerLine'
 import parsePricingRule from '../delivery/pricing-rule-parser'
 
@@ -12,6 +13,10 @@ const lineToString = state => {
 
   if (state.operator === 'in' && Array.isArray(state.right) && state.right.length === 2) {
     return `${state.left} in ${state.right[0]}..${state.right[1]}`
+  }
+
+  if (state.left === 'packages' && state.operator === 'containsAtLeastOne') {
+    return `packages.containsAtLeastOne("${state.right}")`
   }
 
   if (state.left === 'diff_days(pickup)') {
@@ -97,13 +102,14 @@ class RulePicker extends React.Component {
             operator={ line.operator }
             value={ line.right }
             zones={ this.props.zones }
+            packages={ this.props.packages }
             onUpdate={ this.updateLine }
             onDelete={ this.deleteLine } />
         )) }
         <div className="row">
           <div className="col-xs-12 text-right">
             <button className="btn btn-xs btn-primary" onClick={this.addLine}>
-              <i className="fa fa-plus"></i> { i18n.t('RULE_PICKER_ADD_CONDITION') }
+              <i className="fa fa-plus"></i> { this.props.t('RULE_PICKER_ADD_CONDITION') }
             </button>
           </div>
         </div>
@@ -115,10 +121,18 @@ class RulePicker extends React.Component {
   }
 }
 
+RulePicker.defaultProps = {
+  expression: '',
+  onExpressionChange: () => {},
+  zones: [],
+  packages: [],
+}
+
 RulePicker.propTypes = {
   expression: PropTypes.string.isRequired,
   onExpressionChange: PropTypes.func.isRequired,
-  zones: PropTypes.arrayOf(PropTypes.string)
+  zones: PropTypes.arrayOf(PropTypes.string),
+  packages: PropTypes.arrayOf(PropTypes.string),
 }
 
-export default RulePicker
+export default withTranslation()(RulePicker)

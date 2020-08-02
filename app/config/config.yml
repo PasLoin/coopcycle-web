@@ -1,5 +1,4 @@
 imports:
-    - { resource: parameters.yml }
     - { resource: security.yml }
     - { resource: oauth.yml }
     - { resource: services.yml }
@@ -12,15 +11,36 @@ imports:
 # Put parameters here that don't need to change on each machine where the app is deployed
 # http://symfony.com/doc/current/best_practices/configuration.html#application-related-configuration
 parameters:
+    secret: "%env(APP_SECRET)%"
+    country_iso: "%env(COOPCYCLE_COUNTRY)%"
+    region_iso: "%env(COOPCYCLE_REGION)%"
+    coopcycle.locale: "%env(COOPCYCLE_LOCALE)%"
+    database_driver:   pdo_pgsql
+    database_host:     "%env(COOPCYCLE_DB_HOST)%"
+    database_port:     "%env(COOPCYCLE_DB_PORT)%"
+    database_name:     "%env(COOPCYCLE_DB_NAME)%"
+    database_user:     "%env(COOPCYCLE_DB_USER)%"
+    database_password: "%env(COOPCYCLE_DB_PASSWORD)%"
     locale: "%coopcycle.locale%"
-    locale_regex: ca|fr|en|es|de|it|pl
-    router.request_context.host: '%host%'
+    locale_regex: ca|fr|en|es|de|it|pl|pt-BR
+    router.request_context.host: "%env(APP_HOST)%"
     loopeat_enabled: '%env(bool:LOOPEAT_ENABLED)%'
     loopeat_base_url: '%env(LOOPEAT_BASE_URL)%'
     loopeat_client_id: '%env(LOOPEAT_CLIENT_ID)%'
     loopeat_client_secret: '%env(LOOPEAT_CLIENT_SECRET)%'
+    loopeat_partner_id: '%env(LOOPEAT_PARTNER_ID)%'
+    loopeat_partner_secret: '%env(LOOPEAT_PARTNER_SECRET)%'
     tile38_fleet_key: '%database_name%:fleet'
     tile38_doorstep_chan_namespace: '%database_name%'
+    cors_allow_origin: http://localhost
+    jwt_public_key_path: "%kernel.project_dir%/%env(COOPCYCLE_PUBLIC_KEY_FILE)%"
+    jwt_private_key_path: "%kernel.project_dir%/%env(COOPCYCLE_PRIVATE_KEY_FILE)%"
+    transactional_address: "%env(COOPCYCLE_MAIL_SENDER_ADDRESS)%"
+    transactional_sender_name: "%env(COOPCYCLE_MAIL_SENDER_NAME)%"
+    osrm_host: "%env(COOPCYCLE_OSRM_HOST)%"
+    is_demo: "%env(bool:COOPCYCLE_DEMO)%"
+    sentry_public_dsn: "%env(COOPCYCLE_SENTRY_DSN)%"
+    foodtech_enabled: "%env(bool:COOPCYCLE_FOODTECH_ENABLED)%"
 
 services:
     tag_manager.cache:
@@ -54,7 +74,8 @@ framework:
     assets: ~
     cache:
         prefix_seed: "%database_name%"
-        default_redis_provider: "%redis_dsn%"
+        app: cache.adapter.redis
+        default_redis_provider: "%env(COOPCYCLE_REDIS_DSN)%"
         pools:
             enabled_filter_configurator.cache:
                 adapter: cache.adapter.filesystem
@@ -77,7 +98,7 @@ framework:
         transports:
             # https://symfony.com/doc/current/messenger.html#redis-transport
             async:
-                dsn: "%redis_dsn%"
+                dsn: "%env(COOPCYCLE_REDIS_DSN)%"
                 options:
                     stream: "%database_name%:messages"
                     group: "%database_name%"
@@ -95,42 +116,47 @@ twig:
     debug:            "%kernel.debug%"
     strict_variables: "%kernel.debug%"
     form_themes:
-        - '@App/form/address_book.html.twig'
-        - '@App/form/delivery.html.twig'
+        - 'form/address_book.html.twig'
+        - 'form/price_with_tax.html.twig'
+        - 'form/delivery.html.twig'
         - '@VichUploader/Form/fields.html.twig'
     globals:
         is_demo: "%is_demo%"
         sentry_public_dsn: "%sentry_public_dsn%"
         country_iso: "%country_iso%"
+        region_iso: "%region_iso%"
         cart_provider: '@AppBundle\Service\CartProviderService'
         settings_manager: "@coopcycle.settings_manager"
+        analytics_disabled: "%kernel.debug%"
         matomo_hostname: "%env(COOPCYCLE_MATOMO_HOSTNAME)%"
         matomo_site_id: "%env(COOPCYCLE_MATOMO_SITE_ID)%"
-        matomo_disabled: "%kernel.debug%"
+        countly_script: "%env(COOPCYCLE_COUNTLY_SCRIPT)%"
+        countly_hostname: "%env(COOPCYCLE_COUNTLY_HOSTNAME)%"
+        countly_app_key: "%env(COOPCYCLE_COUNTLY_APP_KEY)%"
         currency_context: "@sylius.context.currency"
+        tax_incl: '%env(bool:COOPCYCLE_TAX_INCL)%'
+        loopeat_context: '@AppBundle\LoopEat\Context'
+        sentry_apm_enabled: "%env(bool:COOPCYCLE_SENTRY_APM_ENABLED)%"
+        legacy_taxes: '%env(bool:COOPCYCLE_LEGACY_TAXES)%'
     exception_controller: null
 
 # Doctrine Configuration
 doctrine:
     dbal:
-        driver:   "%database_driver%"
-        host:     "%database_host%"
-        port:     "%database_port%"
-        dbname:   "%database_name%"
-        user:     "%database_user%"
-        password: "%database_password%"
+        driver:   pdo_pgsql
+        host:     "%env(COOPCYCLE_DB_HOST)%"
+        port:     "%env(COOPCYCLE_DB_PORT)%"
+        dbname:   "%env(COOPCYCLE_DB_NAME)%"
+        user:     "%env(COOPCYCLE_DB_USER)%"
+        password: "%env(COOPCYCLE_DB_PASSWORD)%"
         sslmode: "%env(COOPCYCLE_POSTGRES_SSLMODE)%"
         charset:  UTF8
         types:
-            geography:
-                class: 'Jsor\Doctrine\PostGIS\Types\GeographyType'
-            geometry:
-                class: 'Jsor\Doctrine\PostGIS\Types\GeometryType'
-            raster:
-                class: 'Jsor\Doctrine\PostGIS\Types\RasterType'
-            geojson:
-                class: 'AppBundle\Doctrine\DBAL\Types\GeoJSONType'
-            uuid:  Ramsey\Uuid\Doctrine\UuidType
+            geography: Jsor\Doctrine\PostGIS\Types\GeographyType
+            geometry: Jsor\Doctrine\PostGIS\Types\GeometryType
+            raster: Jsor\Doctrine\PostGIS\Types\RasterType
+            geojson: AppBundle\Doctrine\DBAL\Types\GeoJSONType
+            uuid: Ramsey\Uuid\Doctrine\UuidType
             phone_number: Misd\PhoneNumberBundle\Doctrine\DBAL\Types\PhoneNumberType
             numrange: AppBundle\Doctrine\DBAL\Types\NumRangeType
             tsrange: AppBundle\Doctrine\DBAL\Types\TsRangeType
@@ -189,8 +215,8 @@ api_platform:
     enable_re_doc: true
     mapping:
         paths:
-            - '%kernel.project_dir%/src/AppBundle/Api/Dto'
-            - '%kernel.project_dir%/src/AppBundle/Api/Resource'
+            - '%kernel.project_dir%/src/Api/Dto'
+            - '%kernel.project_dir%/src/Api/Resource'
     exception_to_status:
         Symfony\Component\Serializer\Exception\ExceptionInterface: 400
         ApiPlatform\Core\Exception\InvalidArgumentException: 400
@@ -199,16 +225,17 @@ api_platform:
     # see https://github.com/api-platform/core/pull/2721
     messenger:
         enabled: false
+    formats:
+        jsonld: ['application/ld+json']
+        json: ['application/json']
+        csv: ['text/csv']
+        html: ['text/html']
 
 # Swiftmailer Configuration
 swiftmailer:
-    transport: "%mailer_transport%"
-    host:      "%mailer_host%"
-    username:  "%mailer_user%"
-    password:  "%mailer_password%"
-    port:      "%mailer_port%"
-    encryption: "%mailer_encryption%"
-    spool:     { type: memory }
+    url: "%env(COOPCYCLE_MAIL_URL)%"
+    transport: smtp
+    spool: { type: memory }
 
 # Nelmio CORS
 nelmio_cors:
@@ -239,8 +266,8 @@ fos_user:
 lexik_jwt_authentication:
     secret_key:  "%jwt_private_key_path%"
     public_key:  "%jwt_public_key_path%"
-    pass_phrase: "%jwt_key_pass_phrase%"
-    token_ttl:   "%jwt_token_ttl%"
+    pass_phrase: "%env(COOPCYCLE_PRIVATE_KEY_PASSPHRASE)%"
+    token_ttl:   "%env(COOPCYCLE_JWT_TTL)%"
     token_extractors:
         authorization_header:      # look for a token as Authorization Header
             enabled: true
@@ -259,22 +286,22 @@ snc_redis:
         default:
             type: phpredis
             alias: default
-            dsn: "%redis_dsn%"
+            dsn: "%env(COOPCYCLE_REDIS_DSN)%"
             options:
                 prefix: "%database_name%:"
         session:
             type: phpredis
             alias: session
-            dsn: "%redis_dsn%"
+            dsn: "%env(COOPCYCLE_REDIS_DSN)%"
             options:
                 prefix: "%database_name%:"
         tile38:
-            type: predis
+            type: phpredis
             alias: tile38
             dsn: "%env(COOPCYCLE_TILE38_DSN)%"
             options:
-                # https://github.com/nrk/predis/issues/33
-                read_write_timeout: 0
+                # https://github.com/phpredis/phpredis/issues/70#issuecomment-348997806
+                read_write_timeout: -1
     session:
         client: session
         prefix: "session:"
@@ -287,53 +314,32 @@ snc_redis:
 
 oneup_flysystem:
     adapters:
-        assets_local:
-            local:
-                directory: '%kernel.project_dir%/web/images/assets'
-        product_images_local:
-            local:
-                directory: '%kernel.project_dir%/web/images/products'
-        restaurant_images_local:
-            local:
-                directory: '%kernel.project_dir%/web/images/restaurants'
-        store_images_local:
-            local:
-                directory: '%kernel.project_dir%/web/images/stores'
-        task_images_local:
-            local:
-                directory: '%kernel.project_dir%/web/images/tasks'
-        invoices_local:
-            local:
-                directory: '%kernel.project_dir%/web/invoices'
-        receipts_local:
-            local:
-                directory: '%kernel.project_dir%/web/receipts'
-        assets_s3:
+        assets:
             awss3v3:
                 client: s3_client
                 bucket: '%env(S3_BUCKET)%'
                 prefix: assets
-        product_images_s3:
+        product_images:
             awss3v3:
                 client: s3_client
                 bucket: '%env(S3_BUCKET)%'
                 prefix: products
-        restaurant_images_s3:
+        restaurant_images:
             awss3v3:
                 client: s3_client
                 bucket: '%env(S3_BUCKET)%'
                 prefix: restaurants
-        store_images_s3:
+        store_images:
             awss3v3:
                 client: s3_client
                 bucket: '%env(S3_BUCKET)%'
                 prefix: stores
-        task_images_s3:
+        task_images:
             awss3v3:
                 client: s3_client
                 bucket: '%env(S3_BUCKET)%'
                 prefix: tasks
-        receipts_s3:
+        receipts:
             awss3v3:
                 client: s3_client
                 bucket: '%env(S3_BUCKET)%'
@@ -343,63 +349,44 @@ oneup_flysystem:
                 client: s3_client
                 bucket: '%env(S3_BUCKET)%'
                 prefix: task_imports
+        product_imports:
+            awss3v3:
+                client: s3_client
+                bucket: '%env(S3_BUCKET)%'
+                prefix: product_imports
     filesystems:
         assets:
-            adapter: assets_local
+            adapter: assets
             alias: assets_filesystem
             mount: assets_filesystem
         product_images:
-            adapter: product_images_local
+            adapter: product_images
             alias: product_images_filesystem
             mount: product_images_filesystem
         restaurant_images:
-            adapter: restaurant_images_local
+            adapter: restaurant_images
             alias: restaurant_images_filesystem
             mount: restaurant_images_filesystem
         store_images:
-            adapter: store_images_local
+            adapter: store_images
             alias: store_images_filesystem
             mount: store_images_filesystem
         task_images:
-            adapter: task_images_local
+            adapter: task_images
             alias: task_images_filesystem
             mount: task_images_filesystem
-        assets_s3:
-            adapter: assets_s3
-            alias: assets_s3_filesystem
-            mount: assets_s3_filesystem
-        product_images_s3:
-            adapter: product_images_s3
-            alias: product_images_s3_filesystem
-            mount: product_images_s3_filesystem
-        restaurant_images_s3:
-            adapter: restaurant_images_s3
-            alias: restaurant_images_s3_filesystem
-            mount: restaurant_images_s3_filesystem
-        store_images_s3:
-            adapter: store_images_s3
-            alias: store_images_s3_filesystem
-            mount: store_images_s3_filesystem
-        task_images_s3:
-            adapter: task_images_s3
-            alias: task_images_s3_filesystem
-            mount: task_images_s3_filesystem
-        invoices:
-            adapter: invoices_local
-            alias: invoices_filesystem
-            mount: invoices_filesystem
         receipts:
-            adapter: receipts_local
+            adapter: receipts
             alias: receipts_filesystem
             mount: receipts_filesystem
-        receipts_s3:
-            adapter: receipts_s3
-            alias: receipts_s3_filesystem
-            mount: receipts_s3_filesystem
         task_imports:
             adapter: task_imports
             alias: task_imports_filesystem
             mount: task_imports_filesystem
+        product_imports:
+            adapter: product_imports
+            alias: product_imports_filesystem
+            mount: product_imports_filesystem
 
 vich_uploader:
     db_driver: orm
@@ -407,7 +394,7 @@ vich_uploader:
     mappings:
         restaurant_image:
             uri_prefix: ''
-            upload_destination: restaurant_images_s3_filesystem
+            upload_destination: restaurant_images_filesystem
             namer: vich_uploader.namer_uniqid
             directory_namer:
                 service: vich_uploader.directory_namer_subdir
@@ -416,7 +403,7 @@ vich_uploader:
                     dirs: 2
         store_image:
             uri_prefix: ''
-            upload_destination: store_images_s3_filesystem
+            upload_destination: store_images_filesystem
             namer: vich_uploader.namer_uniqid
             directory_namer:
                 service: vich_uploader.directory_namer_subdir
@@ -425,7 +412,7 @@ vich_uploader:
                     dirs: 2
         task_image:
             uri_prefix: ''
-            upload_destination: task_images_s3_filesystem
+            upload_destination: task_images_filesystem
             namer: vich_uploader.namer_uniqid
             directory_namer:
                 service: vich_uploader.directory_namer_subdir
@@ -434,7 +421,7 @@ vich_uploader:
                     dirs: 2
         product_image:
             uri_prefix: ''
-            upload_destination: product_images_s3_filesystem
+            upload_destination: product_images_filesystem
             namer: vich_uploader.namer_uniqid
             directory_namer:
                 service: vich_uploader.directory_namer_subdir
@@ -455,11 +442,11 @@ csa_guzzle:
                 lazy: true
         browserless:
             config:
-                base_uri: "%browserless_base_uri%"
+                base_uri: "%env(COOPCYCLE_BROWSERLESS_HOST)%"
                 lazy: true
         mjml_server:
             config:
-                base_uri: "%mjml_server_base_uri%"
+                base_uri: "%env(COOPCYCLE_MJML_HOST)%"
                 lazy: true
         api:
             config:
@@ -467,7 +454,13 @@ csa_guzzle:
                 lazy: true
 
 sylius_taxation:
-    driver: doctrine/orm
+    resources:
+        tax_category:
+            classes:
+                model: AppBundle\Entity\Sylius\TaxCategory
+        tax_rate:
+            classes:
+                model: AppBundle\Entity\Sylius\TaxRate
 
 sylius_order:
     resources:
@@ -561,6 +554,13 @@ nelmio_alice:
     locale: 'fr_FR'
 
 fos_js_routing:
+    cache_control:
+        public: true
+        maxage: 600
+        smaxage: 600
+        expires: '10 minutes'
+        vary:
+            - Accept-Encoding
     routes_to_expose:
         - ^restaurant$
         - ^restaurants$
@@ -585,7 +585,6 @@ fos_js_routing:
         - admin_task_receipt
         - profile_jwt
         - profile_notifications
-        - profile_notifications_unread
         - profile_notifications_mark_as_read
         - profile_order_accept
         - profile_order_refuse
@@ -682,22 +681,24 @@ liip_imagine:
     loaders:
         default:
             filesystem:
+                # https://github.com/liip/LiipImagineBundle/pull/1094
+                allow_unresolvable_data_roots: true
                 data_root: '%kernel.project_dir%/web'
         restaurant_images:
             flysystem:
-                filesystem_service: oneup_flysystem.restaurant_images_s3_filesystem
+                filesystem_service: oneup_flysystem.restaurant_images_filesystem
         product_images:
             flysystem:
-                filesystem_service: oneup_flysystem.product_images_s3_filesystem
+                filesystem_service: oneup_flysystem.product_images_filesystem
         store_images:
             flysystem:
-                filesystem_service: oneup_flysystem.store_images_s3_filesystem
+                filesystem_service: oneup_flysystem.store_images_filesystem
         task_images:
             flysystem:
-                filesystem_service: oneup_flysystem.task_images_s3_filesystem
+                filesystem_service: oneup_flysystem.task_images_filesystem
         assets:
             flysystem:
-                filesystem_service: oneup_flysystem.assets_s3_filesystem
+                filesystem_service: oneup_flysystem.assets_filesystem
 
 oneup_uploader:
     mappings:
@@ -705,7 +706,7 @@ oneup_uploader:
             frontend: dropzone
             storage:
                 type: flysystem
-                filesystem: oneup_flysystem.restaurant_images_s3_filesystem
+                filesystem: oneup_flysystem.restaurant_images_filesystem
             allowed_mimetypes:
                 image/jpg: []
                 image/jpeg: []
@@ -714,7 +715,7 @@ oneup_uploader:
             frontend: dropzone
             storage:
                 type: flysystem
-                filesystem: oneup_flysystem.product_images_s3_filesystem
+                filesystem: oneup_flysystem.product_images_filesystem
             allowed_mimetypes:
                 image/jpg: []
                 image/jpeg: []
@@ -723,7 +724,7 @@ oneup_uploader:
             frontend: dropzone
             storage:
                 type: flysystem
-                filesystem: oneup_flysystem.assets_s3_filesystem
+                filesystem: oneup_flysystem.assets_filesystem
             namer: AppBundle\Utils\LogoNamer
             allowed_mimetypes:
                 image/png: []
@@ -739,12 +740,24 @@ oneup_uploader:
                 application/octet-stream: []
                 text/csv: []
                 text/plain: []
+        products:
+            frontend: dropzone
+            storage:
+                type: flysystem
+                filesystem: oneup_flysystem.product_imports_filesystem
+            allowed_mimetypes:
+                application/vnd.oasis.opendocument.spreadsheet: []
+                application/vnd.openxmlformats-officedocument.spreadsheetml.sheet: []
+                application/vnd.ms-excel: []
+                application/octet-stream: []
+                text/csv: []
+                text/plain: []
 
 trikoder_oauth2:
     authorization_server:
         private_key: "%jwt_private_key_path%"
-        private_key_passphrase: "%jwt_key_pass_phrase%"
-        encryption_key: "%trikoder_encryption_key%"
+        private_key_passphrase: "%env(COOPCYCLE_PRIVATE_KEY_PASSPHRASE)%"
+        encryption_key: "%env(COOPCYCLE_OAUTH_ENCRYPTION_KEY)%"
         access_token_ttl: PT1H
         refresh_token_ttl: P1M
         enable_client_credentials_grant: true

@@ -112,6 +112,56 @@ describe('Pricing rule parser', function() {
     }])
   })
 
+  it('should parse diff_days with equality', function() {
+    const expression = 'diff_days(pickup) == 1'
+    const result = parsePricingRule(expression)
+    expect(result).toEqual([{
+      left: 'diff_days(pickup)',
+      operator: '==',
+      right: 1
+    }])
+  })
+
+  it('should parse diff_hours with comparison', function() {
+    const expression = 'diff_hours(pickup) > 2'
+    const result = parsePricingRule(expression)
+    expect(result).toEqual([{
+      left: 'diff_hours(pickup)',
+      operator: '>',
+      right: 2
+    }])
+  })
+
+  it('should parse packages', function() {
+    const expression = 'packages.containsAtLeastOne("XL")'
+    const result = parsePricingRule(expression)
+    expect(result).toEqual([{
+      left: 'packages',
+      operator: 'containsAtLeastOne',
+      right: 'XL'
+    }])
+  })
+
+  it('should parse order.itemsTotal with comparator', function() {
+    const expression = 'order.itemsTotal > 3000'
+    const result = parsePricingRule(expression)
+    expect(result).toEqual([{
+      left: 'order.itemsTotal',
+      operator: '>',
+      right: 3000
+    }])
+  })
+
+  it('should parse order.itemsTotal with range', function() {
+    const expression = 'order.itemsTotal in 3000..5000'
+    const result = parsePricingRule(expression)
+    expect(result).toEqual([{
+      left: 'order.itemsTotal',
+      operator: 'in',
+      right: [ 3000, 5000 ]
+    }])
+  })
+
   it('should return empty array', function() {
     const result = parsePricingRule('')
     expect(result).toEqual([])

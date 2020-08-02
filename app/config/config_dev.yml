@@ -38,6 +38,12 @@ monolog:
             formatter: monolog.formatter.json
             max_files: 3
             channels: [fee_calculation]
+        timing:
+            type: rotating_file
+            path: "%kernel.logs_dir%/timing.%kernel.environment%.log"
+            level: info
+            max_files: 3
+            channels: [timing]
         geofencing:
             type: rotating_file
             path: "%kernel.logs_dir%/geofencing.%kernel.environment%.log"
@@ -72,18 +78,6 @@ monolog:
         #    level:  info
 
 services:
-    apns_php.logger:
-        class: AppBundle\Utils\ApnsPHPLogger
-        arguments: [ '@logger' ]
-    apns_php.push:
-        class: \ApnsPHP_Push
-        arguments:
-            - 1
-            - "%apns_certificate_file%"
-        calls:
-            - method: setLogger
-              arguments:
-                  - '@apns_php.logger'
     twig.cache_extension:
         class: Twig\CacheExtension\Extension
         arguments:

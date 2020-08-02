@@ -1,7 +1,7 @@
 import React from 'react'
-import i18n from '../i18n'
 import _ from 'lodash'
 import isScalar from 'locutus/php/var/is_scalar'
+import { withTranslation } from 'react-i18next'
 
 /*
 
@@ -28,7 +28,10 @@ const typeToOperators = {
   'pickup.address': ['in_zone', 'out_zone'],
   'dropoff.address': ['in_zone', 'out_zone'],
   'diff_days(pickup)': ['==', '<', '>', 'in'],
+  'diff_hours(pickup)': ['==', '<', '>'],
   'dropoff.doorstep': ['=='],
+  'packages': ['containsAtLeastOne'],
+  'order.itemsTotal': ['==', '<', '>', 'in'],
 }
 
 class RulePickerLine extends React.Component {
@@ -155,21 +158,22 @@ class RulePickerLine extends React.Component {
       )
     // vehicle, diff_days(pickup)
     case '==':
-      if (this.state.type === 'diff_days(pickup)') {
-        return this.renderNumberInput()
+
+      if (this.state.type === 'vehicle') {
+        return (
+          <select onChange={this.handleValueChange} value={this.state.value} className="form-control input-sm">
+            <option value="">-</option>
+            <option value="bike">Vélo</option>
+            <option value="cargo_bike">Vélo Cargo</option>
+          </select>
+        )
       }
 
       if (this.state.type === 'dropoff.doorstep') {
         return this.renderBooleanInput()
       }
 
-      return (
-        <select onChange={this.handleValueChange} value={this.state.value} className="form-control input-sm">
-          <option value="">-</option>
-          <option value="bike">Vélo</option>
-          <option value="cargo_bike">Vélo Cargo</option>
-        </select>
-      )
+      return this.renderNumberInput()
     // weight, distance, diff_days(pickup)
     case 'in':
       return (
@@ -185,6 +189,15 @@ class RulePickerLine extends React.Component {
     case '<':
     case '>':
       return this.renderNumberInput()
+    case 'containsAtLeastOne':
+      return (
+        <select onChange={this.handleValueChange} value={this.state.value} className="form-control input-sm">
+          <option value="">-</option>
+          { this.props.packages.map((item, index) => {
+            return (<option value={item} key={index}>{item}</option>)
+          })}
+        </select>
+      )
     }
   }
 
@@ -195,13 +208,20 @@ class RulePickerLine extends React.Component {
         <div className="col-md-3 form-group">
           <select value={this.state.type} onChange={this.onTypeSelect} className="form-control input-sm">
             <option value="">-</option>
-            <option value="distance">{ i18n.t('RULE_PICKER_LINE_DISTANCE') }</option>
-            <option value="weight">{ i18n.t('RULE_PICKER_LINE_WEIGHT') }</option>
-            <option value="vehicle">{ i18n.t('RULE_PICKER_LINE_BIKE_TYPE') }</option>
-            <option value="pickup.address">{ i18n.t('RULE_PICKER_LINE_PICKUP_ADDRESS') }</option>
-            <option value="dropoff.address">{ i18n.t('RULE_PICKER_LINE_DROPOFF_ADDRESS') }</option>
-            <option value="diff_days(pickup)">{ i18n.t('RULE_PICKER_LINE_PICKUP_DIFF_DAYS') }</option>
-            <option value="dropoff.doorstep">{ i18n.t('RULE_PICKER_LINE_DROPOFF_DOORSTEP') }</option>
+            <optgroup label={ this.props.t('RULE_PICKER_LINE_OPTGROUP_DELIVERY') }>
+              <option value="distance">{ this.props.t('RULE_PICKER_LINE_DISTANCE') }</option>
+              <option value="weight">{ this.props.t('RULE_PICKER_LINE_WEIGHT') }</option>
+              <option value="vehicle">{ this.props.t('RULE_PICKER_LINE_BIKE_TYPE') }</option>
+              <option value="pickup.address">{ this.props.t('RULE_PICKER_LINE_PICKUP_ADDRESS') }</option>
+              <option value="dropoff.address">{ this.props.t('RULE_PICKER_LINE_DROPOFF_ADDRESS') }</option>
+              <option value="diff_hours(pickup)">{ this.props.t('RULE_PICKER_LINE_PICKUP_DIFF_HOURS') }</option>
+              <option value="diff_days(pickup)">{ this.props.t('RULE_PICKER_LINE_PICKUP_DIFF_DAYS') }</option>
+              <option value="dropoff.doorstep">{ this.props.t('RULE_PICKER_LINE_DROPOFF_DOORSTEP') }</option>
+              <option value="packages">{ this.props.t('RULE_PICKER_LINE_PACKAGES') }</option>
+            </optgroup>
+            <optgroup label={ this.props.t('RULE_PICKER_LINE_OPTGROUP_ORDER') }>
+              <option value="order.itemsTotal">{ this.props.t('RULE_PICKER_LINE_ORDER_ITEMS_TOTAL') }</option>
+            </optgroup>
           </select>
         </div>
         <div className="col-md-3">
@@ -229,5 +249,4 @@ class RulePickerLine extends React.Component {
   }
 }
 
-
-export default RulePickerLine
+export default withTranslation()(RulePickerLine)

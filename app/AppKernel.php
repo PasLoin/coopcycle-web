@@ -72,29 +72,44 @@ class AppKernel extends Kernel
         if (in_array($this->getEnvironment(), ['dev', 'test'], true)) {
             $bundles[] = new Symfony\Bundle\DebugBundle\DebugBundle();
             $bundles[] = new Symfony\Bundle\WebProfilerBundle\WebProfilerBundle();
-            $bundles[] = new Symfony\Bundle\WebServerBundle\WebServerBundle();
         }
 
         return $bundles;
     }
 
+    /**
+     * {@inheritdoc}
+     */
+    public function getProjectDir(): string
+    {
+        if (isset($_ENV['APP_PROJECT_DIR'])) {
+            return $_ENV['APP_PROJECT_DIR'];
+        } elseif (isset($_SERVER['APP_PROJECT_DIR'])) {
+            return $_SERVER['APP_PROJECT_DIR'];
+        }
+
+        return parent::getProjectDir();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function getRootDir()
     {
-        return __DIR__;
+        return $this->getProjectDir().'/app';
     }
 
-    public function getCacheDir()
-    {
-        return dirname(__DIR__).'/var/cache/'.$this->getEnvironment();
-    }
-
+    /**
+     * {@inheritdoc}
+     */
     public function getLogDir()
     {
-        return dirname(__DIR__).'/var/logs';
+        // Just to add the "s"
+        return $this->getProjectDir().'/var/logs';
     }
 
     public function registerContainerConfiguration(LoaderInterface $loader)
     {
-        $loader->load($this->getRootDir().'/config/config_'.$this->getEnvironment().'.yml');
+        $loader->load($this->getProjectDir().'/app/config/config_'.$this->getEnvironment().'.yml');
     }
 }

@@ -1,0 +1,131 @@
+service:
+  rates:
+    be:
+      standard: 0.21
+    ca-bc:
+      gst: 0.05
+    de:
+      standard: 0.16
+    es:
+      standard: 0.21
+    fr:
+      standard: 0.20
+    gb:
+      standard: 0.20
+    pl:
+      standard: 0.23
+
+service_tax_exempt:
+  rates:
+    be:
+      zero: 0.0
+    ca-bc:
+      zero: 0.0
+    de:
+      zero: 0.0
+    es:
+      zero: 0.0
+    fr:
+      zero: 0.0
+    gb:
+      zero: 0.0
+    pl:
+      zero: 0.0
+
+drink:
+  rates:
+    es:
+      reduced: 0.1
+    fr:
+      reduced: 0.055
+
+drink_alcohol:
+  rates:
+    be:
+      standard: 0.21
+    ca-bc:
+      gst: 0.05
+      pst: 0.10
+    de:
+      standard: 0.16
+    es:
+      standard: 0.21
+    fr:
+      standard: 0.20
+    gb:
+      standard: 0.20
+    pl:
+      standard: 0.23
+
+food:
+  rates:
+    ca-bc:
+      pst: 0.07
+
+food_takeaway:
+  rates:
+    be:
+      reduced: 0.06
+    de:
+      standard: 0.16
+    es:
+      intermediary: 0.1
+    fr:
+      intermediary: 0.1
+    gb:
+      zero: 0.0
+    pl:
+      intermediary: 0.08
+
+jewelry:
+  rates:
+    ca-bc:
+      pst: 0.07
+
+base_standard:
+  rates:
+    be:
+      standard: 0.21
+    ca-bc:
+      gst: 0.05
+      pst: 0.07
+    de:
+      standard: 0.16
+    es:
+      standard: 0.21
+    fr:
+      standard: 0.20
+    gb:
+      standard: 0.20
+    pl:
+      standard: 0.23
+
+base_intermediary:
+  rates:
+    be:
+      intermediary: 0.12
+    ca-bc:
+      gst: 0.05
+    es:
+      intermediary: 0.1
+    fr:
+      intermediary: 0.1
+    pl:
+      intermediary: 0.08
+
+base_reduced:
+  rates:
+    be:
+      reduced: 0.06
+    ca-bc:
+      zero: 0.00
+    de:
+      reduced: 0.05
+    es:
+      reduced: 0.04
+    fr:
+      reduced: 0.055
+    gb:
+      reduced: 0.05
+    pl:
+      reduced: 0.05

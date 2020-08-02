@@ -5,6 +5,8 @@ require('gasparesganga-jquery-loading-overlay')
 import DeliveryForm from '../forms/delivery'
 import PricePreview from './PricePreview'
 
+import './form.scss'
+
 let map
 let form
 let pricePreview
@@ -28,17 +30,12 @@ function route(delivery) {
   ])
     .then(route => {
 
-      var duration = parseInt(route.duration, 10)
       var distance = parseInt(route.distance, 10)
-
       var kms = (distance / 1000).toFixed(2)
-      var minutes = Math.ceil(duration / 60)
 
       return {
-        duration,
         distance,
         kms,
-        minutes
       }
     })
 }
@@ -46,11 +43,6 @@ function route(delivery) {
 const markerIcons = {
   pickup:  { icon: 'cube', color: '#E74C3C' },
   dropoff: { icon: 'flag', color: '#2ECC71' }
-}
-
-const addressTypeSelector = {
-  pickup:  { checkmark: '#delivery_pickup_checked' },
-  dropoff: { checkmark: '#delivery_dropoff_checked' }
 }
 
 function createMarker(location, addressType) {
@@ -70,11 +62,6 @@ function createMarker(location, addressType) {
   markers[addressType].addTo(map)
 
   MapHelper.fitToLayers(map, _.filter(markers))
-}
-
-function markAddressChecked(addressType) {
-  const { checkmark } = addressTypeSelector[addressType]
-  $(checkmark).removeClass('hidden')
 }
 
 function serializeAddress(address) {
@@ -100,14 +87,12 @@ window.initMap = function() {
           latitude: delivery.pickup.address.geo.latitude,
           longitude: delivery.pickup.address.geo.longitude
         }, 'pickup')
-        markAddressChecked('pickup')
       }
       if (delivery.dropoff.address) {
         createMarker({
           latitude: delivery.dropoff.address.geo.latitude,
           longitude: delivery.dropoff.address.geo.longitude
         }, 'dropoff')
-        markAddressChecked('dropoff')
       }
     },
     onChange: function(delivery) {
@@ -117,7 +102,6 @@ window.initMap = function() {
           latitude: delivery.pickup.address.geo.latitude,
           longitude: delivery.pickup.address.geo.longitude
         }, 'pickup')
-        markAddressChecked('pickup')
         $('#delivery_pickup_panel_title').text(delivery.pickup.address.streetAddress)
       }
       if (delivery.dropoff.address) {
@@ -125,7 +109,6 @@ window.initMap = function() {
           latitude: delivery.dropoff.address.geo.latitude,
           longitude: delivery.dropoff.address.geo.longitude
         }, 'dropoff')
-        markAddressChecked('dropoff')
         $('#delivery_dropoff_panel_title').text(delivery.dropoff.address.streetAddress)
       }
 
@@ -133,33 +116,42 @@ window.initMap = function() {
 
         this.disable()
 
-        route(delivery)
-          .then((infos) => {
-
+        const updateDistance = new Promise((resolve) => {
+          route(delivery).then((infos) => {
             $('#delivery_distance').text(`${infos.kms} Km`)
-            $('#delivery_duration').text(`${infos.minutes} min`)
+            resolve()
+          })
+        })
 
-            if (delivery.store && pricePreview) {
-
-              const deliveryAsPayload = {
-                ...delivery,
-                pickup: {
-                  ...delivery.pickup,
-                  address: serializeAddress(delivery.pickup.address)
-                },
-                dropoff: {
-                  ...delivery.dropoff,
-                  address: serializeAddress(delivery.dropoff.address)
-                }
+        const updatePrice = new Promise((resolve) => {
+          if (delivery.store && pricePreview) {
+            const deliveryAsPayload = {
+              ...delivery,
+              pickup: {
+                ...delivery.pickup,
+                address: serializeAddress(delivery.pickup.address)
+              },
+              dropoff: {
+                ...delivery.dropoff,
+                address: serializeAddress(delivery.dropoff.address)
               }
-
-              pricePreview.update(deliveryAsPayload)
             }
 
-            form.enable()
-          })
-          // eslint-disable-next-line no-console
-          .catch(e => console.error(e))
+            pricePreview.update(deliveryAsPayload).then(() => resolve())
+          } else {
+            resolve()
+          }
+        })
+
+        Promise.all([
+          updateDistance,
+          updatePrice,
+        ])
+        .then(() => {
+          form.enable()
+        })
+        // eslint-disable-next-line no-console
+        .catch(e => console.error(e))
       }
     }
   })

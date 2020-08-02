@@ -128,6 +128,9 @@
         "RULE_PICKER_LINE_PICKUP_ADDRESS": "Adresse de retrait",
         "RULE_PICKER_LINE_DROPOFF_ADDRESS": "Adresse de dépôt",
         "RULE_PICKER_LINE_DROPOFF_DOORSTEP": "Dépôt au pas de la porte",
+        "RULE_PICKER_LINE_ORDER_ITEMS_TOTAL": "Total produits",
+        "RULE_PICKER_LINE_OPTGROUP_DELIVERY": "Livraison",
+        "RULE_PICKER_LINE_OPTGROUP_ORDER": "Commande",
         "ORDER_LIST_STATE": "État",
         "ORDER_LIST_PREPARATION_TIME": "Heure de préparation",
         "ORDER_LIST_PICKUP_TIME": "Heure de pickup",
@@ -176,6 +179,7 @@
         "TAGS_SELECT_PLACEHOLDER": "Sélectionnez les tags…",
         "ADMIN_DASHBOARD_UNASSIGN_ALL_TASKS": "Dé-assigner toutes les tâches ?",
         "CART_DYNAMIC_DELIVERY_FEE": "Les frais de livraison sont calculés en fonction de votre adresse",
+        "RULE_PICKER_LINE_PICKUP_DIFF_HOURS": "Différence (heures)",
         "RULE_PICKER_LINE_PICKUP_DIFF_DAYS": "Différence (jours)",
         "ADMIN_DASHBOARD_VIEW_MODE_DROPOFF_DESC": "Afficher par dépôt décroissant",
         "ADMIN_DASHBOARD_VIEW_MODE_BY_GROUP": "Afficher par groupes",
@@ -193,6 +197,7 @@
         "OPENING_HOURS_BEHAVIOR": {
             "asap": "Au plus tôt",
             "time_slot": "Tranche horaire"
-        }
+        },
+        "PLEASE_SELECT_ADDRESS": "Veuillez sélectionner une adresse dans la liste déroulante"
     }
 }

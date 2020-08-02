@@ -147,7 +147,8 @@ services:
   coopcycle.domain.order.reactor.send_remote_push_notification:
     class: AppBundle\Domain\Order\Reactor\SendRemotePushNotification
     arguments:
-      - '@message_bus'
+      - '@fos_user.user_manager'
+      - '@messenger.default_bus'
       - '@api_platform.iri_converter'
       - '@serializer'
       - '@translator'

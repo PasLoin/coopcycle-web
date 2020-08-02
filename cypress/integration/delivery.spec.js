@@ -34,12 +34,11 @@ context('Delivery', () => {
 
     cy.get('#delivery_dropoff_address input[type="search"]')
         .type('72 rue st maur', { timeout: 15000 })
-    cy.contains('72 Rue Saint-Maur, Paris, France').click()
+    cy.contains('72 Rue St Maur, Paris, France').click()
 
     cy.wait('@apiRoutingRoute')
 
     cy.get('#delivery_distance').invoke('text').should('match', /[0-9\.]+ Km/)
-    cy.get('#delivery_duration').invoke('text').should('match', /[0-9]+ min/)
 
   })
 
@@ -65,7 +64,7 @@ context('Delivery', () => {
 
     // @see https://github.com/cypress-io/cypress/issues/1847
     cy.get('.pac-container .pac-item')
-      .contains('120 Rue Saint-Maur')
+      .contains('120 Rue St Maur')
       .trigger('mouseover')
       .click()
 

@@ -18,23 +18,23 @@ services:
     public: false
 
   AppBundle\Action\:
-    resource: '../../src/AppBundle/Action/*'
+    resource: '../../src/Action/*'
     tags: ['controller.service_arguments']
 
   AppBundle\EventSubscriber\:
-    resource: '../../src/AppBundle/EventSubscriber/*'
+    resource: '../../src/EventSubscriber/*'
 
   AppBundle\Service\:
-    resource: '../../src/AppBundle/Service/*'
+    resource: '../../src/Service/*'
 
   AppBundle\Message\:
-    resource: '../../src/AppBundle/Message/*'
+    resource: '../../src/Message/*'
 
   AppBundle\MessageHandler\:
-    resource: '../../src/AppBundle/MessageHandler/*'
+    resource: '../../src/MessageHandler/*'
 
   AppBundle\Controller\:
-    resource: '../../src/AppBundle/Controller'
+    resource: '../../src/Controller'
     tags: ['controller.service_arguments']
 
   coopcycle.repository.restaurant: '@AppBundle\Entity\RestaurantRepository'
@@ -87,6 +87,7 @@ services:
   AppBundle\Service\RoutingInterface: '@routing_service'
 
   League\Flysystem\Filesystem $taskImportsFilesystem: '@task_imports_filesystem'
+  League\Flysystem\Filesystem $receiptsFilesystem: '@receipts_filesystem'
 
   AppBundle\Routing\FoodtechEnabledAwareLoader:
     arguments:
@@ -109,9 +110,17 @@ services:
       - method: setLoopEatClientSecret
         arguments:
             - '%loopeat_client_secret%'
+      - method: setLoopEatPartnerId
+        arguments:
+            - '%loopeat_partner_id%'
+      - method: setLoopEatPartnerSecret
+        arguments:
+            - '%loopeat_partner_secret%'
     tags:
       - { name: csa_guzzle.client }
       - { name: monolog.logger, channel: loopeat }
+
+  AppBundle\LoopEat\Context: ~
 
   AppBundle\Controller\RestaurantController:
     arguments:
@@ -217,11 +226,7 @@ services:
   sylius.order_processing.order_taxes_processor:
     class: AppBundle\Sylius\OrderProcessing\OrderTaxesProcessor
     arguments:
-      - "@sylius.factory.adjustment"
-      - "@sylius.tax_rate_resolver"
-      - "@sylius.tax_calculator"
-      - "@coopcycle.settings_manager"
-      - "@sylius.repository.tax_category"
+      $state: "%region_iso%"
     tags:
       - { name: sylius.order_processor, priority: 32 }
 
@@ -374,11 +379,15 @@ services:
     arguments:
       $redis: "@snc_redis.default"
 
-  AppBundle\Utils\ShippingDateFilter: ~
+  AppBundle\Utils\ShippingDateFilter:
+    tags:
+      - { name: monolog.logger, channel: timing }
   AppBundle\Utils\OrderTimelineCalculator: ~
   AppBundle\Utils\OrderTimeHelper:
     arguments:
       $country: "%country_iso%"
+    tags:
+      - { name: monolog.logger, channel: timing }
 
   AppBundle\Entity\Listener\TaskListener:
     tags:
@@ -436,19 +445,6 @@ services:
     arguments:
       $properties: []
 
-  swiftmailer.transport.eventdispatcher.mailjet:
-    class: Swift_Events_SimpleEventDispatcher
-
-  swiftmailer.mailer.transport.mailjet:
-    class: Mailjet\MailjetSwiftMailer\SwiftMailer\MailjetTransport
-    arguments:
-        - "@swiftmailer.transport.eventdispatcher.mailjet"
-        - "%env(COOPCYCLE_MAILJET_API_KEY)%"
-        - "%env(COOPCYCLE_MAILJET_API_SECRET)%"
-
-  swiftmailer.mailer.default.transport.mailjet: '@swiftmailer.mailer.transport.mailjet'
-  mailjet: '@swiftmailer.mailer.default.transport.mailjet'
-
   AppBundle\Service\MailLoggerService:
     arguments: ["@logger"]
     tags:
@@ -485,11 +481,7 @@ services:
       - "@coopcycle.settings_manager"
       - "%transactional_address%"
 
-  AppBundle\Service\RemotePushNotificationManager:
-    arguments:
-      $apns: "@apns_php.push"
-      $apnsCertificatePassPhrase: "%apns_certificate_pass_phrase%"
-      $logger: "@logger"
+  AppBundle\Service\RemotePushNotificationManager: ~
 
   AppBundle\Service\Geocoder:
     arguments:
@@ -541,7 +533,7 @@ services:
   AppBundle\Action\Settings:
     public: true
     arguments:
-      $assetsFilesystem: '@assets_s3_filesystem'
+      $assetsFilesystem: '@assets_filesystem'
       $phoneNumberNormalizer: '@misd_phone_number.serializer.normalizer'
       $country: '%country_iso%'
       $locale: '%kernel.default_locale%'
@@ -728,7 +720,7 @@ services:
   AppBundle\Sylius\Order\ReceiptGenerator:
     arguments:
       $httpClient: '@csa_guzzle.client.browserless'
-      $filesystem: '@receipts_s3_filesystem'
+      $filesystem: '@receipts_filesystem'
       $taxRateRepository: '@sylius.repository.tax_rate'
       $locale: '%kernel.default_locale%'
 
@@ -770,3 +762,30 @@ services:
 
   AppBundle\Domain\Order\Workflow\Guard:
     public: true
+
+  AppBundle\Taxonomy\CuisineProvider: ~
+
+  Pushok\AuthProviderInterface: '@Pushok\AuthProvider\Token'
+
+  Pushok\AuthProvider\Token:
+    factory: ['Pushok\AuthProvider\Token', 'create']
+    arguments:
+      $options:
+        key_id: "%env(APNS_KEY_ID)%"
+        team_id: "%env(APNS_TEAM_ID)%"
+        app_bundle_id: "%env(APNS_APP_BUNDLE_ID)%"
+        private_key_path: "%env(APNS_PRIVATE_KEY_FILE)%"
+        private_key_secret: "%env(APNS_CERTIFICATE_PASS_PHRASE)%"
+
+  Pushok\Client:
+    arguments:
+      $isProductionEnv: true
+
+  AppBundle\Sylius\Taxation\TaxesProvider:
+    arguments:
+      $taxCategoryFactory: '@sylius.factory.tax_category'
+      $taxRateFactory: '@sylius.factory.tax_rate'
+
+  AppBundle\EventListener\AjaxSessionCloseListener:
+    tags:
+      - { name: "kernel.event_listener", event: "kernel.request", priority: -255 }

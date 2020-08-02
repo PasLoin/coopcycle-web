@@ -8,6 +8,8 @@ import { withTranslation } from 'react-i18next'
 import _ from 'lodash'
 
 import '../i18n'
+import { getCountry } from '../i18n'
+
 import { placeToAddress } from '../utils/GoogleMaps'
 import PoweredByGoogle from './powered_by_google_on_white.png'
 import {
@@ -18,8 +20,6 @@ import {
   theme as themeGB,
   poweredBy as poweredByGB,
   highlightFirstSuggestion as highlightFirstSuggestionGB } from './AddressAutosuggest/gb'
-
-const COUNTRY = window.AppData.countryIso
 
 const theme = {
   container:                'react-autosuggest__container address-autosuggest__container',
@@ -41,7 +41,7 @@ const theme = {
 const autocompleteOptions = {
   types: ['address'],
   componentRestrictions: {
-    country: COUNTRY || 'fr'
+    country: getCountry() || 'fr'
   }
 }
 
@@ -82,9 +82,14 @@ const generic = {
   },
   getInitialState: function () {
 
+    if (_.isString(this.props.address)) {
+      // eslint-disable-next-line no-console
+      console.warn('Using a string for the "address" prop is deprecated, use an object instead.')
+    }
+
     return {
       value: _.isObject(this.props.address) ?
-        (this.props.address.streetAddress || '') : '',
+        (this.props.address.streetAddress || '') : (_.isString(this.props.address) ? this.props.address : ''),
       suggestions: [],
       multiSection: false,
     }
@@ -159,9 +164,9 @@ const generic = {
 }
 
 const localize = (func, thisArg) => {
-  if (Object.prototype.hasOwnProperty.call(localized, COUNTRY)
-  &&  Object.prototype.hasOwnProperty.call(localized[COUNTRY], func)) {
-    return localized[COUNTRY][func].bind(thisArg)
+  if (Object.prototype.hasOwnProperty.call(localized, getCountry())
+  &&  Object.prototype.hasOwnProperty.call(localized[getCountry()], func)) {
+    return localized[getCountry()][func].bind(thisArg)
   }
 
   return generic[func].bind(thisArg)

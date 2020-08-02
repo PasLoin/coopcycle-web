@@ -1,0 +1,64 @@
+{% extends 'bootstrap_3_layout.html.twig' %}
+
+{% block _restaurant_imageFile_row %}
+  {% set image_url = coopcycle_asset(form.parent.vars.value, 'imageFile', 'restaurant_thumbnail') %}
+  <div class="form-group {% if not form.vars.valid %}has-error{% endif %}">
+    <div class="image-uploader"
+      {% if image_url is not empty %}style="background-image: url({{ image_url }})"{% endif %}>
+      <label for="{{ form.file.vars.id }}" class="btn btn-danger">
+        <i class="fa fa-upload"></i> {% trans %}restaurant.form.uploadImage{% endtrans %}
+      </label>
+      {{ form_widget(form.file) }}
+    </div>
+    {{ form_errors(form) }}
+  </div>
+  {% if form.delete is defined %}
+  {{ form_row(form.delete) }}
+  {% endif %}
+{% endblock %}
+
+{% block _restaurant_fulfillmentMethods_entry_row %}
+<div class="panel panel-default">
+  <div class="panel-heading">{{ ('fulfillment_method.' ~ form.vars.value.type)|trans }}</div>
+  <div class="panel-body">
+    {{ form_row(form) }}
+  </div>
+</div>
+{% endblock %}
+
+{% block _restaurant_fulfillmentMethods_entry_widget %}
+<div id="{{ form.vars.id }}">
+
+  {% set fulfillment_method = form.vars.value %}
+  {% set method = fulfillment_method.type %}
+
+  {% set method_disabled = (not form.vars.value.enabled ) %}
+  {# Only admins can modify "delivery" fulfillment method #}
+  {% if method == 'delivery' %}
+    {% set method_disabled = ( not is_granted('ROLE_ADMIN') and not (fulfillment_method.hasOption('allow_edit') and fulfillment_method.getOption('allow_edit') == true) ) %}
+  {% endif %}
+
+  {% set opening_hours_errors = [] %}
+  {% for key, value in form.openingHours %}
+    {% if not value.vars.valid %}
+      {% set opening_hours_errors = opening_hours_errors|merge([ key ]) %}
+    {% endif %}
+  {% endfor %}
+  {{ form_row(form.openingHours, { label: false, attr: {
+    'data-widget': 'opening-hours',
+    'data-errors': opening_hours_errors|json_encode,
+    'data-disabled': method_disabled|json_encode,
+    'data-behavior': form.vars.value.openingHoursBehavior|e('html_attr'),
+    'data-behavior-selector': ('#' ~ form.openingHoursBehavior.vars.id),
+    'data-method': method|e('html_attr'),
+  }}) }}
+  {{ form_row(form.openingHoursBehavior, { row_attr: { class: 'd-none' } }) }}
+
+  {% if form.allowEdit is defined and method == 'delivery' %}
+    {{ form_row(form.allowEdit) }}
+  {% endif %}
+
+  {{ form_row(form.minimumAmount) }}
+
+</div>
+{% endblock %}

@@ -52,7 +52,7 @@ h1, h2, h3, h4, h5, h6 {
   width: 100%;
   padding: $base-margin 0;
   margin-top: $base-margin-l;
-  background-color: $main-blue;
+  background-color: #212121;
   color: $white;
 
   a.footer-link {
@@ -76,6 +76,13 @@ h1, h2, h3, h4, h5, h6 {
 
 .navbar-brand {
   font-family: "Raleway", Helvetica, Arial, sans-serif;
+}
+
+.navbar-coopcycle {
+  background-color: #ffffff;
+  border: none;
+  border-radius: 0;
+  border-bottom: 2px solid #ecf0f1;
 }
 
 .page-header {
@@ -168,7 +175,8 @@ h1, h2, h3, h4, h5, h6 {
 .banner-title {
   color: $white;
   font-weight: 700;
-  margin-bottom: $bs-base-margin;
+  margin-top: 30px;
+  margin-bottom: 60px;
   @media (max-width: $screen-xs-max) {
     font-size: 26px;
     text-align: center;
@@ -207,39 +215,58 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .homepage-search {
+  position: relative;
   margin-top: -20px;
-  padding: 100px 0;
   background-color: $main-blue-light;
   background-image: url(../pattern.svg);
   background-repeat: no-repeat;
   background-size: cover;
   background-position: center center;
-  @media (max-width: $screen-xs-max) {
-    padding: 30px 0;
+  &-container {
+    position: relative;
+    display: flex;
+    width: 50%;
+    margin: 0 auto;
+    justify-content: center;
+    @media (max-width: $screen-sm-max) {
+      width: 80%;
+    }
   }
-
+  margin-bottom: 50px;
 }
 
 .homepage-map {
   margin-bottom: -40px;
-  background-color: #111;
-  padding: 30px 0;
   color: #ccc;
 }
 
-.homepage-restaurants {
-  &__title {
-    text-align: center;
-    margin: 20px 0;
+.homepage-searchbox-container {
+  position: absolute;
+  bottom: -40px;
+  width: 100%;
+  left: 0;
+}
+
+.homepage-searchbox {
+
+  padding: 20px 25px;
+  background-color: #ffff;
+  border-radius: 12px;
+  box-shadow: 0px 4px 50px rgba(0, 0, 0, 0.08);
+
+  .address-autosuggest__container {
+    margin: 0;
   }
-  &__show-more {
-    font-size: $font-size-large;
-    margin-bottom: 15px;
-    > a {
-      padding: 5px 0;
-      display: block;
-      width: 100%;
-    }
+
+}
+
+.restaurant-show-more {
+  font-size: $font-size-large;
+  color: #585858;
+  text-decoration: underline;
+  text-align: right;
+  &:hover {
+    color: lighten(#585858, 10%);
   }
 }
 
@@ -358,9 +385,6 @@ h1, h2, h3, h4, h5, h6 {
 
   &-body {
     flex: 8;
-    @media (max-width: $screen-xs-max) {
-      text-align: center;
-    }
   }
   &-right {
     flex: 4;
@@ -399,7 +423,14 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .restaurant-item {
+
   position: relative;
+  color: #212121;
+  &:hover {
+    color: lighten(#212121, 10%);
+  }
+  margin-bottom: $line-height-computed;
+
   &--disabled > * {
     opacity: 0.6;
   }
@@ -417,6 +448,24 @@ h1, h2, h3, h4, h5, h6 {
   }
   &__top-right {
     right: 12px;
+  }
+
+  &__title {
+    font-weight: 700;
+  }
+
+  &__time-range {
+    font-size: $font-size-small;
+    background: #E5E5E5;
+    border-radius: 4px;
+    padding: 5px 10px;
+  }
+
+  > img,
+  a > img {
+    @include img-responsive;
+    margin-right: auto;
+    margin-left: auto;
   }
 }
 
@@ -735,56 +784,6 @@ form[name="store"] #store_imageFile_file {
   border-bottom: 1px solid $red;
   list-style: none;
   padding: $base-margin-xs $base-margin-xs;
-}
-
-.menuEditor {
-  display: flex;
-  &__left, &__right {
-    flex: 1;
-  }
-  &__left {
-    padding-right: 15px;
-  }
-  &__right {
-    padding-left: 15px;
-    display: flex;
-  }
-  &__productList {
-    flex: 1;
-  }
-  &__product {
-    padding: 10px;
-    margin-bottom: 10px;
-    background-color: lighten(lightgrey, 10%);
-  }
-  &__product:last-child {
-    margin-bottom: 0;
-  }
-
-  &__panel {
-    margin-bottom: 20px;
-    display: flex;
-    flex-direction: column;
-    &__title {
-      padding: 10px;
-      background-color: lightgrey;
-      color: #fff;
-      margin: 0;
-      > a {
-        color: #fff;
-        &:hover {
-          color: darken(#fff, 5%);
-        }
-      }
-    }
-    &__body {
-      flex: 1;
-      border: 2px dashed lightgrey;
-      border-top: none;
-      padding: 10px;
-      min-height: 50px;
-    }
-  }
 }
 
 .role-icons {
@@ -1125,36 +1124,6 @@ form[name="restaurant"] {
   color: #fff;
 }
 
-.delivery-price {
-
-  position: relative;
-  border: 1.5px solid #ccc;
-  color: #ccc;
-  padding: 10px 40px 10px 20px;
-  margin-bottom: 15px;
-  border-radius: 16px;
-  font-size: $font-size-large;
-
-  &--error {
-    border: 1.5px solid $alert-danger-border;
-    color: $alert-danger-text;
-  }
-  &-error {
-    float: right;
-  }
-  &--loading {
-    &:after {
-      @include fa-icon();
-      content: $fa-var-spinner;
-      @extend .fa-pulse;
-      display: block;
-      position: absolute;
-      top: calc(50% - 10px);
-      right: $padding-base-horizontal;
-    }
-  }
-}
-
 .restaurant-pledge__image {
   max-width: 66.6666%;
 }
@@ -1209,26 +1178,6 @@ form[name="restaurant"] {
   }
 }
 
-.delivery__form__packages {
-  &__list-item {
-    display: flex;
-    align-items: center;
-    margin-bottom: 10px;
-    &-quantity {
-      flex: 1;
-    }
-    &-multiply {
-      padding: 0 15px;
-    }
-    &-package {
-      flex: 3;
-    }
-    &-delete {
-      margin-left: 15px;
-    }
-  }
-}
-
 .product__form__options {
   &--sortable {
     > * {
@@ -1272,4 +1221,89 @@ form[name="restaurant"] {
   background: transparent;
   border: 0;
   appearance: none;
+}
+
+.about-us {
+  font-size: $font-size-large;
+  letter-spacing: 0.02em;
+  h1, h2, h3, h4 {
+    font-weight: 700;
+  }
+  table {
+    @extend .table;
+    @extend .table-bordered;
+  }
+}
+
+.checkout-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: white;
+  z-index: 3;
+}
+
+.table-order-items {
+  tbody tr,
+  tfoot tr {
+    td:last-child {
+      font-family: "Roboto Mono", monospace;
+    }
+  }
+}
+
+#delivery_pickup,
+#delivery_dropoff {
+  position: relative;
+  @media (max-width: $screen-sm-max) {
+    padding-top: 24px;
+  }
+  &:before {
+    @include fa-icon();
+    font-size: 24px;
+    display: block;
+    position: absolute;
+    top: 0;
+    color: #9980FA;
+    line-height: $line-height-base;
+    padding-left: 15px;
+    @media (max-width: $screen-sm-max) {
+      right: 0;
+    }
+  }
+  .form-group:first-child {
+    label {
+      font-size: $font-size-large;
+    }
+  }
+}
+
+#delivery_pickup {
+  &:before {
+    content: $fa-var-cube;
+  }
+}
+
+#delivery_dropoff {
+  &:before {
+    content: $fa-var-arrow-down;
+  }
+}
+
+#delivery_pickup_address,
+#delivery_dropoff_address {
+  .address-autosuggest__container {
+    margin: 0;
+  }
+}
+
+.map-distance-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  z-index: 401;
+  padding: 5px;
+  background-color: #0984e3;
+  color: #ffffff;
 }

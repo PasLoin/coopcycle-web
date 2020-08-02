@@ -10,7 +10,7 @@ import session from 'store/storages/sessionStorage'
 import cookie  from 'store/storages/cookieStorage'
 
 import OpeningHoursParser from '../widgets/OpeningHoursParser'
-import i18n from '../i18n'
+import i18n, { getCountry } from '../i18n'
 import { createStoreFromPreloadedState } from '../cart/redux/store'
 import { addItem, addItemWithOptions, queueAddItem } from '../cart/redux/actions'
 import Cart from '../cart/components/Cart'
@@ -90,9 +90,16 @@ function updateTotal($form) {
 
     const subTotal = $(optionsGroup).children().toArray().reduce((subTotal, el) => {
 
+      const $radioOrCheckbox = $(el).find('input[type="radio"],input[type="checkbox"]')
+      const isChecked = $radioOrCheckbox.length === 1 ? $radioOrCheckbox.is(':checked') : true
+
+      if (!isChecked) {
+
+        return subTotal
+      }
+
       const $quantity = $(el).find('input[type="number"]')
       const quantity = $quantity.length === 1 ? parseInt($quantity.val(), 10) : 1
-
       const price = $(el).data('option-value-price')
 
       return subTotal + (price * quantity)
@@ -109,7 +116,7 @@ function updateTotal($form) {
 
   $form
     .find('[data-product-total]')
-    .text((total / 100).formatMoney(2, window.AppData.currencySymbol))
+    .text((total / 100).formatMoney())
 }
 
 window.initMap = function() {
@@ -133,10 +140,13 @@ window.initMap = function() {
     if (isValid($form)) {
       $form.find('button[type="submit"]').removeAttr('disabled')
     }
+    updateTotal($form)
   })
 
   $('form[data-product-options] input[type="checkbox"]').on('click', function() {
+    const $form = $(this).closest('form')
     window._paq.push(['trackEvent', 'Checkout', 'addExtra'])
+    updateTotal($form)
   })
 
   $('button[data-stepper]').on('click', function(e) {
@@ -235,7 +245,7 @@ window.initMap = function() {
       const price = $form.data('product-price')
       $form
         .find('button[type="submit"] [data-total]')
-        .text((price / 100).formatMoney(2, window.AppData.currencySymbol))
+        .text((price / 100).formatMoney())
     }
   })
 
@@ -255,16 +265,16 @@ window.initMap = function() {
   const addressesDataElement = document.querySelector('#js-addresses-data')
 
   const restaurant = JSON.parse(restaurantDataElement.dataset.restaurant)
-
   const times = JSON.parse(restaurantDataElement.dataset.times)
   const addresses = JSON.parse(addressesDataElement.dataset.addresses)
 
-  // FIXME Check parse errors
-
-  new OpeningHoursParser(document.querySelector('#opening-hours'), {
-    openingHours: restaurant.openingHours,
-    locale: $('html').attr('lang'),
-    behavior: restaurant.openingHoursBehavior,
+  document.querySelectorAll('[data-opening-hours]').forEach(el => {
+    // FIXME Check parse errors
+    new OpeningHoursParser(el, {
+      openingHours: JSON.parse(el.dataset.openingHours),
+      locale: $('html').attr('lang'),
+      behavior: el.dataset.openingHoursBehavior,
+    })
   })
 
   let cart = JSON.parse(restaurantDataElement.dataset.cart)
@@ -303,7 +313,8 @@ window.initMap = function() {
     },
     isNewAddressFormElement: document.querySelector('#cart_isNewAddress'),
     addresses,
-    times
+    times,
+    country: getCountry(),
   }
 
   store = createStoreFromPreloadedState(state)

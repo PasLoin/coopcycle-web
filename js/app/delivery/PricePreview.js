@@ -2,6 +2,15 @@ import axios from 'axios'
 
 const baseURL = location.protocol + '//' + location.hostname
 
+const calculate = (base, amount, isIncludedInPrice) => {
+
+    if (isIncludedInPrice) {
+      return Math.round(base - (base / (1 + amount)))
+    }
+
+    return Math.round(base * amount)
+}
+
 // @see https://gist.github.com/anvk/5602ec398e4fdc521e2bf9940fd90f84
 
 function asyncFunc(item, payload, token) {
@@ -14,6 +23,8 @@ function asyncFunc(item, payload, token) {
       url: `${baseURL}${item.pricingRule}/evaluate`,
       data: payload,
       headers: {
+        Accept: 'application/ld+json',
+        'Content-Type': 'application/ld+json',
         Authorization: `Bearer ${token}`
       }
     })
@@ -53,11 +64,17 @@ class PricePreview {
   update(delivery) {
 
     const $container = $('#delivery_price').closest('.delivery-price')
+    const $wrapper = $container.closest('.delivery-price-preview')
+
+    const amount = $wrapper.data('taxRateAmount')
+    const isIncludedInPrice = $wrapper.data('taxRateIsIncludedInPrice')
 
     $container.removeClass('delivery-price--error')
     $container.addClass('delivery-price--loading')
     $('#delivery_price_error').text('')
-    $('#delivery_price').text((0).formatMoney(2, window.AppData.currencySymbol))
+    $('#delivery_price')
+      .find('[data-tax]')
+      .text((0).formatMoney())
 
     $('#pricing-rules-debug li')
       .removeClass('list-group-item-success')
@@ -69,6 +86,8 @@ class PricePreview {
         url: baseURL + '/api/pricing/deliveries',
         data: delivery,
         headers: {
+          'Accept': 'application/ld+json',
+          'Content-Type': 'application/ld+json',
           Authorization: `Bearer ${this.token}`
         }
       })
@@ -95,7 +114,17 @@ class PricePreview {
         const priceResult = values[0]
 
         if (priceResult.success) {
-          $('#delivery_price').text((priceResult.price / 100).formatMoney(2, window.AppData.currencySymbol))
+
+          const taxAmount =
+            calculate(priceResult.price, amount, isIncludedInPrice)
+
+          $('#delivery_price')
+            .find('[data-tax="included"]')
+            .text((priceResult.price / 100).formatMoney())
+          $('#delivery_price')
+            .find('[data-tax="excluded"]')
+            .text(((priceResult.price - taxAmount) / 100).formatMoney())
+
         } else {
           $('#delivery_price_error').text(priceResult.message)
         }

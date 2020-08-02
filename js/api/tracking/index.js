@@ -16,8 +16,6 @@ const logger = winston.createLogger({
   ]
 })
 
-var ROOT_DIR = __dirname + '/../../..';
-
 console.log('---------------------');
 console.log('- STARTING TRACKING -');
 console.log('---------------------');
@@ -29,7 +27,7 @@ console.log('PORT = ' + process.env.PORT);
 const {
   sub,
   sequelize
-} = require('./config')(ROOT_DIR)
+} = require('./config')()
 
 const tile38Sub = redis.createClient({ url: process.env.COOPCYCLE_TILE38_DSN })
 const tile38Client = redis.createClient({ url: process.env.COOPCYCLE_TILE38_DSN })
@@ -43,8 +41,7 @@ const server = http.createServer(function(request, response) {
     // process HTTP request. Since we're writing just WebSockets server
     // we don't have to implement anything.
 });
-
-const tokenVerifier = new TokenVerifier(ROOT_DIR + '/var/jwt/public.pem', db)
+const tokenVerifier = new TokenVerifier(process.env.COOPCYCLE_PUBLIC_KEY_FILE, db)
 
 const io = require('socket.io')(server, { path: '/tracking/socket.io' });
 

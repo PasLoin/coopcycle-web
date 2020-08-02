@@ -8,6 +8,7 @@ framework:
     assets:
         json_manifest_path: "%kernel.project_dir%/web/build/manifest.json"
     # https://symfony.com/doc/current/cache.html#configuring-cache-with-frameworkbundle
+    # https://github.com/symfony/demo/blob/master/config/packages/prod/doctrine.yaml
     cache:
         pools:
             doctrine.result_cache_pool:
@@ -25,6 +26,7 @@ parameters:
 
 # https://github.com/doctrine/DoctrineBundle/releases/tag/2.0.1
 # https://symfony.com/blog/new-in-doctrinebundle-1-11-0
+# https://github.com/symfony/demo/blob/master/config/packages/prod/doctrine.yaml
 doctrine:
     orm:
         auto_generate_proxy_classes: false
@@ -75,6 +77,12 @@ monolog:
             formatter: monolog.formatter.json
             max_files: 7
             channels: [fee_calculation]
+        timing:
+            type: rotating_file
+            path: "%kernel.logs_dir%/timing.%kernel.environment%.log"
+            level: info
+            max_files: 7
+            channels: [timing]
         geofencing:
             type: rotating_file
             path: "%kernel.logs_dir%/geofencing.%kernel.environment%.log"
@@ -132,17 +140,3 @@ liip_imagine:
                 data_root:
                     - '%kernel.project_dir%/../../shared/web'
                     - '%kernel.project_dir%/web'
-
-services:
-    apns_php.logger:
-        class: AppBundle\Utils\ApnsPHPLogger
-        arguments: [ '@logger' ]
-    apns_php.push:
-        class: \ApnsPHP_Push
-        arguments:
-            - 0
-            - "%apns_certificate_file%"
-        calls:
-            - method: setLogger
-              arguments:
-                  - '@apns_php.logger'

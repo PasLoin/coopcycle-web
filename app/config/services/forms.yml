@@ -4,7 +4,7 @@ services:
     autowire: true
     autoconfigure: true
 
-  AppBundle\Utils\TaskSpreadsheetParser:
+  AppBundle\Spreadsheet\TaskSpreadsheetParser:
     arguments:
       $countryCode: '%country_iso%'
 
@@ -15,6 +15,8 @@ services:
       - "@slugify"
       - "@libphonenumber.phone_number_util"
       - "%country_iso%"
+
+  AppBundle\Spreadsheet\ProductSpreadsheetParser: ~
 
   AppBundle\Form\ApiRegistrationType:
     arguments: ['%country_iso%']
@@ -90,6 +92,7 @@ services:
     arguments:
       $country: '%country_iso%'
       $isDemo: '%is_demo%'
+      $debug: '%kernel.debug%'
     tags: [ form.type ]
 
   AppBundle\Form\TaskType:
@@ -116,12 +119,9 @@ services:
 
   AppBundle\Form\ProductType:
     arguments:
-      - '@sylius.factory.product_variant'
-      - '@sylius.product_variant_resolver.default'
-      - '@sylius.repository.product_attribute'
-      - '@sylius.factory.product_attribute_value'
-      - '@sylius.locale_provider'
-      - '@translator'
+      $productAttributeRepository: '@sylius.repository.product_attribute'
+      $productAttributeValueFactory: '@sylius.factory.product_attribute_value'
+      $taxIncl: '%env(bool:COOPCYCLE_TAX_INCL)%'
     tags: [ form.type ]
 
   AppBundle\Form\Checkout\CheckoutAddressType:
@@ -185,4 +185,24 @@ services:
     tags: [ form.type ]
 
   AppBundle\Form\Checkout\CheckoutPaymentType:
+    tags: [ form.type ]
+
+  AppBundle\Form\Type\PriceWithTaxType:
+    tags: [ form.type ]
+    arguments:
+      $taxIncl: '%env(bool:COOPCYCLE_TAX_INCL)%'
+
+  AppBundle\Form\CustomizeType:
+    arguments:
+      $assetsFilesystem: '@assets_filesystem'
+    tags: [ form.type ]
+
+  AppBundle\Form\Type\ProductTaxCategoryChoiceType:
+    arguments:
+      $taxCategoryRepository: '@sylius.repository.tax_category'
+      $country: '%region_iso%'
+      $legacyTaxes: '%env(bool:COOPCYCLE_LEGACY_TAXES)%'
+    tags: [ form.type ]
+
+  AppBundle\Form\Restaurant\FulfillmentMethodType:
     tags: [ form.type ]

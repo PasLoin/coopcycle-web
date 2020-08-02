@@ -55,6 +55,7 @@
         "ADMIN_DASHBOARD_USERS_SEARCHRESTAURANT": "Search restaurant…",
         "ADMIN_DASHBOARD_FILTERS_COMPLETED_TASKS": "Finished tasks",
         "ADMIN_DASHBOARD_FILTERS_CANCELLED_TASKS": "Cancelled tasks",
+        "ADMIN_DASHBOARD_FILTERS_ALWAYS_SHOW_UNASSIGNED": "Always show unassigned",
         "ADMIN_DASHBOARD_FILTERS_NONTAGGED_TASKS": "Untagged tasks",
         "ADMIN_DASHBOARD_FILTERS_APPLY": "Apply",
         "ADMIN_DASHBOARD_FILTERS_TAB_GENERAL": "General",
@@ -138,7 +139,12 @@
         "RULE_PICKER_LINE_PICKUP_ADDRESS": "Pickup address",
         "RULE_PICKER_LINE_DROPOFF_ADDRESS": "Drop-off address",
         "RULE_PICKER_LINE_PICKUP_DIFF_DAYS": "Difference (days)",
+        "RULE_PICKER_LINE_PICKUP_DIFF_HOURS": "Difference (hours)",
         "RULE_PICKER_LINE_DROPOFF_DOORSTEP": "Doorstep dropoff",
+        "RULE_PICKER_LINE_PACKAGES": "Packages",
+        "RULE_PICKER_LINE_ORDER_ITEMS_TOTAL": "Items total",
+        "RULE_PICKER_LINE_OPTGROUP_DELIVERY": "Delivery",
+        "RULE_PICKER_LINE_OPTGROUP_ORDER": "Order",
         "ORDER_LIST_STATE": "State",
         "ORDER_LIST_PREPARATION_TIME": "Preparation time",
         "ORDER_LIST_PICKUP_TIME": "Pickup time",
@@ -160,7 +166,7 @@
         "CART_CHANGE_RESTAURANT_MODAL_BTN_NO": "Go back to previous order",
         "CART_ADDRESS_MODAL_HELP_TEXT": "Please enter your address accurately, with the street number and name",
         "CART_ADDRESS_MODAL_BACK_TO_RESTAURANTS": "Go back to restaurants list",
-        "CART_ADDRESS_MODAL_NO_THANKS_TAKEAWAY": "I will to collect the order myself",
+        "CART_ADDRESS_MODAL_NO_THANKS_TAKEAWAY": "I will collect the order myself",
         "CART_DELIVERY_TIME_DIFF": "In {{diff}} minutes",
         "CART_DELIVERY_TIME_EDIT": "Change",
         "CART_DELIVERY_TIME_ASAP": "As soon as possible",
@@ -207,6 +213,8 @@
         "OPENING_HOURS_BEHAVIOR": {
             "asap": "As soon as possible",
             "time_slot": "Time slot"
-        }
+        },
+        "PLEASE_SELECT_ADDRESS": "Please select an address in the dropdown",
+        "DOWNLOAD_EXAMPLE_SPREADSHEET": "Download an example spreadsheet"
     }
 }

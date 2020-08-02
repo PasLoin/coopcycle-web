@@ -5,9 +5,9 @@ services:
     autoconfigure: true
 
   AppBundle\Twig\:
-    resource: '../../../src/AppBundle/Twig/*'
+    resource: '../../../src/Twig/*'
 
-  League\Flysystem\Filesystem $assetsFilesystem: '@assets_s3_filesystem'
+  League\Flysystem\Filesystem $assetsFilesystem: '@assets_filesystem'
 
   AppBundle\Twig\AppearanceRuntime:
     arguments:
@@ -28,6 +28,10 @@ services:
 
   Twig_Extensions_Extension_Intl:
     class: Twig_Extensions_Extension_Intl
+    tags:
+      - { name: twig.extension }
+
+  Twig\Extra\Intl\IntlExtension:
     tags:
       - { name: twig.extension }
 

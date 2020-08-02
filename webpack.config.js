@@ -7,6 +7,8 @@ Encore
   .setPublicPath('/build')
 
   .addEntry('common', './js/app/common.js')
+  .addEntry('customize-form', './js/app/customize/form.js')
+  .addEntry('checkout-summary', './js/app/checkout/summary.js')
   .addEntry('dashboard', './js/app/dashboard/index.js')
   .addEntry('delivery-form', './js/app/delivery/form.js')
   .addEntry('delivery-list', './js/app/delivery/list.js')
@@ -16,6 +18,7 @@ Encore
   .addEntry('notifications', './js/app/notifications/index.js')
   .addEntry('foodtech-dashboard', './js/app/foodtech/dashboard/index.js')
   .addEntry('product-form', './js/app/product/form.js')
+  .addEntry('product-list', './js/app/product/list.js')
   .addEntry('product-option-form', './js/app/forms/product-option.js')
   .addEntry('restaurant', './js/app/restaurant/index.js')
   .addEntry('restaurant-form', './js/app/restaurant/form.js')
@@ -36,7 +39,7 @@ Encore
   // @see https://github.com/jmblog/how-to-optimize-momentjs-with-webpack
   .addPlugin(new webpack.ContextReplacementPlugin(
     /moment[/\\]locale$/,
-    /ca|de|es|fr|pl/
+    /ca|de|es|fr|pl|pt-br/
   ))
 
   .enableSingleRuntimeChunk()

@@ -39,6 +39,7 @@ export default function(el, options) {
 
   const newAddressControlName = newAddressControl.name
   const newAddressControlValue = newAddressControl.value
+  const newAddressControlId = newAddressControl.id
 
   if (newAddressControl.hasAttribute('placeholder')) {
     autosuggestProps = {
@@ -50,6 +51,7 @@ export default function(el, options) {
   newAddressControlHidden.setAttribute('type', 'hidden')
   newAddressControlHidden.setAttribute('name', newAddressControlName)
   newAddressControlHidden.setAttribute('value', newAddressControlValue)
+  newAddressControlHidden.setAttribute('id', newAddressControlId)
 
   newAddressControl.remove()
   el.appendChild(newAddressControlHidden)
@@ -59,10 +61,12 @@ export default function(el, options) {
 
   const isNewAddressControlName = isNewAddressControl.name
   const isNewAddressControlValue = isNewAddressControl.value
+  const isNewAddressControlId = isNewAddressControl.id
 
   isNewAddressControlHidden.setAttribute('type', 'hidden')
   isNewAddressControlHidden.setAttribute('name', isNewAddressControlName)
   isNewAddressControlHidden.setAttribute('value', isNewAddressControlValue)
+  isNewAddressControlHidden.setAttribute('id', isNewAddressControlId)
 
   isNewAddressControl.closest('.checkbox').remove()
   if (isNewAddressControl.checked) {
@@ -70,8 +74,10 @@ export default function(el, options) {
   }
 
   // Callback with initial data
+  let address
   if (existingAddressControlSelected.dataset.address) {
-    options.onReady(JSON.parse(existingAddressControlSelected.dataset.address))
+    address = JSON.parse(existingAddressControlSelected.dataset.address)
+    options.onReady(address)
   }
 
   const reactContainer = document.createElement('div')
@@ -81,7 +87,7 @@ export default function(el, options) {
   render(
     <AddressAutosuggest
       addresses={ addresses }
-      address={ existingAddressControlSelected.text }
+      address={ address }
       geohash={ '' }
       required={ true }
       reportValidity={ true }

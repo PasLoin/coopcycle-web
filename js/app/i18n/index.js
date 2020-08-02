@@ -16,12 +16,22 @@ import en from './locales/en.json'
 import es from './locales/es.json'
 import fr from './locales/fr.json'
 import pl from './locales/pl.json'
+import pt_BR from './locales/pt_BR.json'
 
 import de_DE from 'antd/es/locale/de_DE'
 import en_US from 'antd/es/locale/en_US'
 import es_ES from 'antd/es/locale/es_ES'
 import fr_FR from 'antd/es/locale/fr_FR'
 import pl_PL from 'antd/es/locale/pl_PL'
+import antd_pt_BR from 'antd/es/locale/pt_BR'
+
+import numbro from 'numbro'
+import deDE from 'numbro/languages/de-DE'
+import enGB from 'numbro/languages/en-GB'
+import esES from 'numbro/languages/es-ES'
+import frFR from 'numbro/languages/fr-FR'
+import plPL from 'numbro/languages/pl-PL'
+import ptBR from 'numbro/languages/pt-BR'
 
 export const localeDetector = () => $('html').attr('lang')
 
@@ -38,7 +48,7 @@ i18next
   .use(initReactI18next)
   .init({
     fallbackLng: 'en',
-    resources: { de, en, fr, es, pl },
+    resources: { de, en, fr, es, pl, "pt-BR": pt_BR },
     ns: ['common'],
     defaultNS: 'common',
     debug: process.env.DEBUG
@@ -54,7 +64,38 @@ const antdLocaleMap = {
   'es': es_ES,
   'fr': fr_FR,
   'pl': pl_PL,
+  'pt-BR': antd_pt_BR,
 }
+
+// Load Numbro locales
+numbro.registerLanguage(deDE)
+numbro.registerLanguage(enGB)
+numbro.registerLanguage(esES)
+numbro.registerLanguage(frFR)
+numbro.registerLanguage(plPL)
+numbro.registerLanguage(ptBR)
+
+numbro.setLanguage(localeDetector())
 
 export const antdLocale =
   Object.prototype.hasOwnProperty.call(antdLocaleMap, localeDetector()) ? antdLocaleMap[localeDetector()] : en_US
+
+let country
+
+export function getCountry() {
+  if (!country) {
+    country = document.querySelector('body').dataset.country
+  }
+
+  return country
+}
+
+let currencySymbol
+
+export function getCurrencySymbol() {
+  if (!currencySymbol) {
+    currencySymbol = document.querySelector('body').dataset.currencySymbol
+  }
+
+  return currencySymbol
+}
