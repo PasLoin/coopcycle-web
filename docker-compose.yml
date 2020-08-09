@@ -106,7 +106,7 @@ services:
       - './vendor:/var/www/html/vendor:ro'
 
   nginx_test:
-    image: 'nginx:1.19.1-alpine'
+    image: 'nginx:1.18.0-alpine'
     depends_on:
       - php
       - nodejs
