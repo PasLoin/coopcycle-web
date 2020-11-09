@@ -3,7 +3,6 @@
 namespace Tests\AppBundle\Controller;
 
 use AppBundle\Controller\RestaurantController;
-use AppBundle\DataType\NumRange;
 use AppBundle\Entity\Address;
 use AppBundle\Entity\Contract;
 use AppBundle\Entity\Base\GeoCoordinates;
@@ -11,23 +10,22 @@ use AppBundle\Entity\LocalBusiness;
 use AppBundle\Entity\LocalBusinessRepository;
 use AppBundle\Entity\Restaurant;
 use AppBundle\Entity\Sylius\Order;
+use AppBundle\Form\Checkout\Action\Validator\AddProductToCart as AssertAddProductToCart;
+use AppBundle\Sylius\Cart\RestaurantResolver;
 use AppBundle\Sylius\Order\OrderItemInterface;
 use AppBundle\Sylius\Product\LazyProductVariantResolverInterface;
 use AppBundle\Sylius\Product\ProductInterface;
-use AppBundle\Sylius\Product\ProductOptionInterface;
-use AppBundle\Sylius\Product\ProductOptionValueInterface;
 use AppBundle\Sylius\Product\ProductVariantInterface;
+use AppBundle\Utils\OptionsPayloadConverter;
 use AppBundle\Utils\OrderTimeHelper;
 use AppBundle\Service\SettingsManager;
 use Doctrine\Persistence\ManagerRegistry;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\EntityRepository;
-use Liip\ImagineBundle\Service\FilterService;
 use Prophecy\Argument;
 use Prophecy\PhpUnit\ProphecyTrait;
 use Psr\Container\ContainerInterface;
 use Ramsey\Uuid\Uuid;
-use Sonata\SeoBundle\Seo\SeoPageInterface;
 use Sylius\Bundle\ResourceBundle\Doctrine\ORM\EntityRepository as SyliusEntityRepository;
 use Sylius\Component\Order\Context\CartContextInterface;
 use Sylius\Component\Order\Modifier\OrderItemQuantityModifierInterface;
@@ -42,9 +40,10 @@ use Symfony\Component\HttpFoundation\Session\Session;
 use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
 use Symfony\Component\Serializer\Serializer;
 use Symfony\Component\Translation\TranslatorInterface;
+use Symfony\Component\Validator\ConstraintViolation;
 use Symfony\Component\Validator\ConstraintViolationListInterface;
+use Symfony\Component\Validator\ConstraintViolationList;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
-use Vich\UploaderBundle\Templating\Helper\UploaderHelper;
 
 class FindOneByCodeRepository extends SyliusEntityRepository
 {
@@ -66,18 +65,17 @@ class RestaurantControllerTest extends WebTestCase
         self::bootKernel(['environment' => 'test']);
 
         $this->objectManager = $this->prophesize(EntityManagerInterface::class);
-        $this->seoPage = $this->prophesize(SeoPageInterface::class);
         $this->uploaderHelper = $this->prophesize(UploaderHelper::class);
         $this->validator = $this->prophesize(ValidatorInterface::class);
         $this->productRepository = $this->prophesize(FindOneByCodeRepository::class);
         $this->orderItemRepository = $this->prophesize(RepositoryInterface::class);
         $this->orderItemFactory = $this->prophesize(FactoryInterface::class);
         $this->productVariantResolver = $this->prophesize(LazyProductVariantResolverInterface::class);
-        $this->productOptionValueRepository = $this->prophesize(FindOneByCodeRepository::class);
+        $this->optionsPayloadConverter = $this->prophesize(OptionsPayloadConverter::class);
         $this->orderItemQuantityModifier = $this->prophesize(OrderItemQuantityModifierInterface::class);
         $this->orderModifier = $this->prophesize(OrderModifierInterface::class);
         $this->orderTimeHelper = $this->prophesize(OrderTimeHelper::class);
-        $this->imagineFilter = $this->prophesize(FilterService::class);
+        $this->restaurantResolver = $this->prophesize(RestaurantResolver::class);
 
         $this->localBusinessRepository = $this->prophesize(LocalBusinessRepository::class);
 
@@ -110,19 +108,15 @@ class RestaurantControllerTest extends WebTestCase
 
         $this->controller = new RestaurantController(
             $this->objectManager->reveal(),
-            $this->seoPage->reveal(),
-            $this->uploaderHelper->reveal(),
             $this->validator->reveal(),
             $this->productRepository->reveal(),
             $this->orderItemRepository->reveal(),
             $this->orderItemFactory->reveal(),
             $this->productVariantResolver->reveal(),
-            $this->productOptionValueRepository->reveal(),
             $this->orderItemQuantityModifier->reveal(),
             $this->orderModifier->reveal(),
             $this->orderTimeHelper->reveal(),
-            $this->serializer,
-            $this->imagineFilter->reveal()
+            $this->serializer
         );
 
         $this->controller->setContainer($container->reveal());
@@ -182,24 +176,13 @@ class RestaurantControllerTest extends WebTestCase
             ->getCart()
             ->willReturn($cart);
 
-        $productOption = $this->prophesize(ProductOptionInterface::class);
-        $productOptionValue = $this->prophesize(ProductOptionValueInterface::class);
-
-        $valuesRange = new NumRange();
-        $valuesRange->setLower(1);
-        $valuesRange->setUpper(5);
-
-        $productOption->isAdditional()->willReturn(true);
-        $productOption->getValuesRange()->willReturn($valuesRange);
-
-        $productOptionValue->getOption()->willReturn($productOption->reveal());
-
-        $product->hasOption($productOption->reveal())->willReturn(true);
-        $product->hasOptionValue($productOptionValue->reveal())->willReturn(true);
-
-        $this->productOptionValueRepository
-            ->findOneByCode($productOptionValueCode)
-            ->willReturn($productOptionValue->reveal());
+        $this->optionsPayloadConverter->convert($product->reveal(), [
+                [
+                    'code' => $productOptionValueCode,
+                    'quantity' => 3,
+                ]
+            ])
+            ->willReturn(new \SplObjectStorage());
 
         $this->productRepository
             ->findOneByCode($productCode)
@@ -221,10 +204,23 @@ class RestaurantControllerTest extends WebTestCase
         $errors = $this->prophesize(ConstraintViolationListInterface::class);
 
         $this->validator
-            ->validate($cart)
-            ->willReturn($errors->reveal());
+            ->validate(Argument::type('object'), Argument::any())
+            ->will(function ($args) use ($cart, $errors) {
 
-        $response = $this->controller->addProductToCartAction(1, $productCode, $request, $cartContext->reveal(), $translator->reveal());
+                if ($args[0] === $cart) {
+
+                    return $errors->reveal();
+                }
+
+                return $errors->reveal();
+            });
+
+        $response = $this->controller->addProductToCartAction(1, $productCode, $request,
+            $cartContext->reveal(),
+            $translator->reveal(),
+            $this->restaurantResolver->reveal(),
+            $this->optionsPayloadConverter->reveal()
+        );
 
         $this->assertInstanceOf(JsonResponse::class, $response);
 
@@ -301,7 +297,28 @@ class RestaurantControllerTest extends WebTestCase
             ->findOneByCode($productCode)
             ->willReturn($product->reveal());
 
-        $response = $this->controller->addProductToCartAction(1, $productCode, $request, $cartContext->reveal(), $translator->reveal());
+        $errors = $this->prophesize(ConstraintViolationListInterface::class);
+
+        $this->validator
+            ->validate(Argument::type('object'), Argument::any())
+            ->will(function ($args) use ($cart, $errors) {
+
+                if ($args[0] === $cart) {
+
+                    return $errors->reveal();
+                }
+
+                $errs = new ConstraintViolationList();
+                $errs->add(new ConstraintViolation('Restaurant mismatch', null, [], '', 'restaurant', null));
+
+                return $errs;
+            });
+
+        $response = $this->controller->addProductToCartAction(1, $productCode, $request,
+            $cartContext->reveal(),
+            $translator->reveal(),
+            $this->restaurantResolver->reveal(),
+            $this->optionsPayloadConverter->reveal());
 
         $this->assertInstanceOf(JsonResponse::class, $response);
 

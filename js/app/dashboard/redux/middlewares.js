@@ -4,6 +4,7 @@ import {
   setOffline,
   importSuccess,
   importError,
+  taskListUpdated,
   SET_FILTER_VALUE,
   RESET_FILTERS,
 } from './actions'
@@ -65,6 +66,8 @@ export const socketIO = ({ dispatch, getState }) => {
     socket.on('task_import:success', data => dispatch(importSuccess(data.token)))
     socket.on('task_import:failure', data => dispatch(importError(data.token, data.message)))
 
+    socket.on('task_collection:updated', data => dispatch(taskListUpdated(data.task_collection)))
+
     socket.on('tracking', data => {
       pulse()
       dispatch(setGeolocation(data.user, data.coords, data.ts))
@@ -83,7 +86,7 @@ export const socketIO = ({ dispatch, getState }) => {
 }
 
 function getKey(state) {
-  return state.date.format('YYYY-MM-DD')
+  return state.dispatch.date.format('YYYY-MM-DD')
 }
 
 export const persistFilters = ({ getState }) => (next) => (action) => {

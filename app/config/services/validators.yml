@@ -18,7 +18,6 @@ services:
     arguments:
       - '@routing_service'
       - '@coopcycle.expression_language'
-      - '@coopcycle.shipping_date_filter'
     tags:
       - { name: validator.constraint_validator }
 
@@ -46,5 +45,17 @@ services:
       - { name: validator.constraint_validator }
 
   AppBundle\Validator\Constraints\PricingRuleValidator:
+    tags:
+      - { name: validator.constraint_validator }
+
+  AppBundle\Validator\Constraints\UserWithSameEmailNotExistsValidator:
+    tags:
+      - { name: validator.constraint_validator }
+
+  AppBundle\Validator\Constraints\ShippingTimeRangeValidator:
+    tags:
+      - { name: validator.constraint_validator }
+
+  AppBundle\Form\Checkout\Action\Validator\AddProductToCartValidator:
     tags:
       - { name: validator.constraint_validator }

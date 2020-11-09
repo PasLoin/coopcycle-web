@@ -1,4 +1,6 @@
 @import "~bootstrap-sass/assets/stylesheets/bootstrap/_variables.scss";
+@import "~leaflet.markercluster/dist/MarkerCluster.css";
+@import "~leaflet.markercluster/dist/MarkerCluster.Default.css";
 @import "../../../assets/css/vars.scss";
 
 @import "../../../assets/css/contextmenu.scss";
@@ -196,8 +198,9 @@ html, body {
   font-size: 12px;
   position: relative;
   cursor: pointer;
-  border-radius: 0;
+  border-radius: 0 !important;
   padding: 8px;
+  border-right: none;
   border-left: 6px solid #ffffff;
 
   a {

@@ -14,32 +14,24 @@ adminDashboard.deliveries.address: Adresse
 adminDashboard.deliveries.delivery: Lieferadresse
 adminDashboard.deliveries.originAddress: Abholadresse
 adminDashboard.deliveries.deliveryAddress: Lieferadresse
-adminDashboard.deliveries.save: Speichern
 embed.breadcrumb.summary: Zusammenfassung
 embed.breadcrumb.confirm: Bestätigung
-adminDashboard.menuCategories.save: Speichern
 adminDashboard.stores.form.uploadImage: Bild hochladen
 adminDashboard.orders.title: Bestellungen
 adminDashboard.restaurants.title: Restaurants
 adminDashboard.users.edit.addRestaurant: Restaurant hinzufügen
 adminDashboard.settings.title: Einstellungen
 adminDashboard.pricing.settings: Einstellungen
-adminDashboard.tags.save: Speichern
 adminDashboard.tags.name: Name
 adminDashboard.tags.color: Farbe
-adminDashboard.zones.save: Speichern
-adminDashboard.zones.delete: Löschen
 localBusiness.form.name: Name
 localBusiness.form.website: Website
-restaurant.form.save: Speichern
 restaurant.contract.restaurantPaysStripeFee.restaurant: Restaurant
 restaurant.closingForm.reason.label: Grund
 restaurant.list.products: Produkten
 restaurant.list.settings: Einstellungen
 restaurant.form.uploadImage: Bild hochladen
 profile.task.address: Adresse
-profile.edit.save: Speichern
-profile.addresses.save: Speichern
 profile.email: E-Mail
 order.payment.month.label: Monat
 order.state.new: Neu
@@ -61,7 +53,6 @@ form.delivery.pickup.doneBefore.label: Abholzeit
 form.delivery.price.label: Preis
 form.address.addressLocality.label: Stadt
 form.address.postalCode.label: Postleitzahl
-form.address.floor.label: Etage
 form.address.description.label: Anweisungen
 form.address.description.placeholder: z.B. zweite Tür links …
 form.address.streetAddress.label: Adresse
@@ -94,7 +85,6 @@ form.credit_note.name.label: Name
 form.resend_confirmation_email.submit.label: E-Mail erneut senden
 roles.ROLE_COURIER: Kurier
 roles.ROLE_RESTAURANT: Restaurant
-stores.form.save: Speichern
 basics.name: Name
 form.payment.refund_amount.label: Menge
 embed.delivery.contact_heading: Kontakt
@@ -114,7 +104,6 @@ embed.delivery.submit.help: Klicken Sie hier um die Anfrage zu bestätigen und d
 pagination.next: Nächste
 basics.next: Nächste
 embed.delivery.summary.title: Zusammenfassung von deine Bestellung
-adminDashboard.users.edit: Bearbeiten
 order.items.products_with_count: Produkten (%count%)
 order.total_including_tax: Gesamtbetrag
 order.list.total: Total
@@ -174,7 +163,6 @@ adminDashboard.tags.createNew: Neue Markierung erstellen
 adminDashboard.taxation.title: Besteuerung
 adminDashboard.taxation.button: Besteuerung hinzufügen
 adminDashboard.zones.title: Zonen
-adminDashboard.zones.cancel: Abbrechen
 adminDashboard.zones.uploadGeoJSON: Eine GeoJSON-Datei hochladen
 adminDashboard.zones.send: Senden
 adminDashboard.back.title: Zurück zur Website
@@ -253,7 +241,7 @@ restaurant.menus.activated: Das Menü « %menu_name% » wurde aktiviert. Es wird
 restaurant.closingForm.title: Eine temporäre Schließzeit hinzufügen
 restaurant.closingForm.dates.label: Geschlossen von/bis
 restaurant.list.manage: Verwalten
-restaurant.list.orders: Bestellungen
+restaurant.list.orders: Rückerstattungen
 restaurant.list.product_options: Optionen
 restaurant.list.menus: Menüs
 restaurant.list.activeMenu: Aktives Menü
@@ -262,7 +250,6 @@ restaurant.list.norestaurant: Es gibt zur Zeit keine Restaurants
 restaurant.list.createNewRestaurant: Ein neues Restaurant erstellen
 restaurant.list.preparationTime: Vorbereitung
 restaurant.list.stats: Statistiken
-adminDashboard.dashboard.cancel: Abbrechen
 order.list.receipt: Empfangsbestätigung
 restaurant.product_options.help: "Die Auswahl ermöglicht es Ihnen, die Produkte <strong>individuell\
   \ anzupassen</strong>\n<br>\nSie ermöglichen es Ihnen beispielsweise, Zusatzartikel\
@@ -277,7 +264,6 @@ profile.myOrders: Meine Bestellungen
 profile.myAddresses: Meine Adressen
 profile.myPersonalInfo: Meine persönlichen Daten
 profile.payment: Zahlungsweise
-profile.task.cancel: Abbrechen
 profile.task.noTasks: Keine Aufgabe geplant
 profile.task.dueDate: Abgabetermin
 profile.task.complete: Fertigstellen
@@ -350,7 +336,6 @@ payment.state.refunded_partially: Teilweise rückerstattet
 order.adjustment_type.delivery: Lieferung
 order.adjustment_type.platform_fees: Gebühr für CoopCycle
 order.list.shippedAt: Lieferzeit
-order.list.cancel: Abbrechen
 order.list.type: Typ
 order.list.customer: Kunde
 order.list.state: Staat
@@ -359,7 +344,6 @@ order.list.summary.deleted_restaurant.text: Lieferung bei Restaurant %restaurant
 order.list.summary.delivery.text: Lieferung %distance%, %vehicle%
 task.form.create: Auftrag anlegen
 task.form.timeWindow: Zeitfenster
-task.form.cancel: Abbrechen
 task.form.showHistory: Verlauf ansehen
 task.form.modal.moreOptions: Mehr Optionen
 task.form.edit: Auftrag ändern %id%
@@ -398,7 +382,6 @@ form.delivery.packages.label: Verpackungen
 form.order.accept.label: Bestätigen
 form.order.accept.help: Sobald Du die Bestellung angenommen hast, wird der Kunde per
   E-Mail benachrichtigt.
-form.order.cancel.label: Abbrechen
 form.order.fulfill.label: Erledigen
 form.order.payment_complete.label: Fertigstellen
 form.order.payment_refund.label: Rückzahlung
@@ -411,7 +394,6 @@ delivery.with_id: 'Versand #%id%'
 profile.username: Benutzername
 form.order.refund_modal.title: Rückzahlung
 form.payment.refund_amount.help: Der von Dir angegebene Betrag wird dem Kunden zurückerstattet
-form.payment.refund_application_fee.label: Gebühren der Rückerstattung
 form.suggest.submit.label: Jetzt vorschlagen
 form.suggest.name.help: Bitte geben Sie den exakten Namen an, damit wir ihn finden
   können
@@ -447,9 +429,6 @@ form.settings.stripe.help: 'Stripe ist ein Zahlungsdienstleister zum Verarbeiten
   ist es nötig Stripe Connect einzurichten. Stripe entnimmt 0,25 Euro + 1,4% pro Zahlung
   als Provision (für eine aktuelle Kostenübersicht, klicke bitte <a href="https://stripe.com/fr/pricing">hier</a>),
   die vom Shopbetreiber bezahlt werden muss. '
-form.payment.refund_application_fee.help: "Wenn Sie diese Auswahlbox aktivieren, wird\
-  \ die Provision der Plattform an den Partner anteilig zurückgegeben.\n<br>\n<a href=\"\
-  https://stripe.com/docs/connect/direct-charges#issuing-refunds\">Learn more</a>\n"
 form.delivery.view_order: Zeige Bestellung
 form.delivery.time_slot.label: Zeitfenster
 form.delivery.has_order.info: Diese Lieferung ist an eine Bestellung geknüpft
@@ -574,6 +553,7 @@ form.local_business.stripe_account.help: Verbinden Sie ein Stripe Konto um Geld 
   einem anderen Bankkonto zu überweisen
 form.local_business.stripe_account.connect_button.text: Mit Stripe verbinden
 form.local_business.stripe_account.success: Stripe Konto erfolgreich verbunden
+form.local_business.mercadopago_account.title: MercadoPago Konto
 form.menu_taxon.child_name.placeholder: "Zum Beispiel: Haupgerichte, Desserts, ...\n"
 form.menu_editor.save.label: Änderungen speichern
 form.menu_editor.taxon_modal.title: Ändern Sie einen Abschnitt
@@ -698,6 +678,7 @@ form.registration.legal.help: Indem Sie dieses Kästchen ankreuzen, erklären Si
   mit unseren <a href="%terms_url%">AGB</a> und <a href="%privacy_url%">Datenschutzerklärung</a>
   einverstanden.
 form.local_business.iso_code.fr.vat_number: USt.-Id Nr.
+form.local_business.iso_code.ar.cuit: CUIT/CUIL Nr.
 form.min_max.lower.label: Anzahl Min.
 orders.payment_refunded: Zahlung erfolgreich zurückerstattet
 orders.payment_link.sent: Email erfolgreich gesendet
@@ -707,3 +688,4 @@ orders.new: Neue Bestellung
 restaurant.form.cuisines.label: Küchenrichtung
 restaurant.form.fulfillment_methods.label: Möglichkeiten zur Auftragsausführung
 restaurant.form.loopeat_enabled.label: LoopEat System einschalten
+checkout.breadcrumb.confirm: Bestätigung

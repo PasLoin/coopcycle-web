@@ -68,19 +68,19 @@ class OrderTimeHelper
 
         if (!isset($this->choicesCache[$hash])) {
 
-            $restaurant = $cart->getRestaurant();
+            $vendor = $cart->getVendor();
 
             $choiceLoader = new AsapChoiceLoader(
-                $restaurant->getOpeningHours($cart->getFulfillmentMethod()),
-                $restaurant->getClosingRules(),
-                $restaurant->getShippingOptionsDays(),
-                $restaurant->getOrderingDelayMinutes()
+                $vendor->getOpeningHours($cart->getFulfillmentMethod()),
+                $vendor->getClosingRules(),
+                $vendor->getShippingOptionsDays(),
+                $vendor->getOrderingDelayMinutes()
             );
 
             $choiceList = $choiceLoader->loadChoiceList();
             $values = $this->filterChoices($cart, $choiceList->getValues());
 
-            if (empty($values) && 1 === $restaurant->getShippingOptionsDays()) {
+            if (empty($values) && 1 === $vendor->getShippingOptionsDays()) {
 
                 $choiceLoader->setShippingOptionsDays(2);
                 $choiceList = $choiceLoader->loadChoiceList();
@@ -100,8 +100,8 @@ class OrderTimeHelper
 
     public function getShippingTimeRanges(OrderInterface $cart)
     {
-        $restaurant = $cart->getRestaurant();
-        $fulfillmentMethod = $restaurant->getFulfillmentMethod($cart->getFulfillmentMethod());
+        $vendor = $cart->getVendor();
+        $fulfillmentMethod = $vendor->getFulfillmentMethod($cart->getFulfillmentMethod());
 
         $this->logger->info(sprintf('Cart has fulfillment method "%s" and behavior "%s"',
             $fulfillmentMethod->getType(),
@@ -112,42 +112,14 @@ class OrderTimeHelper
 
             $ranges = [];
 
-            // Convert the settings to a TimeSlot
-            $timeSlot = new TimeSlot();
-            $timeSlot->setWorkingDaysOnly(false);
-
-            $minutes = $restaurant->getOrderingDelayMinutes();
-            if ($minutes > 0) {
-                $hours = (int) $minutes / 60;
-                $timeSlot->setPriorNotice(sprintf('%d %s', $hours, ($hours > 1 ? 'hours' : 'hour')));
-            }
-
-            $shippingOptionsDays = $restaurant->getShippingOptionsDays();
-            if ($shippingOptionsDays > 0) {
-                $timeSlot->setInterval(sprintf('%d days', $shippingOptionsDays));
-            }
-
-            $timeSlot->setOpeningHours(
-                $fulfillmentMethod->getOpeningHours()
+            $choiceLoader = new TimeSlotChoiceLoader(
+                TimeSlot::create($vendor, $fulfillmentMethod),
+                $this->country
             );
-
-            $choiceLoader = new TimeSlotChoiceLoader($timeSlot, $this->country);
             $choiceList = $choiceLoader->loadChoiceList();
 
             foreach ($choiceList->getChoices() as $choice) {
-                $choiceText = (string) $choice;
-                if (1 === preg_match('/^(?<date>[0-9]{4}-[0-9]{2}-[0-9]{2}) (?<start_time>[0-9]{2}:[0-9]{2})-(?<end_time>[0-9]{2}:[0-9]{2})$/', $choiceText, $matches)) {
-
-                    $lower = new \DateTime(sprintf('%s %s:00', $matches['date'], $matches['start_time']));
-                    $upper = new \DateTime(sprintf('%s %s:00', $matches['date'], $matches['end_time']));
-
-                    $range = new TsRange();
-                    $range->setLower($lower);
-                    $range->setUpper($upper);
-
-                    $ranges[] = $range;
-                }
-
+                $ranges[] = $choice->toTsRange();
             }
 
             return $ranges;
@@ -168,10 +140,7 @@ class OrderTimeHelper
     {
         $now = Carbon::now();
 
-        $preparationTime = $this->preparationTimeCalculator
-            ->createForRestaurant($cart->getRestaurant())
-            ->calculate($cart);
-
+        $preparationTime = $this->preparationTimeCalculator->calculate($cart);
         $shippingTime = $this->shippingTimeCalculator->calculate($cart);
 
         $ranges = $this->getShippingTimeRanges($cart);
@@ -197,8 +166,8 @@ class OrderTimeHelper
                 ->format(\DateTime::ATOM);
         }
 
-        $restaurant = $cart->getRestaurant();
-        $fulfillmentMethod = $restaurant->getFulfillmentMethod($cart->getFulfillmentMethod());
+        $vendor = $cart->getVendor();
+        $fulfillmentMethod = $vendor->getFulfillmentMethod($cart->getFulfillmentMethod());
 
         return [
             'behavior' => $fulfillmentMethod->getOpeningHoursBehavior(),

@@ -6,17 +6,18 @@ use ApiPlatform\Core\Annotation\ApiResource;
 use AppBundle\Action\Task\Bulk as TaskBulk;
 use AppBundle\Entity\Model\TaggableInterface;
 use AppBundle\Entity\Model\TaggableTrait;
+use AppBundle\Entity\Store;
 use AppBundle\Entity\Task;
+use AppBundle\Validator\Constraints\TaskGroup as AssertTaskGroup;
 use Doctrine\Common\Collections\ArrayCollection;
 use Symfony\Component\Serializer\Annotation\Groups;
+use Symfony\Component\Serializer\Annotation\SerializedName;
 use Symfony\Component\Validator\Constraints as Assert;
 
 /**
  * @ApiResource(
  *   shortName="TaskGroup",
- *   attributes={
- *     "normalization_context"={"groups"={"task"}}
- *   },
+ *   normalizationContext={"groups"={"task_group"}},
  *   collectionOperations={
  *     "tasks_import"={
  *       "method"="POST",
@@ -29,10 +30,13 @@ use Symfony\Component\Validator\Constraints as Assert;
  *   },
  *   itemOperations={
  *     "get"={
- *       "method"="GET"
+ *       "method"="GET",
+ *       "normalizationContext"={"groups"={"task_group"}},
+ *       "security"="is_granted('ROLE_OAUTH2_TASKS') and object.isAllowed(oauth2_context.store)"
  *     }
  *   }
  * )
+ * @AssertTaskGroup()
  */
 class Group implements TaggableInterface
 {
@@ -44,11 +48,14 @@ class Group implements TaggableInterface
     protected $id;
 
     /**
-     * @Groups({"task"})
+     * @Groups({"task", "task_group"})
      * @Assert\Type(type="string")
      */
     protected $name;
 
+    /**
+     * @Assert\Valid()
+     */
     protected $tasks;
 
     public function __construct()
@@ -73,9 +80,15 @@ class Group implements TaggableInterface
         return $this;
     }
 
+    /**
+     * @see https://api-platform.com/docs/core/serialization/#collection-relation
+     * @see https://github.com/api-platform/core/pull/1534
+     *
+     * @Groups({"task_group"})
+     */
     public function getTasks()
     {
-        return $this->tasks;
+        return $this->tasks->getValues();
     }
 
     public function removeTask(Task $task)
@@ -90,5 +103,23 @@ class Group implements TaggableInterface
         $task->setGroup($this);
 
         $this->tasks->add($task);
+    }
+
+    public function isAllowed(Store $store)
+    {
+        foreach ($this->getTasks() as $task) {
+
+            $organization = $task->getOrganization();
+
+            if ($organization === null) {
+                return false;
+            }
+
+            if ($organization !== $store->getOrganization()) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

@@ -64,7 +64,7 @@ Feature: Carts
         "@context":"/api/contexts/Order",
         "@id":"/api/orders/1",
         "@type":"http://schema.org/Order",
-        "customer":"/api/users/1",
+        "customer":"/api/customers/1",
         "restaurant":"/api/restaurants/2",
         "shippingAddress":null,
         "reusablePackagingEnabled":false,
@@ -75,7 +75,8 @@ Feature: Carts
         "total":0,
         "shippedAt":null,
         "shippingTimeRange":null,
-        "adjustments":@...@
+        "adjustments":@...@,
+        "fulfillmentMethod":"delivery"
       }
       """
 
@@ -114,7 +115,7 @@ Feature: Carts
         "@context":"/api/contexts/Order",
         "@id":"/api/orders/1",
         "@type":"http://schema.org/Order",
-        "customer":"/api/users/1",
+        "customer":"/api/customers/1",
         "restaurant":"/api/restaurants/1",
         "shippingAddress":{
           "@id":"/api/addresses/4",
@@ -140,7 +141,8 @@ Feature: Carts
           "order_promotion":[],
           "reusable_packaging":[],
           "tax":[]
-        }
+        },
+        "fulfillmentMethod":"delivery"
       }
       """
 
@@ -205,7 +207,8 @@ Feature: Carts
           "order_promotion":[],
           "reusable_packaging":[],
           "tax":[]
-        }
+        },
+        "fulfillmentMethod": "delivery"
       }
       """
 
@@ -236,7 +239,7 @@ Feature: Carts
         "@context":"/api/contexts/Order",
         "@id":"/api/orders/1",
         "@type":"http://schema.org/Order",
-        "customer":"/api/users/1",
+        "customer":"/api/customers/1",
         "restaurant":"/api/restaurants/1",
         "shippingAddress":null,
         "shippedAt":"2020-04-09T20:00:00+02:00",
@@ -256,7 +259,8 @@ Feature: Carts
           "order_promotion":[],
           "reusable_packaging":[],
           "tax":[]
-        }
+        },
+        "fulfillmentMethod":"delivery"
       }
       """
 
@@ -317,7 +321,8 @@ Feature: Carts
           "order_promotion":[],
           "reusable_packaging":[],
           "tax":@array@
-        }
+        },
+        "fulfillmentMethod":"delivery"
       }
       """
 
@@ -371,7 +376,8 @@ Feature: Carts
           "order_promotion":[],
           "reusable_packaging":[],
           "tax": @array@
-        }
+        },
+        "fulfillmentMethod":"delivery"
       }
       """
 
@@ -412,7 +418,7 @@ Feature: Carts
         "@context":"/api/contexts/Order",
         "@id":"/api/orders/1",
         "@type":"http://schema.org/Order",
-        "customer":"/api/users/1",
+        "customer":"/api/customers/1",
         "restaurant":"/api/restaurants/1",
         "shippingAddress":null,
         "shippedAt":null,
@@ -465,7 +471,8 @@ Feature: Carts
               "amount":@integer@
             }
           ]
-        }
+        },
+        "fulfillmentMethod":"delivery"
       }
       """
 
@@ -506,7 +513,7 @@ Feature: Carts
         "@context":"/api/contexts/Order",
         "@id":"/api/orders/1",
         "@type":"http://schema.org/Order",
-        "customer":"/api/users/1",
+        "customer":"/api/customers/1",
         "restaurant":"/api/restaurants/1",
         "shippingAddress":null,
         "shippedAt":null,
@@ -559,7 +566,8 @@ Feature: Carts
               "amount":@integer@
             }
           ]
-        }
+        },
+        "fulfillmentMethod":"delivery"
       }
       """
 
@@ -653,7 +661,8 @@ Feature: Carts
               "amount":@integer@
             }
           ]
-        }
+        },
+        "fulfillmentMethod":"delivery"
       }
       """
 
@@ -715,7 +724,8 @@ Feature: Carts
             "actionStatus":"PotentialActionStatus",
             "description":@string@
           }
-        ]
+        ],
+        "fulfillmentMethod": "delivery"
       }
       """
 
@@ -767,7 +777,7 @@ Feature: Carts
         "@context":"/api/contexts/Order",
         "@id":"/api/orders/1",
         "@type":"http://schema.org/Order",
-        "customer":"/api/users/1",
+        "customer":"/api/customers/1",
         "restaurant":"/api/restaurants/1",
         "shippingAddress":null,
         "shippedAt":null,
@@ -787,7 +797,8 @@ Feature: Carts
         ],
         "itemsTotal":2700,
         "total":3050,
-        "adjustments":@...@
+        "adjustments":@...@,
+        "fulfillmentMethod":"delivery"
       }
       """
     And the payment amount of order with IRI "/api/orders/1" should be "3050"
@@ -859,7 +870,8 @@ Feature: Carts
         ],
         "itemsTotal":2700,
         "total":3050,
-        "adjustments":@...@
+        "adjustments":@...@,
+        "fulfillmentMethod":"delivery"
       }
       """
 
@@ -906,7 +918,7 @@ Feature: Carts
         "@context":"/api/contexts/Order",
         "@id":"/api/orders/1",
         "@type":"http://schema.org/Order",
-        "customer":"/api/users/1",
+        "customer":"/api/customers/1",
         "restaurant":"/api/restaurants/1",
         "shippingAddress":null,
         "shippedAt":null,
@@ -917,7 +929,8 @@ Feature: Carts
         "items":[],
         "itemsTotal":0,
         "total":350,
-        "adjustments":@...@
+        "adjustments":@...@,
+        "fulfillmentMethod":"delivery"
       }
       """
 
@@ -974,7 +987,8 @@ Feature: Carts
         "items":[],
         "itemsTotal":0,
         "total":350,
-        "adjustments":@...@
+        "adjustments":@...@,
+        "fulfillmentMethod":"delivery"
       }
       """
 
@@ -1012,7 +1026,8 @@ Feature: Carts
           "items":[],
           "itemsTotal":0,
           "total":0,
-          "adjustments":@...@
+          "adjustments":@...@,
+          "fulfillmentMethod":"delivery"
         }
       }
       """
@@ -1046,7 +1061,8 @@ Feature: Carts
           "items":[],
           "itemsTotal":0,
           "total":0,
-          "adjustments":@...@
+          "adjustments":@...@,
+          "fulfillmentMethod":"delivery"
         }
       }
       """
@@ -1079,7 +1095,7 @@ Feature: Carts
           "@context":"/api/contexts/Order",
           "@id":"/api/orders/1",
           "@type":"http://schema.org/Order",
-          "customer":"/api/users/1",
+          "customer":"/api/customers/1",
           "restaurant":"/api/restaurants/1",
           "shippingAddress":null,
           "shippedAt":null,
@@ -1090,7 +1106,8 @@ Feature: Carts
           "items":[],
           "itemsTotal":0,
           "total":0,
-          "adjustments":@...@
+          "adjustments":@...@,
+          "fulfillmentMethod":"delivery"
         }
       }
       """
@@ -1113,7 +1130,7 @@ Feature: Carts
           "@context":"/api/contexts/Order",
           "@id":"/api/orders/1",
           "@type":"http://schema.org/Order",
-          "customer":"/api/users/1",
+          "customer":"/api/customers/1",
           "restaurant":"/api/restaurants/2",
           "shippingAddress":null,
           "shippedAt":null,
@@ -1124,7 +1141,48 @@ Feature: Carts
           "items":[],
           "itemsTotal":0,
           "total":0,
-          "adjustments":@...@
+          "adjustments":@...@,
+          "fulfillmentMethod": "delivery"
+        }
+      }
+      """
+
+  Scenario: Start cart session (with collection fulfillment method)
+    Given the fixtures files are loaded:
+      | sylius_channels.yml |
+      | products.yml        |
+      | restaurants.yml     |
+    When I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And I send a "POST" request to "/api/carts/session" with body:
+      """
+      {
+        "restaurant": "/api/restaurants/4"
+      }
+      """
+    Then the response status code should be 200
+    And the response should be in JSON
+    And the JSON should match:
+      """
+      {
+        "token":@string@,
+        "cart":{
+          "@context":"/api/contexts/Order",
+          "@id":"/api/orders/1",
+          "@type":"http://schema.org/Order",
+          "customer":null,
+          "restaurant":"/api/restaurants/4",
+          "shippingAddress":null,
+          "shippedAt":null,
+          "shippingTimeRange": null,
+          "reusablePackagingEnabled":false,
+          "reusablePackagingPledgeReturn": 0,
+          "notes":null,
+          "items":[],
+          "itemsTotal":0,
+          "total":0,
+          "adjustments":@...@,
+          "fulfillmentMethod":"collection"
         }
       }
       """
@@ -1226,7 +1284,7 @@ Feature: Carts
         "@context":"/api/contexts/Order",
         "@id":"/api/orders/1",
         "@type":"http://schema.org/Order",
-        "customer":"/api/users/1",
+        "customer":"/api/customers/1",
         "restaurant":"/api/restaurants/1",
         "shippingAddress":null,
         "shippedAt":null,
@@ -1243,7 +1301,8 @@ Feature: Carts
           "order_promotion":[],
           "reusable_packaging":[],
           "tax":[]
-        }
+        },
+        "fulfillmentMethod":"delivery"
       }
       """
 
@@ -1272,3 +1331,215 @@ Feature: Carts
       """
     Then the response status code should be 403
     And the response should be in JSON
+
+  Scenario: Update cart with invalid phone number
+    And the fixtures files are loaded:
+      | sylius_channels.yml |
+      | products.yml        |
+      | restaurants.yml     |
+    And the user "bob" is loaded:
+      | email      | bob@coopcycle.org |
+      | password   | 123456            |
+      | telephone  | 0033612345678     |
+    Given the user "bob" has created a cart at restaurant with id "1"
+    And the user "bob" is authenticated
+    When I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And the user "bob" sends a "PUT" request to "/api/orders/1" with body:
+      """
+      {
+        "shippingAddress": {
+          "streetAddress": "190 Rue de Rivoli, Paris",
+          "postalCode": "75001",
+          "addressLocality": "Paris",
+          "geo": {
+            "latitude": 48.863814,
+            "longitude": 2.3329
+          },
+          "telephone": "+336123"
+        }
+      }
+      """
+    Then the response status code should be 400
+    And the response should be in JSON
+    And the JSON should match:
+      """
+      {
+         "@context":"/api/contexts/ConstraintViolationList",
+         "@type":"ConstraintViolationList",
+         "hydra:title":"An error occurred",
+         "hydra:description":@string@,
+         "violations":[
+            {
+               "propertyPath":"shippingAddress.telephone",
+               "message":@string@
+            }
+         ]
+      }
+      """
+
+  Scenario: Update cart fulfillment method
+    And the fixtures files are loaded:
+      | sylius_channels.yml |
+      | products.yml        |
+      | restaurants.yml     |
+    And the user "bob" is loaded:
+      | email      | bob@coopcycle.org |
+      | password   | 123456            |
+      | telephone  | 0033612345678     |
+    Given the user "bob" has created a cart at restaurant with id "2"
+    And the user "bob" is authenticated
+    When I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And the user "bob" sends a "PUT" request to "/api/orders/1" with body:
+      """
+      {
+        "fulfillmentMethod": "collection"
+      }
+      """
+    Then the response status code should be 200
+    And the response should be in JSON
+    And the JSON should match:
+      """
+      {
+        "@context":"/api/contexts/Order",
+        "@id":"/api/orders/1",
+        "@type":"http://schema.org/Order",
+        "customer":@string@,
+        "restaurant":@string@,
+        "shippingAddress":null,
+        "shippedAt":null,
+        "reusablePackagingEnabled":false,
+        "reusablePackagingPledgeReturn":0,
+        "shippingTimeRange":null,
+        "notes":null,
+        "items":[],
+        "itemsTotal":0,
+        "total":0,
+        "fulfillmentMethod":"collection",
+        "adjustments":{
+          "delivery":[],
+          "delivery_promotion":[],
+          "order_promotion":[],
+          "reusable_packaging":[],
+          "tax":[]
+        }
+      }
+      """
+
+  Scenario: Update cart fulfillment method (not enabled)
+    And the fixtures files are loaded:
+      | sylius_channels.yml |
+      | products.yml        |
+      | restaurants.yml     |
+    And the user "bob" is loaded:
+      | email      | bob@coopcycle.org |
+      | password   | 123456            |
+      | telephone  | 0033612345678     |
+    Given the user "bob" has created a cart at restaurant with id "1"
+    And the user "bob" is authenticated
+    When I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And the user "bob" sends a "PUT" request to "/api/orders/1" with body:
+      """
+      {
+        "fulfillmentMethod": "collection"
+      }
+      """
+    Then the response status code should be 400
+    And the response should be in JSON
+    And the JSON should match:
+      """
+      {
+        "@context":"/api/contexts/ConstraintViolationList",
+        "@type":"ConstraintViolationList",
+        "hydra:title":"An error occurred",
+        "hydra:description":@string@,
+        "violations":[
+          {
+            "propertyPath":"takeaway",
+            "message":@string@
+          }
+        ]
+      }
+      """
+
+  Scenario: Get cart timing (with session)
+    Given the current time is "2020-10-02 11:00:00"
+    Given the fixtures files are loaded:
+      | sylius_channels.yml |
+      | products.yml        |
+      | restaurants.yml     |
+    And the user "bob" is loaded:
+      | email      | bob@coopcycle.org |
+      | password   | 123456            |
+      | telephone  | 0033612345678     |
+    And the restaurant with id "1" has products:
+      | code      |
+      | PIZZA     |
+      | HAMBURGER |
+    And the setting "default_tax_category" has value "tva_livraison"
+    And the setting "subject_to_vat" has value "1"
+    Given there is a cart at restaurant with id "1"
+    And there is a token for the last cart at restaurant with id "1"
+    When I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And I send an authenticated "GET" request to "/api/orders/1/timing"
+    Then the response status code should be 200
+    And the response should be in JSON
+    And the JSON should match:
+      """
+      {
+        "behavior":"asap",
+        "preparation":"10 minutes",
+        "shipping":"10 minutes",
+        "asap":"2020-10-02T12:00:00+02:00",
+        "range":[
+          "2020-10-02T11:55:00+02:00",
+          "2020-10-02T12:05:00+02:00"
+        ],
+        "today":true,
+        "fast":false,
+        "diff":"55 - 65",
+        "ranges":@array@,
+        "choices":@array@
+      }
+      """
+
+  Scenario: Validate cart (with session)
+    Given the fixtures files are loaded:
+      | sylius_channels.yml |
+      | products.yml        |
+      | restaurants.yml     |
+    And the user "bob" is loaded:
+      | email      | bob@coopcycle.org |
+      | password   | 123456            |
+      | telephone  | 0033612345678     |
+    And the restaurant with id "1" has products:
+      | code      |
+      | PIZZA     |
+      | HAMBURGER |
+    And the setting "default_tax_category" has value "tva_livraison"
+    And the setting "subject_to_vat" has value "1"
+    Given there is a cart at restaurant with id "1"
+    And there is a token for the last cart at restaurant with id "1"
+    When I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And I send an authenticated "GET" request to "/api/orders/1/validate"
+    Then the response status code should be 400
+    And the response should be in JSON
+    And the JSON should match:
+      """
+      {
+        "@context":"/api/contexts/ConstraintViolationList",
+        "@type":"ConstraintViolationList",
+        "hydra:title":"An error occurred",
+        "hydra:description":@string@,
+        "violations":[
+          {
+            "propertyPath":"total",
+            "message":@string@
+          }
+        ]
+      }
+      """

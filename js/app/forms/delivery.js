@@ -6,7 +6,7 @@ import _ from 'lodash'
 import AddressBook from '../delivery/AddressBook'
 import DateTimePicker from '../widgets/DateTimePicker'
 import TagsInput from '../widgets/TagsInput'
-import i18n from '../i18n'
+import { validateForm } from '../utils/address'
 
 class DeliveryForm {
   disable() {
@@ -21,7 +21,7 @@ class DeliveryForm {
 
 let store
 
-function setPackages(name) {
+function toPackages(name) {
   const packages = []
   $(`#${name}_packages_list`).children().each(function() {
     packages.push({
@@ -30,10 +30,7 @@ function setPackages(name) {
     })
   })
 
-  store.dispatch({
-    type: 'SET_PACKAGES',
-    packages
-  })
+  return packages
 }
 
 function createAddressWidget(name, type, cb) {
@@ -143,7 +140,7 @@ function createTagsWidget(name, type, tags) {
   })
 }
 
-function createPackageForm($list) {
+function createPackageForm(name, $list, cb) {
 
   var counter = $list.data('widget-counter') || $list.children().length
   var newWidget = $list.attr('data-prototype')
@@ -155,25 +152,34 @@ function createPackageForm($list) {
 
   var newElem = $(newWidget)
   newElem.find('input[type="number"]').val(1)
-  newElem.find('input[type="number"]').on('change', () => setPackages(name))
+  newElem.find('input[type="number"]').on('change', () => {
+    if (cb && typeof cb === 'function') {
+      cb(toPackages(name))
+    }
+  })
   newElem.appendTo($list)
 }
 
-
-function createPackagesWidget(name, packagesRequired) {
+export function createPackagesWidget(name, packagesRequired, cb) {
 
   if (packagesRequired) {
     createPackageForm(
-      $(`#${name}_packages_list`)
+      name,
+      $(`#${name}_packages_list`),
+      cb
     )
   }
 
   $(`#${name}_packages_add`).click(function() {
     const selector = $(this).attr('data-target')
     createPackageForm(
-      $(selector)
+      name,
+      $(selector),
+      cb
     )
-    setPackages(name)
+    if (cb && typeof cb === 'function') {
+      cb(toPackages(name))
+    }
   })
 
   $(`#${name}_packages`).on('click', '[data-delete]', function() {
@@ -190,11 +196,15 @@ function createPackagesWidget(name, packagesRequired) {
     }
 
     $target.remove()
-    setPackages(name)
+    if (cb && typeof cb === 'function') {
+      cb(toPackages(name))
+    }
   })
 
   $(`#${name}_packages`).on('change', 'select', function() {
-    setPackages(name)
+    if (cb && typeof cb === 'function') {
+      cb(toPackages(name))
+    }
   })
 }
 
@@ -321,7 +331,7 @@ export default function(name, options) {
 
     if (packages) {
       const packagesRequired = JSON.parse(packages.dataset.packagesRequired)
-      createPackagesWidget(name, packagesRequired)
+      createPackagesWidget(name, packagesRequired, packages => store.dispatch({ type: 'SET_PACKAGES', packages }))
     }
 
     el.addEventListener('submit', (e) => {
@@ -338,21 +348,9 @@ export default function(name, options) {
         const lngInput = document.querySelector(`#${name}_${type}_address [data-address-prop="longitude"]`)
         const streetAddrInput = document.querySelector(`#${name}_${type}_address_newAddress_streetAddress`)
 
-        if (searchInput.validity.valid) {
-          if (_.isEmpty(latInput.value) || _.isEmpty(lngInput.value)
-          || (searchInput.value !== streetAddrInput.value)) {
-            e.preventDefault();
-            searchInput.setCustomValidity(i18n.t('PLEASE_SELECT_ADDRESS'))
-            if (HTMLInputElement.prototype.reportValidity) {
-              searchInput.reportValidity()
-            }
+        const isValid = validateForm(e, searchInput, latInput, lngInput, streetAddrInput)
 
-            return true
-          }
-        }
-
-        return false
-
+        return !isValid
       })
 
     }, false)

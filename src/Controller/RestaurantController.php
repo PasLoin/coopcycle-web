@@ -9,30 +9,30 @@ use AppBundle\Controller\Utils\UserTrait;
 use AppBundle\Sylius\Order\AdjustmentInterface;
 use AppBundle\Sylius\Order\OrderInterface;
 use AppBundle\Sylius\Order\OrderItemInterface;
-use AppBundle\Entity\ApiUser;
+use AppBundle\Entity\User;
 use AppBundle\Entity\Address;
+use AppBundle\Entity\Hub;
 use AppBundle\Entity\LocalBusiness;
 use AppBundle\Entity\LocalBusinessRepository;
 use AppBundle\Entity\Restaurant\Pledge;
 use AppBundle\Enum\FoodEstablishment;
 use AppBundle\Enum\Store;
+use AppBundle\Form\Checkout\Action\AddProductToCartAction as CheckoutAddProductToCart;
+use AppBundle\Form\Checkout\Action\Validator\AddProductToCart as AssertAddProductToCart;
 use AppBundle\Form\Order\CartType;
 use AppBundle\Form\PledgeType;
 use AppBundle\Service\EmailManager;
 use AppBundle\Service\SettingsManager;
+use AppBundle\Sylius\Cart\RestaurantResolver;
 use AppBundle\Sylius\Order\OrderFactory;
+use AppBundle\Utils\OptionsPayloadConverter;
 use AppBundle\Utils\OrderTimeHelper;
 use AppBundle\Utils\ValidationUtils;
-use AppBundle\Validator\Constraints\Order as OrderConstraint;
-use Carbon\Carbon;
-use Carbon\CarbonInterface;
 use Cocur\Slugify\SlugifyInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use League\Geotools\Coordinate\Coordinate;
 use League\Geotools\Geotools;
-use Liip\ImagineBundle\Service\FilterService;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
-use Sonata\SeoBundle\Seo\SeoPageInterface;
 use Sylius\Component\Order\Context\CartContextInterface;
 use Sylius\Component\Order\Processor\OrderProcessorInterface;
 use Sylius\Component\Product\Model\ProductInterface;
@@ -49,7 +49,6 @@ use Symfony\Component\Translation\TranslatorInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
-use Vich\UploaderBundle\Templating\Helper\UploaderHelper;
 
 /**
  * @Route("/{_locale}", requirements={ "_locale": "%locale_regex%" })
@@ -62,39 +61,54 @@ class RestaurantController extends AbstractController
     const ITEMS_PER_PAGE = 21;
 
     private $orderManager;
-    private $seoPage;
-    private $uploaderHelper;
+    private $serializer;
+
+    /**
+     * @var OrderTimeHelper
+     */
+    private OrderTimeHelper $orderTimeHelper;
+
+    /**
+     * @var ValidatorInterface
+     */
+    private ValidatorInterface $validator;
+
+    /**
+     * @var RepositoryInterface
+     */
+    private RepositoryInterface $productRepository;
+    private $productVariantResolver;
+    private $orderItemFactory;
+
+    /**
+     * @var RepositoryInterface
+     */
+    private RepositoryInterface $orderItemRepository;
+    private $orderItemQuantityModifier;
+    private $orderModifier;
 
     public function __construct(
         EntityManagerInterface $orderManager,
-        SeoPageInterface $seoPage,
-        UploaderHelper $uploaderHelper,
         ValidatorInterface $validator,
         RepositoryInterface $productRepository,
         RepositoryInterface $orderItemRepository,
         $orderItemFactory,
         $productVariantResolver,
-        RepositoryInterface $productOptionValueRepository,
         $orderItemQuantityModifier,
         $orderModifier,
         OrderTimeHelper $orderTimeHelper,
-        SerializerInterface $serializer,
-        FilterService $imagineFilter)
+        SerializerInterface $serializer)
     {
         $this->orderManager = $orderManager;
-        $this->seoPage = $seoPage;
-        $this->uploaderHelper = $uploaderHelper;
         $this->validator = $validator;
         $this->productRepository = $productRepository;
         $this->orderItemRepository = $orderItemRepository;
         $this->orderItemFactory = $orderItemFactory;
         $this->productVariantResolver = $productVariantResolver;
-        $this->productOptionValueRepository = $productOptionValueRepository;
         $this->orderItemQuantityModifier = $orderItemQuantityModifier;
         $this->orderModifier = $orderModifier;
         $this->orderTimeHelper = $orderTimeHelper;
         $this->serializer = $serializer;
-        $this->imagineFilter = $imagineFilter;
     }
 
     private function jsonResponse(OrderInterface $cart, array $errors)
@@ -111,45 +125,6 @@ class RestaurantController extends AbstractController
             'times' => $this->orderTimeHelper->getTimeInfo($cart),
             'errors' => $errors,
         ]);
-    }
-
-    private function customizeSeoPage(LocalBusiness $restaurant, Request $request)
-    {
-        $this->seoPage->addTitle($restaurant->getName());
-
-        $description = $restaurant->getDescription();
-        if (!empty($description)) {
-            $this->seoPage->addMeta('name', 'description', $restaurant->getDescription());
-        }
-
-        $this->seoPage
-            ->addMeta('property', 'og:title', $this->seoPage->getTitle())
-            ->addMeta('property', 'og:description', sprintf('%s, %s %s',
-                $restaurant->getAddress()->getStreetAddress(),
-                $restaurant->getAddress()->getPostalCode(),
-                $restaurant->getAddress()->getAddressLocality()
-            ))
-            // https://developers.facebook.com/docs/reference/opengraph/object-type/restaurant.restaurant/
-            ->addMeta('property', 'og:type', 'restaurant.restaurant')
-            ->addMeta('property', 'restaurant:contact_info:street_address', $restaurant->getAddress()->getStreetAddress())
-            ->addMeta('property', 'restaurant:contact_info:locality', $restaurant->getAddress()->getAddressLocality())
-            ->addMeta('property', 'restaurant:contact_info:website', $restaurant->getWebsite())
-            ->addMeta('property', 'place:location:latitude', (string) $restaurant->getAddress()->getGeo()->getLatitude())
-            ->addMeta('property', 'place:location:longitude', (string) $restaurant->getAddress()->getGeo()->getLongitude())
-            ;
-
-        $imagePath = $this->uploaderHelper->asset($restaurant, 'imageFile');
-        if (null !== $imagePath) {
-            $this->seoPage->addMeta('property', 'og:image',
-                $this->imagineFilter->getUrlOfFilteredImage($imagePath, 'restaurant_thumbnail'));
-        }
-    }
-
-    private function saveSession(Request $request, OrderInterface $cart)
-    {
-        // TODO Find a better way to do this
-        $sessionKeyName = $this->getParameter('sylius_cart_restaurant_session_key_name');
-        $request->getSession()->set($sessionKeyName, $cart->getId());
     }
 
     private function getContextSlug(LocalBusiness $business)
@@ -198,6 +173,41 @@ class RestaurantController extends AbstractController
     }
 
     /**
+     * @Route("/hub/{id}-{slug}", name="hub",
+     *   requirements={
+     *     "id"="(\d+)",
+     *     "slug"="([a-z0-9-]+)"
+     *   },
+     *   defaults={
+     *     "slug"=""
+     *   }
+     * )
+     */
+    public function hubAction($id, $slug, Request $request,
+        SlugifyInterface $slugify,
+        CartContextInterface $cartContext,
+        IriConverterInterface $iriConverter)
+    {
+        $hub = $this->getDoctrine()->getRepository(Hub::class)->find($id);
+
+        if (!$hub) {
+            throw new NotFoundHttpException();
+        }
+
+        return $this->render('restaurant/hub.html.twig', [
+            'hub' => $hub,
+        ]);
+    }
+
+    /**
+     * @param string $type
+     * @param int $id
+     * @param string $slug
+     * @param Request $request
+     * @param SlugifyInterface $slugify
+     * @param CartContextInterface $cartContext
+     * @param Address|null $address
+     *
      * @Route("/{type}/{id}-{slug}", name="restaurant",
      *   requirements={
      *     "type"="(restaurant|store)",
@@ -213,7 +223,8 @@ class RestaurantController extends AbstractController
     public function indexAction($type, $id, $slug, Request $request,
         SlugifyInterface $slugify,
         CartContextInterface $cartContext,
-        IriConverterInterface $iriConverter)
+        RestaurantResolver $restaurantResolver,
+        Address $address = null)
     {
         $restaurant = $this->getDoctrine()
             ->getRepository(LocalBusiness::class)->find($id);
@@ -256,53 +267,24 @@ class RestaurantController extends AbstractController
             ]);
         }
 
-        // This will be used by RestaurantCartContext
-        $request->getSession()->set('restaurantId', $id);
-
         $cart = $cartContext->getCart();
 
-        $isAnotherRestaurant =
-            null !== $cart->getId() && $cart->getRestaurant() !== $restaurant;
+        if (null !== $address) {
+            $cart->setShippingAddress($address);
 
-        if ($isAnotherRestaurant) {
-            $cart->clearItems();
-            $cart->setShippingTimeRange(null);
-            $cart->setRestaurant($restaurant);
+            $this->orderManager->persist($cart);
+            $this->orderManager->flush();
         }
 
-        $user = $this->getUser();
-        if ($request->query->has('address') && $user && count($user->getAddresses()) > 0) {
-
-            $addressIRI = base64_decode($request->query->get('address'));
-
-            try {
-
-                $shippingAddress = $iriConverter->getItemFromIri($addressIRI);
-
-                if ($user->getAddresses()->contains($shippingAddress)) {
-                    $cart->setShippingAddress($shippingAddress);
-
-                    $this->orderManager->persist($cart);
-                    $this->orderManager->flush();
-
-                    $this->saveSession($request, $cart);
-                }
-
-            } catch (ItemNotFoundException $e) {
-                // Do nothing
-            }
-        }
-
-        $violations = $this->validator->validate($cart);
-        $violationCodes = [
-            OrderConstraint::SHIPPED_AT_EXPIRED,
-            OrderConstraint::SHIPPED_AT_NOT_AVAILABLE
-        ];
-        if (0 !== count($violations->findByCodes($violationCodes))) {
+        // This is useful to "cleanup" a cart that was stored
+        // with a time range that is now expired
+        // FIXME Maybe this should be moved to a Doctrine postLoad listener?
+        $violations = $this->validator->validate($cart, null, ['ShippingTime']);
+        if (count($violations) > 0) {
 
             $cart->setShippingTimeRange(null);
 
-            if (!$isAnotherRestaurant) {
+            if ($restaurantResolver->accept($cart)) {
                 $this->orderManager->persist($cart);
                 $this->orderManager->flush();
             }
@@ -316,27 +298,20 @@ class RestaurantController extends AbstractController
 
             $cart = $cartForm->getData();
 
+            // Make sure the shipping address is valid
+            // FIXME This is cumbersome, there should be a better way
+            $shippingAddress = $cart->getShippingAddress();
+            if (null !== $shippingAddress) {
+                $isShippingAddressValid = count($this->validator->validate($shippingAddress)) === 0;
+                if (!$isShippingAddressValid) {
+                    $cart->setShippingAddress(null);
+                }
+            }
+
             if ($request->isXmlHttpRequest()) {
 
                 $errors = [];
 
-                // Customer may be browsing the available restaurants
-                // Make sure the request targets the same restaurant
-                // If not, we don't persist the cart
-                if ($isAnotherRestaurant) {
-
-                    return $this->jsonResponse($cart, $errors);
-                }
-
-                // Make sure the shipping address is valid
-                // FIXME This is cumbersome, there should be a better way
-                $shippingAddress = $cart->getShippingAddress();
-                if (null !== $shippingAddress) {
-                    $isShippingAddressValid = count($this->validator->validate($shippingAddress)) === 0;
-                    if (!$isShippingAddressValid) {
-                        $cart->setShippingAddress(null);
-                    }
-                }
                 if (!$cartForm->isValid()) {
                     foreach ($cartForm->getErrors() as $formError) {
                         $propertyPath = (string) $formError->getOrigin()->getPropertyPath();
@@ -344,10 +319,13 @@ class RestaurantController extends AbstractController
                     }
                 }
 
-                $this->orderManager->persist($cart);
-                $this->orderManager->flush();
-
-                $this->saveSession($request, $cart);
+                // Customer may be browsing the available restaurants
+                // Make sure the request targets the same restaurant
+                // If not, we don't persist the cart
+                if ($restaurantResolver->accept($cart)) {
+                    $this->orderManager->persist($cart);
+                    $this->orderManager->flush();
+                }
 
                 return $this->jsonResponse($cart, $errors);
 
@@ -362,34 +340,10 @@ class RestaurantController extends AbstractController
                 }
             }
         }
-        $this->customizeSeoPage($restaurant, $request);
-
-        $structuredData = $this->serializer->normalize($restaurant, 'jsonld', [
-            'resource_class' => LocalBusiness::class,
-            'operation_type' => 'item',
-            'item_operation_name' => 'get',
-            'groups' => ['restaurant_seo', 'address']
-        ]);
-
-        $delay = null;
-
-
-        Carbon::setLocale($request->attributes->get('_locale'));
-
-        $now = Carbon::now();
-
-        $future = clone $now;
-        $future->addMinutes($restaurant->getOrderingDelayMinutes());
-
-        if ($restaurant->getOrderingDelayMinutes() > 0) {
-            $delay = $now->diffForHumans($future, ['syntax' => CarbonInterface::DIFF_ABSOLUTE]);
-        }
 
         return $this->render('restaurant/index.html.twig', array(
             'restaurant' => $restaurant,
-            'structured_data' => $structuredData,
             'times' => $this->orderTimeHelper->getTimeInfo($cart),
-            'delay' => $delay,
             'cart_form' => $cartForm->createView(),
             'addresses_normalized' => $this->getUserAddresses(),
         ));
@@ -400,9 +354,18 @@ class RestaurantController extends AbstractController
      */
     public function changeAddressAction($id, Request $request,
         CartContextInterface $cartContext,
-        IriConverterInterface $iriConverter)
+        IriConverterInterface $iriConverter,
+        RestaurantResolver $restaurantResolver)
     {
+        $restaurant = $this->getDoctrine()
+            ->getRepository(LocalBusiness::class)->find($id);
+
+        if (!$restaurant) {
+            throw new NotFoundHttpException();
+        }
+
         $cart = $cartContext->getCart();
+
         $user = $this->getUser();
         if ($request->request->has('address') && $user && count($user->getAddresses()) > 0) {
 
@@ -415,8 +378,10 @@ class RestaurantController extends AbstractController
                 if ($user->getAddresses()->contains($shippingAddress)) {
                     $cart->setShippingAddress($shippingAddress);
 
-                    $this->orderManager->persist($cart);
-                    $this->orderManager->flush();
+                    if ($restaurantResolver->accept($cart)) {
+                        $this->orderManager->persist($cart);
+                        $this->orderManager->flush();
+                    }
                 }
 
             } catch (ItemNotFoundException $e) {
@@ -435,7 +400,9 @@ class RestaurantController extends AbstractController
      */
     public function addProductToCartAction($id, $code, Request $request,
         CartContextInterface $cartContext,
-        TranslatorInterface $translator)
+        TranslatorInterface $translator,
+        RestaurantResolver $restaurantResolver,
+        OptionsPayloadConverter $optionsPayloadConverter)
     {
         $restaurant = $this->getDoctrine()
             ->getRepository(LocalBusiness::class)->find($id);
@@ -444,70 +411,39 @@ class RestaurantController extends AbstractController
 
         $cart = $cartContext->getCart();
 
-        if (!$product->isEnabled()) {
-            $errors = [
-                'items' => [
-                    [ 'message' => sprintf('Product %s is not enabled', $product->getCode()) ]
-                ]
-            ];
+        $action = new CheckoutAddProductToCart();
+        $action->product = $product;
+        $action->cart = $cart;
+        $action->clear = $request->request->getBoolean('_clear', false);
+
+        $violations = $this->validator->validate($action, new AssertAddProductToCart());
+
+        if (count($violations) > 0) {
+
+            $errors = [];
+            foreach ($violations as $violation) {
+                $key = $violation->getPropertyPath();
+                $errors[$key][] = [
+                    'message' => $violation->getMessage()
+                ];
+            }
 
             return $this->jsonResponse($cart, $errors);
         }
 
-        if (!$restaurant->hasProduct($product)) {
-            $errors = [
-                'restaurant' => [
-                    [ 'message' => sprintf('Unable to add product %s', $product->getCode()) ]
-                ]
-            ];
-
-            return $this->jsonResponse($cart, $errors);
-        }
-
-        $clear = $request->request->getBoolean('_clear', false);
-
-        if ($cart->getRestaurant() !== $restaurant && !$clear) {
-            $errors = [
-                'restaurant' => [
-                    [ 'message' => sprintf('Restaurant mismatch') ]
-                ]
-            ];
-
-            return $this->jsonResponse($cart, $errors);
-        }
-
-        if ($clear) {
-            $cart->clearItems();
-            $cart->setShippingTimeRange(null);
-            $cart->setRestaurant($restaurant);
-        }
+        // This may "upgrade" the order target,
+        // i.e switch from pointing to a single restaurant to pointing to a hub
+        $restaurantResolver->changeVendor($cart);
 
         $cartItem = $this->orderItemFactory->createNew();
 
         if (!$product->hasOptions()) {
             $productVariant = $this->productVariantResolver->getVariant($product);
         } else {
-
             if (!$request->request->has('options') && !$product->hasNonAdditionalOptions()) {
                 $productVariant = $this->productVariantResolver->getVariant($product);
             } else {
-
-                $optionValues = new \SplObjectStorage();
-                foreach ($request->request->get('options') as $option) {
-                    if (isset($option['code'])) {
-                        $optionValue = $this->productOptionValueRepository->findOneByCode($option['code']);
-                        if ($optionValue && $product->hasOptionValue($optionValue)) {
-                            $quantity = isset($option['quantity']) ? (int) $option['quantity'] : 0;
-                            if (!$optionValue->getOption()->isAdditional() || null === $optionValue->getOption()->getValuesRange()) {
-                                $quantity = 1;
-                            }
-                            if ($quantity > 0) {
-                                $optionValues->attach($optionValue, $quantity);
-                            }
-                        }
-                    }
-                }
-
+                $optionValues = $optionsPayloadConverter->convert($product, $request->request->get('options'));
                 $productVariant = $this->productVariantResolver->getVariantForOptionValues($product, $optionValues);
             }
         }
@@ -521,8 +457,6 @@ class RestaurantController extends AbstractController
         $this->orderManager->persist($cart);
         $this->orderManager->flush();
 
-        $this->saveSession($request, $cart);
-
         $errors = $this->validator->validate($cart);
         $errors = ValidationUtils::serializeViolationList($errors);
 
@@ -532,7 +466,9 @@ class RestaurantController extends AbstractController
     /**
      * @Route("/restaurant/{id}/cart/clear-time", name="restaurant_cart_clear_time", methods={"POST"})
      */
-    public function clearCartTimeAction($id, Request $request, CartContextInterface $cartContext)
+    public function clearCartTimeAction($id, Request $request,
+        CartContextInterface $cartContext,
+        RestaurantResolver $restaurantResolver)
     {
         $restaurant = $this->getDoctrine()
             ->getRepository(LocalBusiness::class)->find($id);
@@ -541,10 +477,10 @@ class RestaurantController extends AbstractController
 
         $cart->setShippingTimeRange(null);
 
-        $this->orderManager->persist($cart);
-        $this->orderManager->flush();
-
-        $this->saveSession($request, $cart);
+        if ($restaurantResolver->accept($cart)) {
+            $this->orderManager->persist($cart);
+            $this->orderManager->flush();
+        }
 
         $errors = $this->validator->validate($cart);
         $errors = ValidationUtils::serializeViolationList($errors);

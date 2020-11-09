@@ -37,6 +37,16 @@ module.exports = function(sequelize) {
     email_canonical: Sequelize.STRING,
     password: Sequelize.STRING,
     enabled: Sequelize.BOOLEAN,
+    createdAt: {
+      field: 'created_at',
+      type: Sequelize.DATE,
+      defaultValue: new Date(),
+    },
+    updatedAt: {
+      field: 'updated_at',
+      type: Sequelize.DATE,
+      defaultValue: new Date(),
+    },
   }, _.extend(sequelizeOptions, {
     tableName: 'api_user',
     getterMethods: {
@@ -69,6 +79,12 @@ module.exports = function(sequelize) {
 
   Db.UserRestaurant = sequelize.define('user_restaurant', {}, _.extend(sequelizeOptions, {
     tableName: 'api_user_restaurant'
+  }));
+
+  Db.Organization = sequelize.define('organization', {
+    name: Sequelize.STRING,
+  }, _.extend(sequelizeOptions, {
+    tableName: 'organization'
   }));
 
   Db.Restaurant = sequelize.define('restaurant', {
@@ -147,6 +163,7 @@ module.exports = function(sequelize) {
   }));
 
   Db.Restaurant.belongsTo(Db.Address);
+  Db.Restaurant.belongsTo(Db.Organization);
 
   Db.User.belongsToMany(Db.Address, { through: Db.UserAddress, foreignKey: 'api_user_id' });
   Db.User.belongsToMany(Db.Restaurant, { through: Db.UserRestaurant, foreignKey: 'api_user_id' });

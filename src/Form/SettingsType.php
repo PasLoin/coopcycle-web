@@ -2,7 +2,10 @@
 
 namespace AppBundle\Form;
 
+use AppBundle\Payment\GatewayResolver;
 use AppBundle\Service\SettingsManager;
+use AppBundle\Form\PaymentGateway\MercadopagoType;
+use AppBundle\Form\PaymentGateway\StripeType;
 use Doctrine\ORM\EntityRepository;
 use libphonenumber\NumberParseException;
 use libphonenumber\PhoneNumber;
@@ -23,6 +26,7 @@ use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\Extension\Core\Type\CollectionType;
 use Symfony\Component\Form\Extension\Core\Type\EmailType;
+use Symfony\Component\Form\Extension\Core\Type\HiddenType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\Extension\Core\Type\PasswordType;
 use Symfony\Component\OptionsResolver\OptionsResolver;
@@ -38,12 +42,14 @@ class SettingsType extends AbstractType
     public function __construct(
         SettingsManager $settingsManager,
         PhoneNumberUtil $phoneNumberUtil,
+        GatewayResolver $gatewayResolver,
         string $country,
         bool $isDemo,
         bool $debug)
     {
         $this->settingsManager = $settingsManager;
         $this->phoneNumberUtil = $phoneNumberUtil;
+        $this->gatewayResolver = $gatewayResolver;
         $this->country = $country;
         $this->isDemo = $isDemo;
         $this->debug = $debug;
@@ -78,48 +84,6 @@ class SettingsType extends AbstractType
                 'label' => 'form.settings.enable_restaurant_pledges.label',
                 'required' => false,
             ])
-            ->add('stripe_test_publishable_key', PasswordType::class, [
-                'required' => false,
-                'label' => 'form.settings.stripe_publishable_key.label',
-                'attr' => [
-                    'autocomplete' => 'new-password'
-                ]
-            ])
-            ->add('stripe_test_secret_key', PasswordType::class, [
-                'required' => false,
-                'label' => 'form.settings.stripe_secret_key.label',
-                'attr' => [
-                    'autocomplete' => 'new-password'
-                ]
-            ])
-            ->add('stripe_test_connect_client_id', PasswordType::class, [
-                'required' => false,
-                'label' => 'form.settings.stripe_connect_client_id.label',
-                'attr' => [
-                    'autocomplete' => 'new-password'
-                ]
-            ])
-            ->add('stripe_live_publishable_key', PasswordType::class, [
-                'required' => false,
-                'label' => 'form.settings.stripe_publishable_key.label',
-                'attr' => [
-                    'autocomplete' => 'new-password'
-                ]
-            ])
-            ->add('stripe_live_secret_key', PasswordType::class, [
-                'required' => false,
-                'label' => 'form.settings.stripe_secret_key.label',
-                'attr' => [
-                    'autocomplete' => 'new-password'
-                ]
-            ])
-            ->add('stripe_live_connect_client_id', PasswordType::class, [
-                'required' => false,
-                'label' => 'form.settings.stripe_connect_client_id.label',
-                'attr' => [
-                    'autocomplete' => 'new-password'
-                ]
-            ])
             ->add('google_api_key', TextType::class, [
                 'label' => 'form.settings.google_api_key.label',
                 'help' => 'form.settings.google_api_key.help',
@@ -139,7 +103,42 @@ class SettingsType extends AbstractType
             ])
             ->add('currency_code', CurrencyChoiceType::class, [
                 'label' => 'form.settings.currency_code.label'
+            ])
+            ->add('guest_checkout_enabled', CheckboxType::class, [
+                'required' => false,
+                'label' => 'form.settings.guest_checkout_enabled.label',
+                'help' => 'form.settings.guest_checkout_enabled.help'
+            ])
+            ->add('sms_enabled', CheckboxType::class, [
+                'required' => false,
+                'label' => 'form.settings.sms_enabled.label',
+                'disabled' => $this->isDemo,
+            ])
+            ->add('sms_gateway', ChoiceType::class, [
+                'choices' => [
+                    'Mailjet' => 'mailjet',
+                    'Twilio' => 'twilio'
+                ],
+                'required' => false,
+                'label' => 'form.settings.sms_gateway.label',
+            ])
+            ->add('sms_gateway_config', HiddenType::class, [
+                'required' => false,
+                'label' => 'form.settings.sms_gateway_config.label',
             ]);
+
+        $gateway = $this->gatewayResolver->resolve();
+
+        switch ($gateway) {
+            case 'mercadopago':
+                $builder->add('mercadopago', MercadopagoType::class, ['mapped' => false]);
+                break;
+
+            case 'stripe':
+            default:
+                $builder->add('stripe', StripeType::class, ['mapped' => false]);
+                break;
+        }
 
         $builder->get('enable_restaurant_pledges')
             ->addModelTransformer(new CallbackTransformer(
@@ -152,15 +151,47 @@ class SettingsType extends AbstractType
             ))
         ;
 
+        $builder->get('guest_checkout_enabled')
+            ->addModelTransformer(new CallbackTransformer(
+                function ($originalValue) {
+                    return filter_var($originalValue, FILTER_VALIDATE_BOOLEAN);
+                },
+                function ($submittedValue) {
+                    return $submittedValue ? '1' : '0';
+                }
+            ))
+        ;
+
         $builder->addEventListener(FormEvents::PRE_SET_DATA, function (FormEvent $event) {
 
             $form = $event->getForm();
             $data = $event->getData();
 
             foreach ($data as $name => $value) {
+
+                if (!$form->has($name)) {
+
+                    [ $namespace ] = explode('_', $name, 2);
+
+                    if (!$form->has($namespace)) {
+                        continue;
+                    }
+
+                    if (!$form->get($namespace)->has($name)) {
+                        continue;
+                    }
+
+                    $source = $form->get($namespace)->get($name);
+                    $target = $form->get($namespace);
+
+                } else {
+                    $source = $form->get($name);
+                    $target = $form;
+                }
+
                 if ($this->settingsManager->isSecret($name)) {
 
-                    $config = $form->get($name)->getConfig();
+                    $config = $source->getConfig();
                     $options = $config->getOptions();
 
                     $options['empty_data'] = $value;
@@ -170,7 +201,7 @@ class SettingsType extends AbstractType
                         'autocomplete' => 'new-password'
                     ];
 
-                    $form->add($name, PasswordType::class, $options);
+                    $target->add($name, PasswordType::class, $options);
                 }
             }
 
@@ -185,7 +216,6 @@ class SettingsType extends AbstractType
 
                 $form->add('currency_code', CurrencyChoiceType::class, $options);
             }
-
         });
 
         $builder->get('phone_number')->addEventListener(FormEvents::PRE_SET_DATA, function (FormEvent $event) {

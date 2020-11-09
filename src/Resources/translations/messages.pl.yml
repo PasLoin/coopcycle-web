@@ -40,13 +40,9 @@ adminDashboard.promotions.title: Promocje
 adminDashboard.back.title: Powrót
 adminDashboard.zones.send: Wyślij
 adminDashboard.zones.uploadGeoJSON: Dodaj plik GeoJSON
-adminDashboard.zones.delete: Usuń
-adminDashboard.zones.save: Zapisz
-adminDashboard.zones.cancel: Anuluj
 adminDashboard.zones.title: Strefy
 adminDashboard.tags.color: Kolor
 adminDashboard.tags.name: Nazwa
-adminDashboard.tags.save: Zapisz
 adminDashboard.pricing.manage: Zarządzaj
 adminDashboard.pricing.createNew: Dodaj nową wycenę
 adminDashboard.pricing.noPricings: Brak wycen
@@ -61,13 +57,11 @@ adminDashboard.users.createNew: Dodaj użytkownika
 adminDashboard.users.edit.addRestaurant: Dodaj restuaracje
 adminDashboard.users.edit.addStore: Dodaj sklep
 adminDashboard.users.editUser: Edytuj użytkownika
-adminDashboard.users.edit: Edytuj
 adminDashboard.users.title: Użytkownicy
 adminDashboard.menuCategories.menu: Menu
 adminDashboard.menuCategories.addCategory: Dodaj kategorie
 adminDashboard.menuCategories.categories: Kategorie
 embed.delivery.billing_address: Adres rozliczeniowy
-adminDashboard.menuCategories.save: Zapisz
 adminDashboard.stores.createNew: Dodaj nowy sklep
 adminDashboard.stores.title: Sklepy
 adminDashboard.restaurants.createNew: Dodaj nową restauracje
@@ -83,7 +77,6 @@ embed.delivery.summary.title: Podsumowanie zamówienia
 embed.breadcrumb.confirm: Potwierdzenie
 embed.breadcrumb.summary: Podsumowanie
 adminDashboard.package_sets.title: Przesyłki
-adminDashboard.deliveries.save: Zapisz
 adminDashboard.deliveries.deliveryAddress: Adres doręczenia
 adminDashboard.deliveries.originAddress: Adres odbioru
 adminDashboard.deliveries.delivery: Dostawa
@@ -93,7 +86,6 @@ adminDashboard.deliveries.dueDate: Termin realizacji
 adminDashboard.deliveries.type: Rodzaj
 adminDashboard.deliveries.address: Adres
 adminDashboard.dashboard.displayAll: Pokaż wszystkie
-adminDashboard.dashboard.cancel: Anuluj
 restaurant.contract.variableDeliveryPriceEnabled.disclaimer: Kwota jest obliczana
   dynamicznie
 roles.ROLE_ADMIN.help: "Administrator: Pełny dostęp do wszystkich funkcji\n"
@@ -145,9 +137,6 @@ task.form.details: Szczegóły zlecenie
 form.delivery.to_be_confirmed.warning: Musisz potwierdzić zamówienie
 form.order.accept.help: Po zaakceptowaniu zamówienia, klient zostanie powiadomiony
   przez email.
-form.payment.refund_application_fee.help: "Jeśli zaznaczysz to pole, prowizja pobierana\
-  \ przez platformę od partnera zostanie zwrócona proporcjonalnie\n<br>\n<a href=\"\
-  https://stripe.com/docs/connect/direct-charges#issuing-refunds\">Dowiedz się więcej</a>\n"
 form.settings.stripe.help: 'Stripe jest serwisem płatniczym, którego używamy do obsługi
   kart kredytowych. Aby używać części e-commerce platformy należy skonfigurować tę
   sekcję, a także Stripe Connect. Stripe pobiera opłatę w wysokości 0,25cts + 1,4%
@@ -215,7 +204,6 @@ restaurant.form.temporaryClosingRule: Kliknij tutaj, aby tymczasowo wyłączyć 
   do twojej restauracji.
 restaurant.form.deposit_refund_enabled.label: Włącz system zwrotu kaucji
 restaurant.form.createRestaurant: Stwórz restaurację
-restaurant.form.save: Zapisz
 restaurant.form.exclusive.label: Ta restauracja jest ekskluzywna
 restaurant.form.quotes_allowed.label: Ta restauracja akceptuje również wyceny (np.
   catering)
@@ -262,6 +250,7 @@ restaurant.closingForm.reason.label: Powód
 restaurant.closingForm.dates.label: Zamknięte od/do
 restaurant.list.manage: Zarządzaj
 restaurant.list.orders: Zamówienia
+restaurant.list.refunds: Zwroty kosztów
 restaurant.list.products: Produkty
 restaurant.list.product_options: Opcje
 restaurant.list.menus: Lista menu
@@ -297,15 +286,12 @@ profile.myOrders: Moje zamówienia
 profile.myAddresses: Moje adresy
 profile.myPersonalInfo: Moje personalne informacje
 profile.payment: Płatność
-profile.task.cancel: Anuluj
 profile.task.noTasks: Brak zaplanowanych zadań
 profile.task.dueDate: Termin dostawy
 profile.task.address: Adres
 profile.task.complete: Zakończony
 profile.task.date: Data
-profile.edit.save: Zapisz
 profile.addresses.newAddress: Nowy adres
-profile.addresses.save: Zapisz
 profile.addresses.add: Dodaj
 profile.editProfile: Edytuj profil
 profile.payment.title: Płatność
@@ -357,7 +343,6 @@ order.adjustment_type.delivery: Dostawa
 order_item.adjustment_type.reusable_packaging: '%quantity% × opakowanie'
 order.list.total: Suma
 order.list.shippedAt: Czas dostawy
-order.list.cancel: Anuluj
 order.list.customer: Klient
 order.list.state: Status
 order.list.summary: Podsumowanie
@@ -367,7 +352,6 @@ order.list.generate_receipt: Wystaw
 vehicle.bike: Rower
 vehicle.cargo_bike: Rower cargo
 task.form.create: Utwórz zlecenie
-task.form.cancel: Anuluj
 task.form.showHistory: Pokaż poprzednie
 task.form.modal.moreOptions: Więcej opcji
 task.form.edit: Zmień zamówienie %id%
@@ -423,17 +407,14 @@ form.delivery.packages.label: Opakowanie
 form.delivery.time_slot.label: Przedział czasu
 form.delivery.view_order: Zobacz zamówienie
 form.order.accept.label: Akceptuj
-form.order.cancel.label: Anuluj
 form.order.fulfill.label: Wypełnij
 form.order.payment_complete.label: Kompletny
 form.order.payment_refund.label: Zwrot
 form.order.refund_modal.title: Zwrot
 form.payment.refund_amount.label: Kwota
 form.payment.refund_amount.help: Kwota, którą określiłeś, zostanie zwrócona klientowi
-form.payment.refund_application_fee.label: Opłata za zwrot
 form.address.addressLocality.label: Miasto
 form.address.postalCode.label: Kod pocztowy
-form.address.floor.label: Nr lokalu
 form.address.description.label: 'Informacje dotyczące adresu: np. piętro, nazwa firmy,
   nr pokoju'
 form.address.description.placeholder: Drugie drzwi po lewej…
@@ -516,6 +497,7 @@ form.local_business.stripe_account.link_ok: "Ta restauracja jest połączona z k
   \ Stripe i może otrzymywać płatności z platformy <br>\nAby zarządzać kontem Stripe\
   \ i przelewami do twojego konta, proszę skorzystaj z<a href=\"https://dashboard.stripe.com/\"\
   \ target=\"_blank\">pulpitu nawigacyjnego Stripe</a>.\n"
+form.local_business.mercadopago_account.title: Konto MercadoPago
 form.product_option.values.title: Cechy
 form.product_option.values.help: Musisz określić listę cech dla tej opcji
 form.product_option.additional.label: Ta opcja jest dodatkowa
@@ -546,7 +528,6 @@ roles.ROLE_COURIER.help: "Kurier/Kurierka: zobacz zadania oczekujące, modyfikuj
   \ zadania…\n"
 roles.ROLE_RESTAURANT.help: 'Właściciel restauracji: zarządzaj przypisanymi restauracjami,
   zarządzaj zamówieniami…'
-stores.form.save: Zapisz
 stores.manage: Zarządzaj
 stores.settings: Ustawienia
 form.credit_note.name.help: Nazwa promocji, która będzie wyświetlana w koszyku
@@ -791,6 +772,7 @@ receipt.title: 'Paragon twojego zamówienia #%number%'
 form.local_business.iso_code.fr.rcs_number: Numer RCS
 form.local_business.iso_code.fr.vat_number: Numer VAT
 form.local_business.iso_code.fr.siret: Numer SIRET
+form.local_business.iso_code.ar.cuit: Numer CUIT/CUIL
 form.min_max.infinity.label: Brak maksimum
 form.min_max.upper.label: Max. numer
 form.min_max.lower.label: Min. numer

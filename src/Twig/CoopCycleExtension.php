@@ -2,10 +2,12 @@
 
 namespace AppBundle\Twig;
 
+use ApiPlatform\Core\Api\IriConverterInterface;
 use AppBundle\Entity\Address;
 use AppBundle\Sylius\Product\ProductOptionInterface;
 use Carbon\Carbon;
 use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\PersistentCollection;
 use Hashids\Hashids;
 use Symfony\Component\Serializer\SerializerInterface;
@@ -17,11 +19,13 @@ use Twig\TwigTest;
 class CoopCycleExtension extends AbstractExtension
 {
     private $serializer;
+    private $iriConverter;
     private $secret;
 
-    public function __construct(SerializerInterface $serializer, string $secret)
+    public function __construct(SerializerInterface $serializer, IriConverterInterface $iriConverter, string $secret)
     {
         $this->serializer = $serializer;
+        $this->iriConverter = $iriConverter;
         $this->secret = $secret;
     }
 
@@ -44,6 +48,11 @@ class CoopCycleExtension extends AbstractExtension
             new TwigFilter('local_business_type', array(LocalBusinessRuntime::class, 'type')),
             new TwigFilter('time_range_for_humans', array(OrderRuntime::class, 'timeRangeForHumans')),
             new TwigFilter('promotion_rule_for_humans', array(PromotionRuntime::class, 'ruleForHumans')),
+            new TwigFilter('promotion_action_for_humans', array(PromotionRuntime::class, 'actionForHumans')),
+            new TwigFilter('get_iri_from_item', array($this, 'getIriFromItem')),
+            new TwigFilter('oauth2_proxy', array(OAuthRuntime::class, 'modifyUrl')),
+            new TwigFilter('restaurant_microdata', array(LocalBusinessRuntime::class, 'seo')),
+            new TwigFilter('restaurant_delay_for_humans', array(LocalBusinessRuntime::class, 'delayForHumans')),
         );
     }
 
@@ -62,8 +71,8 @@ class CoopCycleExtension extends AbstractExtension
             new TwigFunction('coopcycle_asset', array(AssetsRuntime::class, 'asset')),
             new TwigFunction('coopcycle_asset_base64', array(AssetsRuntime::class, 'assetBase64')),
             new TwigFunction('local_business_path', array(UrlGeneratorRuntime::class, 'localBusinessPath')),
-            new TwigFunction('product_option_index', array($this, 'productOptionIndex')),
             new TwigFunction('coopcycle_has_about_us', array(AppearanceRuntime::class, 'hasAboutUs')),
+            new TwigFunction('coopcycle_has_banner', array(AssetsRuntime::class, 'hasCustomBanner')),
         );
     }
 
@@ -94,29 +103,36 @@ class CoopCycleExtension extends AbstractExtension
         }
     }
 
-    public function normalize($object)
+    public function normalize($object, $resourceClass = Address::class, $groups = [], $format = 'jsonld')
     {
-        if ($object instanceof PersistentCollection) {
+        if ($resourceClass === Address::class && empty($groups)) {
+            $groups = ['address'];
+        }
+
+        $context = [
+            'groups' => $groups,
+        ];
+
+        if ('jsonld' === $format) {
+            $context = array_merge($context, [
+                'resource_class' => $resourceClass,
+                'operation_type' => 'item',
+                'item_operation_name' => 'get',
+            ]);
+        }
+
+        if ($object instanceof Collection) {
 
             $collection = [];
-
             foreach ($object as $item) {
-                if ($item instanceof Address) {
-                    $normalized = $this->serializer->normalize($item, 'jsonld', [
-                        'resource_class' => Address::class,
-                        'operation_type' => 'item',
-                        'item_operation_name' => 'get',
-                        'groups' => ['address']
-                    ]);
-
-                    $collection[] = $normalized;
-                }
+                $collection[] =
+                    $this->serializer->normalize($item, $format, $context);
             }
 
             return $collection;
         }
 
-        return $object;
+        return $this->serializer->normalize($object, $format, $context);
     }
 
     public function dateCalendar($context, $date)
@@ -128,9 +144,9 @@ class CoopCycleExtension extends AbstractExtension
         return strtolower($carbon->locale($locale)->calendar());
     }
 
-    public function hashid(object $object)
+    public function hashid(object $object, $minHashLength = 8)
     {
-        $hashids = new Hashids($this->secret, 8);
+        $hashids = new Hashids($this->secret, $minHashLength ?? 8);
 
         if (is_callable([$object, 'getId'])) {
             $id = $object->getId();
@@ -146,8 +162,8 @@ class CoopCycleExtension extends AbstractExtension
         return $var instanceof $class;
     }
 
-    public function productOptionIndex()
+    public function getIriFromItem($item)
     {
-        return new ProductOptionIndex();
+        return $this->iriConverter->getIriFromItem($item);
     }
 }

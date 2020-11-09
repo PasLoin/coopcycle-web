@@ -16,6 +16,7 @@ import CourierSelect from './CourierSelect'
 import { timePickerProps } from '../../utils/antd'
 
 import { closeNewTaskModal, createTask, startTask, completeTask, cancelTask, duplicateTask, loadTaskEvents } from '../redux/actions'
+import { selectSelectedDate } from '../../coopcycle-frontend-js/dispatch/redux'
 
 const itemColor = event => {
   switch (event.name) {
@@ -49,10 +50,23 @@ class TaskModalContent extends React.Component {
 
   renderHeaderText(task) {
     if (!!task && Object.prototype.hasOwnProperty.call(task, '@id')) {
-      return this.props.t('ADMIN_DASHBOARD_TASK_TITLE', { id: task.id })
+
+      return (
+        <span>
+          { (task.orgName && !_.isEmpty(task.orgName)) && (
+          <span>
+            <span>{ task.orgName }</span>
+            <span className="mx-2">›</span>
+          </span>
+          ) }
+          <span>{ this.props.t('ADMIN_DASHBOARD_TASK_TITLE', { id: task.id }) }</span>
+        </span>
+      )
     }
 
-    return this.props.t('ADMIN_DASHBOARD_TASK_TITLE_NEW')
+    return (
+      <span>{ this.props.t('ADMIN_DASHBOARD_TASK_TITLE_NEW') }</span>
+    )
   }
 
   renderCompleteForm() {
@@ -419,14 +433,6 @@ class TaskModalContent extends React.Component {
                     </small>
                   </div>
                   <div className="form-group form-group-sm">
-                    <label className="control-label" htmlFor="address_floor">{ this.props.t('ADMIN_DASHBOARD_TASK_FORM_ADDRESS_FLOOR_LABEL') }</label>
-                    <input type="text" id="address_floor" name="address.floor" className="form-control"
-                      autoComplete="off"
-                      onChange={ handleChange }
-                      onBlur={ handleBlur }
-                      value={ values.address.floor || '' } />
-                  </div>
-                  <div className="form-group form-group-sm">
                     <label className="control-label" htmlFor="address_description">{ this.props.t('ADMIN_DASHBOARD_TASK_FORM_ADDRESS_DESCRIPTION_LABEL') }</label>
                     <textarea id="address_description" name="address.description" rows="3"
                       placeholder={ this.props.t('ADMIN_DASHBOARD_TASK_FORM_ADDRESS_DESCRIPTION_PLACEHOLDER') }
@@ -540,7 +546,7 @@ function mapStateToProps (state) {
     completeTaskErrorMessage: state.completeTaskErrorMessage,
     country,
     phoneNumberExample: phoneNumber.formatNational(),
-    date: state.date,
+    date: selectSelectedDate(state),
     isTaskTypeEditable: isTaskTypeEditable(state.currentTask),
     isLoadingEvents: state.isLoadingTaskEvents,
     events,

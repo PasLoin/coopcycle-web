@@ -2,6 +2,9 @@ import React from 'react'
 import _ from 'lodash'
 import isScalar from 'locutus/php/var/is_scalar'
 import { withTranslation } from 'react-i18next'
+import numbro from 'numbro'
+
+import { numericTypes } from './RulePicker'
 
 /*
 
@@ -32,6 +35,21 @@ const typeToOperators = {
   'dropoff.doorstep': ['=='],
   'packages': ['containsAtLeastOne'],
   'order.itemsTotal': ['==', '<', '>', 'in'],
+}
+
+const isK = type => type === 'distance' || type === 'weight'
+
+const formatValue = (value, type) => {
+  if (!_.includes(numericTypes, type)) {
+
+    return value
+  }
+
+  if (value === '') {
+    return 0
+  }
+
+  return numbro.unformat(value) * (isK(type) ? 1000 : 1)
 }
 
 class RulePickerLine extends React.Component {
@@ -65,21 +83,25 @@ class RulePickerLine extends React.Component {
   }
 
   handleFirstBoundChange (ev) {
+    const { type } = this.state
     let value = this.state.value.slice()
-    value[0] = ev.target.value
+    value[0] = ev.target.value * (isK(type) ? 1000 : 1)
     this.setState({ value })
   }
 
   handleSecondBoundChange (ev) {
+    const { type } = this.state
     let value = this.state.value.slice()
-    value[1] = ev.target.value
+    value[1] = ev.target.value * (isK(type) ? 1000 : 1)
     this.setState({ value })
   }
 
   handleValueChange (ev) {
-    const { value } = this.state
+    const { type, value } = this.state
     if (!Array.isArray(value)) {
-      this.setState({ value: ev.target.value })
+      this.setState({
+        value: formatValue(ev.target.value, type)
+      })
     }
   }
 
@@ -124,9 +146,21 @@ class RulePickerLine extends React.Component {
     this.props.onDelete(this.props.index)
   }
 
-  renderNumberInput() {
+  renderNumberInput(k = false) {
+
+    let props = {}
+    if (k) {
+      props = {
+        ...props,
+        step: '.5'
+      }
+    }
+
     return (
-      <input className="form-control input-sm" value={this.state.value} onChange={this.handleValueChange} type="number" min="0" required></input>
+      <input className="form-control input-sm"
+        value={ k ? (this.state.value / 1000) : this.state.value }
+        onChange={ this.handleValueChange }
+        type="number" min="0" required { ...props }></input>
     )
   }
 
@@ -173,22 +207,22 @@ class RulePickerLine extends React.Component {
         return this.renderBooleanInput()
       }
 
-      return this.renderNumberInput()
+      return this.renderNumberInput(isK(this.state.type))
     // weight, distance, diff_days(pickup)
     case 'in':
       return (
         <div className="row">
           <div className="col-md-6">
-            <input className="form-control input-sm" value={this.state.value[0]} onChange={this.handleFirstBoundChange} type="number" min="0" required></input>
+            <input className="form-control input-sm" value={ (this.state.value[0] / (isK(this.state.type) ? 1000 : 1))  } onChange={this.handleFirstBoundChange} type="number" min="0" required></input>
           </div>
           <div className="col-md-6">
-            <input className="form-control input-sm" value={this.state.value[1]} onChange={this.handleSecondBoundChange} type="number" min="0" required></input>
+            <input className="form-control input-sm" value={ (this.state.value[1] / (isK(this.state.type) ? 1000 : 1)) } onChange={this.handleSecondBoundChange} type="number" min="0" required></input>
           </div>
         </div>
       )
     case '<':
     case '>':
-      return this.renderNumberInput()
+      return this.renderNumberInput(isK(this.state.type))
     case 'containsAtLeastOne':
       return (
         <select onChange={this.handleValueChange} value={this.state.value} className="form-control input-sm">

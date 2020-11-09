@@ -5,15 +5,17 @@ namespace AppBundle\EventListener\Upload;
 use ApiPlatform\Core\Api\IriConverterInterface;
 use AppBundle\Entity\LocalBusiness;
 use AppBundle\Entity\Sylius\Product;
+use AppBundle\Entity\Sylius\ProductImage;
 use AppBundle\Entity\Task\Group as TaskGroup;
 use AppBundle\Message\ImportTasks;
 use AppBundle\Spreadsheet\ProductSpreadsheetParser;
 use AppBundle\Service\SettingsManager;
 use AppBundle\Spreadsheet\TaskSpreadsheetParser;
-use Doctrine\Persistence\ManagerRegistry;
+use Doctrine\ORM\EntityManagerInterface;
 use Hashids\Hashids;
 use Oneup\UploaderBundle\Event\PostPersistEvent;
 use Psr\Log\LoggerInterface;
+use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Component\HttpFoundation\File\Exception\UploadException;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Messenger\Stamp\DelayStamp;
@@ -23,17 +25,18 @@ use Vich\UploaderBundle\Mapping\PropertyMappingFactory;
 
 final class UploadListener
 {
-    private $doctrine;
+    private $entityManager;
     private $mappingFactory;
     private $uploadHandler;
     private $settingsManager;
     private $messageBus;
     private $productSpreadsheetParser;
     private $secret;
+    private $isDemo;
     private $logger;
 
     public function __construct(
-        ManagerRegistry $doctrine,
+        EntityManagerInterface $entityManager,
         PropertyMappingFactory $mappingFactory,
         UploadHandler $uploadHandler,
         SettingsManager $settingsManager,
@@ -41,10 +44,12 @@ final class UploadListener
         ProductSpreadsheetParser $productSpreadsheetParser,
         SerializerInterface $serializer,
         IriConverterInterface $iriConverter,
+        CacheInterface $appCache,
         string $secret,
+        bool $isDemo,
         LoggerInterface $logger)
     {
-        $this->doctrine = $doctrine;
+        $this->entityManager = $entityManager;
         $this->mappingFactory = $mappingFactory;
         $this->uploadHandler = $uploadHandler;
         $this->settingsManager = $settingsManager;
@@ -52,7 +57,9 @@ final class UploadListener
         $this->productSpreadsheetParser = $productSpreadsheetParser;
         $this->serializer = $serializer;
         $this->iriConverter = $iriConverter;
+        $this->appCache = $appCache;
         $this->secret = $secret;
+        $this->isDemo = $isDemo;
         $this->logger = $logger;
     }
 
@@ -73,7 +80,7 @@ final class UploadListener
                     $restaurant->addProduct($product);
                 }
 
-                $this->doctrine->getManagerForClass(LocalBusiness::class)->flush();
+                $this->entityManager->flush();
 
                 $file->getFilesystem()->delete($file->getPathname());
 
@@ -89,6 +96,10 @@ final class UploadListener
             return $response;
         }
 
+        if ('banner' === $event->getType()) {
+            return $this->onBannerUpload($event);
+        }
+
         $type = $request->get('type');
 
         if ($type === 'logo') {
@@ -99,24 +110,26 @@ final class UploadListener
             return $this->onTasksUpload($event);
         }
 
-        $objectClass = null;
         if ($type === 'restaurant') {
-            $objectClass = LocalBusiness::class;
+            $object = $this->entityManager->getRepository(LocalBusiness::class)->find(
+                $request->get('id')
+            );
+            // Remove previous file
+            $this->uploadHandler->remove($object, 'imageFile');
         } elseif ($type === 'product') {
-            $objectClass = Product::class;
+            $product = $this->entityManager->getRepository(Product::class)->find(
+                $request->get('id')
+            );
+
+            $object = new ProductImage();
+            $product->addImage($object);
         } else {
             return;
         }
 
-        $id = $request->get('id');
-        $object = $this->doctrine->getRepository($objectClass)->find($id);
-
-        // Remove previous file
-        $this->uploadHandler->remove($object, 'imageFile');
-
         // Update image_name column in database
         $object->setImageName($file->getBasename());
-        $this->doctrine->getManagerForClass($objectClass)->flush();
+        $this->entityManager->flush();
 
         // Invoke VichUploaderBundle's directory namer
         $propertyMapping = $this->mappingFactory->fromField($object, 'imageFile');
@@ -134,8 +147,14 @@ final class UploadListener
     {
         $file = $event->getFile();
 
+        if ($this->isDemo) {
+            throw new UploadException('Company logo can\'t be changed in demo mode');
+        }
+
         $this->settingsManager->set('company_logo', $file->getBasename());
         $this->settingsManager->flush();
+
+        $this->appCache->delete('content.company_logo.base_64');
     }
 
     private function onTasksUpload(PostPersistEvent $event)
@@ -173,12 +192,8 @@ final class UploadListener
         $taskGroup->setName(sprintf('Import %s', date('d/m H:i')));
 
         // The TaskGroup will serve as a unique identifier
-        $this->doctrine
-            ->getManagerForClass(TaskGroup::class)
-            ->persist($taskGroup);
-        $this->doctrine
-            ->getManagerForClass(TaskGroup::class)
-            ->flush();
+        $this->entityManager->persist($taskGroup);
+        $this->entityManager->flush();
 
         $encoded = $hashids->encode($taskGroup->getId());
         $this->logger->debug(sprintf('UploadListener | hashid = %s', $encoded));
@@ -198,5 +213,17 @@ final class UploadListener
         // $response['error'] = 'Bad encoding';
 
         return $response;
+    }
+
+    private function onBannerUpload(PostPersistEvent $event)
+    {
+        $file = $event->getFile();
+
+        if ($this->isDemo) {
+            throw new UploadException('Banner can\'t be changed in demo mode');
+        }
+
+        $this->appCache->delete('banner_svg_stat');
+        $this->appCache->delete('banner_svg');
     }
 }

@@ -12,7 +12,10 @@ use AppBundle\Entity\Restaurant\PreparationTimeRule;
 use AppBundle\Entity\ReusablePackaging;
 use AppBundle\Entity\StripeAccount;
 use AppBundle\Entity\Sylius\Order;
+use AppBundle\Entity\Sylius\Product;
+use AppBundle\Entity\Sylius\ProductImage;
 use AppBundle\Entity\Sylius\ProductTaxon;
+use AppBundle\Entity\Vendor;
 use AppBundle\Entity\Zone;
 use AppBundle\Form\ClosingRuleType;
 use AppBundle\Form\MenuEditorType;
@@ -25,6 +28,7 @@ use AppBundle\Form\RestaurantType;
 use AppBundle\Form\Restaurant\DepositRefundSettingsType;
 use AppBundle\Form\Restaurant\ReusablePackagingType;
 use AppBundle\Form\Sylius\Promotion\OfferDeliveryType;
+use AppBundle\Service\MercadopagoManager;
 use AppBundle\Service\SettingsManager;
 use AppBundle\Sylius\Order\AdjustmentInterface;
 use AppBundle\Sylius\Product\ProductInterface;
@@ -34,23 +38,30 @@ use AppBundle\Utils\RestaurantStats;
 use AppBundle\Utils\ValidationUtils;
 use Cocur\Slugify\SlugifyInterface;
 use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\ORM\Query\Expr;
+use Knp\Component\Pager\PaginatorInterface;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTManagerInterface;
 use Lexik\Bundle\JWTAuthenticationBundle\Encoder\JWTEncoderInterface;
+use MercadoPago;
 use Ramsey\Uuid\Uuid;
 use Sylius\Component\Locale\Provider\LocaleProviderInterface;
 use Sylius\Component\Order\Model\OrderInterface;
+use Sylius\Component\Product\Model\ProductTranslation;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\Extension\Core\Type\SubmitType;
 use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormInterface;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Symfony\Component\Validator\ConstraintViolationList;
 use Symfony\Component\Validator\Validation;
+use Vich\UploaderBundle\Handler\UploadHandler;
 
 trait RestaurantTrait
 {
@@ -288,7 +299,8 @@ trait RestaurantTrait
 
         $qb = $this->get('sylius.repository.order')
             ->createQueryBuilder('o')
-            ->andWhere('o.restaurant = :restaurant')
+            ->join(Vendor::class, 'v', Expr\Join::WITH, 'o.vendor = v.id')
+            ->andWhere('v.restaurant = :restaurant')
             ->andWhere('OVERLAPS(o.shippingTimeRange, CAST(:range AS tsrange)) = TRUE')
             ->andWhere('o.state != :state')
             ->setParameter('restaurant', $restaurant)
@@ -319,13 +331,13 @@ trait RestaurantTrait
                 'resource_class' => Order::class,
                 'operation_type' => 'item',
                 'item_operation_name' => 'get',
-                'groups' => ['order', 'address']
+                'groups' => ['order', 'address', 'dispatch']
             ]),
             'order_normalized' => $order ? $this->get('serializer')->normalize($order, 'jsonld', [
                 'resource_class' => Order::class,
                 'operation_type' => 'item',
                 'item_operation_name' => 'get',
-                'groups' => ['order', 'address']
+                'groups' => ['order', 'address', 'dispatch']
             ]) : null,
             'routes' => $routes,
             'date' => $date,
@@ -585,10 +597,12 @@ trait RestaurantTrait
 
         if ($form->isSubmitted() && $form->isValid()) {
             $closingRule = $form->getData();
-            $closingRule->setRestaurant($restaurant);
-            $manager = $this->getDoctrine()->getManagerForClass(ClosingRule::class);
-            $manager->persist($closingRule);
-            $manager->flush();
+            $restaurant->addClosingRule($closingRule);
+
+            $this->getDoctrine()
+                ->getManagerForClass(LocalBusiness::class)
+                ->flush();
+
             $this->addFlash(
                 'notice',
                 $this->get('translator')->trans('global.changesSaved')
@@ -646,19 +660,34 @@ trait RestaurantTrait
 
         $this->accessControl($restaurant);
 
-        $routes = $request->attributes->get('routes');
+        $qb = $this->getDoctrine()
+            ->getRepository(Product::class)
+            ->createQueryBuilder('p');
+        $qb->innerJoin(ProductTranslation::class, 't', Expr\Join::WITH, 't.translatable = p.id');
+        $qb->innerJoin(LocalBusiness::class, 'r', Expr\Join::WITH, '1 = 1');
+        $qb->innerJoin('r.products', 'rp');
+        $qb->andWhere('r.id = :restaurant');
+        $qb->andWhere('p.id = rp.id');
+        $qb->setParameter('restaurant', $restaurant);
 
-        // TODO Use Criteria API for ordering
-        $products = $restaurant->getProducts()->toArray();
-        usort($products, function ($a, $b) {
-            return $a->getName() < $b->getName() ? -1 : 1;
-        });
+        $products = $this->get('knp_paginator')->paginate(
+            $qb,
+            $request->query->getInt('page', 1),
+            10,
+            [
+                PaginatorInterface::DEFAULT_SORT_FIELD_NAME => 't.name',
+                PaginatorInterface::DEFAULT_SORT_DIRECTION => 'asc',
+                PaginatorInterface::SORT_FIELD_WHITELIST => ['t.name'],
+            ]
+        );
 
         $forms = [];
         foreach ($products as $product) {
             $forms[$product->getId()] =
                 $this->createRestaurantProductForm($restaurant, $product)->createView();
         }
+
+        $routes = $request->attributes->get('routes');
 
         return $this->render($request->attributes->get('template'), $this->withRoutes([
             'layout' => $request->attributes->get('layout'),
@@ -821,7 +850,9 @@ trait RestaurantTrait
         ], $routes));
     }
 
-    public function restaurantProductOptionPreviewAction(Request $request, LocaleProviderInterface $localeProvider)
+    public function restaurantProductOptionPreviewAction(Request $request,
+        NormalizerInterface $serializer,
+        LocaleProviderInterface $localeProvider)
     {
         $productOption = $this->get('sylius.factory.product_option')
             ->createNew();
@@ -841,12 +872,9 @@ trait RestaurantTrait
                 }
             }
 
-            return $this->render('restaurant/_partials/option.html.twig', $this->withRoutes([
-                'product' => [
-                    'code' => Uuid::uuid4()->toString()
-                ],
-                'option' => $productOption,
-            ]));
+            return new JsonResponse(
+                $serializer->normalize($productOption, 'json', ['groups' => ['product_option']])
+            );
         }
 
         throw new BadRequestHttpException();
@@ -964,6 +992,55 @@ trait RestaurantTrait
         return $this->redirect('https://connect.stripe.com/oauth/authorize?' . $queryString);
     }
 
+    /**
+     * @see https://www.mercadopago.com.mx/developers/es/guides/marketplace/api/create-marketplace/
+     */
+    public function mercadopagoOAuthRedirectAction($id, Request $request,
+        SettingsManager $settingsManager,
+        JWTEncoderInterface $jwtEncoder,
+        IriConverterInterface $iriConverter,
+        MercadopagoManager $mercadopagoManager)
+    {
+        $restaurant = $this->getDoctrine()
+            ->getRepository(LocalBusiness::class)
+            ->find($id);
+
+        $redirectUri = $this->generateUrl(
+            'mercadopago_oauth_callback',
+            [],
+            UrlGeneratorInterface::ABSOLUTE_URL
+        );
+
+        $redirectAfterUri = $this->generateUrl(
+            $request->attributes->get('redirect_after'),
+            ['id' => $restaurant->getId()],
+            UrlGeneratorInterface::ABSOLUTE_URL
+        );
+
+        // Use a JWT as the "state" parameter
+        // @see https://stripe.com/docs/connect/oauth-reference#get-authorize-request
+        $state = $jwtEncoder->encode([
+            'exp' => (new \DateTime('+1 hour'))->getTimestamp(),
+            // The "iss" (Issuer) claim contains a redirect URL
+            'iss' => $redirectAfterUri,
+            // The "sub" (Subject) claim contains a restaurant IRI
+            'sub' => $iriConverter->getIriFromItem($restaurant),
+            // The custom "mplm" (Mercado Pago livemode) contains a boolean
+            'mplm' => 'no',
+        ]);
+
+        $mercadopagoManager->configure();
+
+        $oAuth = new MercadoPago\OAuth();
+
+        $url = sprintf('%s&state=%s',
+            $oAuth->getAuthorizationURL($settingsManager->get('mercadopago_app_id'), $redirectUri),
+            $state
+        );
+
+        return $this->redirect($url);
+    }
+
     public function preparationTimeAction($id, Request $request, PreparationTimeCalculator $calculator)
     {
         $restaurant = $this->getDoctrine()
@@ -1026,6 +1103,8 @@ trait RestaurantTrait
 
     public function statsAction($id, Request $request, SlugifyInterface $slugify, TranslatorInterface $translator)
     {
+        $tab = $request->query->get('tab', 'orders');
+
         $restaurant = $this->getDoctrine()
             ->getRepository(LocalBusiness::class)
             ->find($id);
@@ -1038,10 +1117,11 @@ trait RestaurantTrait
 
         if ($request->query->has('month')) {
             $month = $request->query->get('month');
-            preg_match('/([0-9]{4})-([0-9]{2})/', $month, $matches);
-            $year = $matches[1];
-            $month = $matches[2];
-            $date->setDate($year, $month, 1);
+            if (1 === preg_match('/([0-9]{4})-([0-9]{2})/', $month, $matches)) {
+                $year = $matches[1];
+                $month = $matches[2];
+                $date->setDate($year, $month, 1);
+            }
         }
 
         $start = clone $date;
@@ -1053,7 +1133,7 @@ trait RestaurantTrait
         $end->setDate($date->format('Y'), $date->format('m'), $date->format('t'));
         $end->setTime(23, 59, 59);
 
-        $orders = $this->getDoctrine()->getRepository(Order::class)
+        $orders = $this->get('sylius.repository.order')
             ->findOrdersByRestaurantAndDateRange(
                 $restaurant,
                 $start,
@@ -1093,7 +1173,8 @@ trait RestaurantTrait
             'restaurant' => $restaurant,
             'stats' => $stats,
             'start' => $start,
-            'end' => $end
+            'end' => $end,
+            'tab' => $tab,
         ]));
     }
 
@@ -1233,5 +1314,42 @@ trait RestaurantTrait
         // TODO Implement
 
         throw $this->createNotFoundException();
+    }
+
+    public function deleteProductImageAction($restaurantId, $productId, $imageName,
+        Request $request,
+        UploadHandler $uploadHandler)
+    {
+        $restaurant = $this->getDoctrine()
+            ->getRepository(LocalBusiness::class)
+            ->find($restaurantId);
+
+        $this->accessControl($restaurant);
+
+        $product = $this->get('sylius.repository.product')
+            ->find($productId);
+
+        if (!$product) {
+            throw $this->createNotFoundException();
+        }
+
+        $image = $this->getDoctrine()
+            ->getRepository(ProductImage::class)
+            ->findOneByImageName($imageName);
+
+        if (!$image) {
+            throw $this->createNotFoundException();
+        }
+
+        if (!$product->getImages()->contains($image)) {
+            throw new BadRequestHttpException(sprintf('Product "%s" does not belong to product #%d', $imageName, $productId));
+        }
+
+        $uploadHandler->remove($image, 'imageFile');
+
+        $product->getImages()->removeElement($image);
+        $this->getDoctrine()->getManagerForClass(Product::class)->flush();
+
+        return new Response('', 204);
     }
 }

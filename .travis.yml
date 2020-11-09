@@ -63,6 +63,7 @@ env:
     - COOPCYCLE_MAIL_HOST=127.0.0.1
     - COOPCYCLE_TAX_INCL=1
     - COOPCYCLE_LEGACY_TAXES=1
+    - MATOMO_CHECKOUT_COMPLETED_GOAL_ID=
     # https://docs.travis-ci.com/user/encryption-keys
     # GOOGLE_API_KEY
     - secure: "QQdL4x+Ht2/qUv+qhtyR/9effGz2P6PyJ0+8lGWycu0K5sKmtcUO/6xK7il4/uK5nogm4YcON1Pcmm665NhfCSu1gicNgd0bYR0KIWIYPeWUM9pjC1yzZhh2MOl9p0NWo6ulI1Ex7WTmN8sXc5AuNhpnKuQXR8mZPu5Tg9YTodkglKARdO11Nk1rU4dLefvlmncWHgtZ4DTYINe0jHWLH0RnmLKtKVzwLpeSt/AEplRAl25fh+qp6fw61qoHMLLyUGTJpli+mvEUruAKupc4bERBOaL9uEa+J0X0eOumK5tQLyXPGjibPRjwJWxBq7OHZOWtX4CvbWU6xoF/MM0hp9HRdH6i06tlo68BTR+dBviQWw7s2JLqCWrYtb6ifsmg+FVY4cKTDQG9mEJ6ZEMa8OAIaIltaXj3MyrrbsnkJIbweXn6OfsJBxzeIO8VaNJ++XA5uFD/RH1ClY9je6P635eFU2KSOoj58i3ElNl8Mn1/hwaBUZlfmytwLMmDmjyNr0EpuLohep6+FLv5vksgea0Nj1wI7HUJ0kY8bX6+BkFL1AWVrDJX3ZW38GvAArRWs+HHF7PN35agwSwOhih8SRtn/DpOWBNfG1Q+/PN1Yf6tWsPWc6aGCWNFiWjTOOtrkTTo1RO2uVuYaprsbW9nzMu69wlq82z/0ZxmKenxAYM="
@@ -84,7 +85,7 @@ install:
   - docker run -t -v $(pwd)/var/osrm:/data osrm/osrm-backend:$OSRM_VERSION osrm-partition /data/paris-france.osrm
   - docker run -t -v $(pwd)/var/osrm:/data osrm/osrm-backend:$OSRM_VERSION osrm-customize /data/paris-france.osrm
   - docker run -t -v $(pwd)/var/osrm:/data -d -p 5000:5000 osrm/osrm-backend:$OSRM_VERSION osrm-routed --algorithm mld /data/paris-france.osrm
-  - docker run -t -d -p 12111:12111 stripemock/stripe-mock
+  - docker run -t -d -p 12111:12111 stripemock/stripe-mock:v0.94.0
   - docker run -t -d -p 8889:80 adrianrudnik/mjml-server
   - docker run -t -d -p 9851:9851 tile38/tile38
   # Configure php-fpm
@@ -137,3 +138,10 @@ script:
   - php vendor/bin/behat -f progress
   - node node_modules/.bin/mocha --require @babel/register --exit js/tests/
   - $(npm bin)/cypress run
+
+# after_failure:
+#   - python -m pip install --upgrade pip
+#   - pip install python-swiftclient python-keystoneclient
+#   - pip install awscli
+#   - tar czvf $TRAVIS_BUILD_NUMBER.tgz -C cypress/screenshots .
+#   - aws --endpoint=$AWS_ENDPOINT s3 cp $TRAVIS_BUILD_NUMBER.tgz s3://cypress/$TRAVIS_BUILD_NUMBER.tgz --acl private

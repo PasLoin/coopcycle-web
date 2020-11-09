@@ -13,6 +13,7 @@ require('bootstrap-sass')
 import './i18n'
 import { setTimezone, getCurrencySymbol } from './i18n'
 import CartTop from './cart/CartTop'
+import AddressAutosuggest from './widgets/AddressAutosuggest'
 
 global.ClipboardJS = require('clipboard')
 
@@ -55,23 +56,81 @@ window._paq = [];
 /* Top cart */
 document.addEventListener('DOMContentLoaded', function() {
 
-  const cartTopElement = document.querySelector('#cart-top')
-  const cartDataElement = document.querySelector('#js-cart-data')
-
   // Set global timezone used in Moment.js
   const timezone = document.querySelector('body').dataset.timezone
   setTimezone(timezone)
 
-  if (cartTopElement && cartDataElement) {
+  const cartTopElement = document.querySelector('#cart-top')
+  if (cartTopElement) {
+    render(<CartTop url={ cartTopElement.dataset.url } href={ cartTopElement.dataset.href } />, cartTopElement)
+  }
 
-    const { restaurant, itemsTotal, total } = cartDataElement.dataset
+  const inputs = document.querySelectorAll('[data-widget="address-input"]')
+  if (inputs.length > 0) {
+    let prevInitMap
+    if (window.initMap && typeof window.initMap === 'function') {
+      prevInitMap = window.initMap
+    }
+    window.initMap = function() {
 
-    render(
-      <CartTop
-        restaurant={ restaurant ? JSON.parse(restaurant) : null }
-        total={ total }
-        itemsTotal={ itemsTotal }
-      />, cartTopElement)
+      const addressElements = {
+        latitude: '$1ddress_latitude',
+        longitude: '$1ddress_longitude',
+        postalCode: '$1ddress_postalCode',
+        addressLocality: '$1ddress_addressLocality',
+      }
+
+      inputs.forEach(el => {
+
+        // Try to build an address object
+        let address = {
+          streetAddress: el.value
+        }
+        for (const addressProp in addressElements) {
+          const addressEl = document.getElementById(
+            el.getAttribute('id').replace(/([aA])ddress_streetAddress/, addressElements[addressProp])
+          )
+          if (addressEl) {
+            address = {
+              ...address,
+              [addressProp]: addressEl.value
+            }
+          }
+        }
+
+        address = {
+          ...address,
+          geo: {
+            latitude: address.latitude,
+            longitude: address.longitude,
+          }
+        }
+
+        new AddressAutosuggest(
+          el.closest('.form-group'),
+          {
+            required: el.required,
+            address,
+            inputId: el.getAttribute('id'),
+            inputName: el.getAttribute('name'),
+            onAddressSelected: (text, address) => {
+              for (const addressProp in addressElements) {
+                const addressEl = document.getElementById(
+                  el.getAttribute('id').replace(/([aA])ddress_streetAddress/, addressElements[addressProp])
+                )
+                if (addressEl) {
+                  addressEl.value = address[addressProp]
+                }
+              }
+            }
+          }
+        )
+      })
+      if (prevInitMap) {
+        prevInitMap()
+        prevInitMap = null
+      }
+    }
   }
 
 })

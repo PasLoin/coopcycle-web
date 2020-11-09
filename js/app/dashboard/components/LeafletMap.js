@@ -3,8 +3,9 @@ import { connect } from 'react-redux'
 import MapHelper from '../../MapHelper'
 import MapProxy from './MapProxy'
 import _ from 'lodash'
-import { setCurrentTask, assignAfter } from '../redux/actions'
-import { selectTasks, selectFilteredTasks } from '../redux/selectors'
+import { setCurrentTask, assignAfter, selectTask, selectTasks as selectTasksAction } from '../redux/actions'
+import { selectFilteredTasks } from '../redux/selectors'
+import { selectAllTasks, selectTaskLists, selectSelectedDate } from '../../coopcycle-frontend-js/dispatch/redux'
 
 class LeafletMap extends Component {
 
@@ -14,6 +15,7 @@ class LeafletMap extends Component {
       asTheCrowFlies,
       tasks,
       tasksFiltered,
+      clustersEnabled,
     } = this.props
 
     const tasksHidden = _.differenceWith(tasks, tasksFiltered, (a, b) => a['@id'] === b['@id'])
@@ -23,6 +25,12 @@ class LeafletMap extends Component {
 
     _.forEach(polylines, (polyline, username) => this.proxy.setPolyline(username, polyline))
     _.forEach(asTheCrowFlies, (polyline, username) => this.proxy.setPolylineAsTheCrowFlies(username, polyline))
+
+    if (clustersEnabled) {
+      this.proxy.showClusters()
+    } else {
+      this.proxy.hideClusters()
+    }
   }
 
   componentDidMount() {
@@ -76,6 +84,16 @@ class LeafletMap extends Component {
 
         this.proxy.clearDrawPolyline()
         this.proxy.enableDragging()
+      },
+      onMarkersSelected: markers => {
+        const tasks = []
+        markers.forEach(marker => {
+          const task = _.find(this.props.tasks, t => t['@id'] === marker.options.task)
+          if (task) {
+            tasks.push(task)
+          }
+        })
+        this.props.selectTasks(tasks)
       }
     })
 
@@ -137,7 +155,9 @@ class LeafletMap extends Component {
 
 function mapStateToProps(state) {
 
-  const { taskLists, polylineEnabled } = state
+  const { polylineEnabled } = state
+
+  const taskLists = selectTaskLists(state)
 
   let polylines = {}
   _.forEach(taskLists, taskList => {
@@ -150,14 +170,14 @@ function mapStateToProps(state) {
       _.map(taskList.items, item => ([ item.address.geo.latitude, item.address.geo.longitude ]))
   })
 
-  const tasks = selectTasks(state)
+  const tasks = selectAllTasks(state)
 
   return {
     tasks,
     tasksFiltered: selectFilteredTasks({
       tasks,
       filters: state.filters,
-      date: state.date
+      date: selectSelectedDate(state)
     }),
     polylines,
     polylineEnabled,
@@ -166,6 +186,7 @@ function mapStateToProps(state) {
     offline: state.offline,
     polylineStyle: state.polylineStyle,
     asTheCrowFlies,
+    clustersEnabled: state.clustersEnabled,
   }
 }
 
@@ -173,6 +194,8 @@ function mapDispatchToProps (dispatch) {
   return {
     setCurrentTask: task => dispatch(setCurrentTask(task)),
     assignAfter: (username, task, after) => dispatch(assignAfter(username, task, after)),
+    selectTask: task => dispatch(selectTask(task)),
+    selectTasks: tasks => dispatch(selectTasksAction(tasks)),
   }
 }
 

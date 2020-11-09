@@ -63,7 +63,7 @@ function notifyListeners(cart) {
   listeners.forEach(listener => listener.dispatchEvent(event))
 }
 
-function handleAjaxResponse(res, dispatch) {
+function handleAjaxResponse(res, dispatch, broadcast = true) {
 
   const hasErrors = res.errors && _.size(res.errors) > 0
 
@@ -75,7 +75,9 @@ function handleAjaxResponse(res, dispatch) {
 
   $('#menu').LoadingOverlay('hide')
 
-  notifyListeners(res.cart)
+  if (broadcast) {
+    notifyListeners(res.cart)
+  }
 }
 
 const QUEUE_CART_ITEMS = 'QUEUE_CART_ITEMS'
@@ -207,7 +209,10 @@ function geocodeAndSync() {
       if (status === geocoderOK && results.length > 0) {
         const place = results[0]
         const address = placeToAddress(place, cart.shippingAddress.streetAddress)
-        dispatch(changeAddress(address))
+        dispatch(changeAddress({
+          ...cart.shippingAddress,
+          ...address,
+        }))
       } else {
         dispatch(geocodingFailure())
       }
@@ -223,8 +228,8 @@ export function sync() {
 
     if (cart.shippingAddress && !cart.shippingAddress.streetAddress) {
       postForm()
-        .then(res => handleAjaxResponse(res, dispatch))
-        .fail(e => handleAjaxResponse(e.responseJSON, dispatch))
+        .then(res => handleAjaxResponse(res, dispatch, false))
+        .fail(e => handleAjaxResponse(e.responseJSON, dispatch, false))
     } else {
       dispatch(geocodeAndSync())
     }
@@ -240,8 +245,8 @@ export function changeDate() {
     dispatch(fetchRequest())
 
     postFormWithTime()
-      .then(res => handleAjaxResponse(res, dispatch))
-      .fail(e => handleAjaxResponse(e.responseJSON, dispatch))
+      .then(res => handleAjaxResponse(res, dispatch, false))
+      .fail(e => handleAjaxResponse(e.responseJSON, dispatch, false))
   }
 }
 
@@ -252,8 +257,9 @@ export function mapAddressFields(address) {
     const { addressFormElements } = getState()
 
     _.forEach(addressFormElements, (el, key) => {
-      if (Object.prototype.hasOwnProperty.call(address, key)) {
-        el.value = address[key]
+      const value = _.get(address, key)
+      if (value) {
+        el.value = value
       }
     })
   }
@@ -266,7 +272,6 @@ export function changeAddress(address) {
     window._paq.push(['trackEvent', 'Checkout', 'changeAddress', address.streetAddress])
 
     const {
-      addressFormElements,
       isNewAddressFormElement,
       restaurant
     } = getState()
@@ -286,22 +291,19 @@ export function changeAddress(address) {
           window.Routing.generate('restaurant_cart_address', { id: restaurant.id })
 
         $.post(url, { address: address['@id'] })
-          .then(res => handleAjaxResponse(res, dispatch))
-          .fail(e => handleAjaxResponse(e.responseJSON, dispatch))
+          .then(res => handleAjaxResponse(res, dispatch, false))
+          .fail(e => handleAjaxResponse(e.responseJSON, dispatch, false))
 
       } else {
 
         isNewAddressFormElement.value = '1'
 
-        _.forEach(addressFormElements, (el, key) => {
-          if (Object.prototype.hasOwnProperty.call(address, key)) {
-            el.value = address[key]
-          }
-        })
+        // This must be done *BEFORE* posting the form
+        dispatch(mapAddressFields(address))
 
         postForm()
-          .then(res => handleAjaxResponse(res, dispatch))
-          .fail(e => handleAjaxResponse(e.responseJSON, dispatch))
+          .then(res => handleAjaxResponse(res, dispatch, false))
+          .fail(e => handleAjaxResponse(e.responseJSON, dispatch, false))
       }
 
     } else {
@@ -337,8 +339,8 @@ export function clearDate() {
     dispatch(fetchRequest())
 
     $.post(url)
-      .then(res => handleAjaxResponse(res, dispatch))
-      .fail(e => handleAjaxResponse(e.responseJSON, dispatch))
+      .then(res => handleAjaxResponse(res, dispatch, false))
+      .fail(e => handleAjaxResponse(e.responseJSON, dispatch, false))
 
   }
 }

@@ -57,16 +57,6 @@
   {{ block('form_row') }}
 {% endblock %}
 
-{% block _checkout_address_shippingAddress_floor_row %}
-  {% set address = form.parent.vars.value %}
-  {% if address is empty %}
-    {% set row_attr = row_attr|merge({
-      class: (row_attr.class|default('') ~ ' d-none')
-    }) %}
-  {% endif %}
-  {{ block('form_row') }}
-{% endblock %}
-
 {% block _checkout_address_reusablePackagingEnabled_row %}
 
   {% set isLoopeat = attr['data-loopeat'] is defined and attr['data-loopeat'] == 'true' %}
@@ -137,13 +127,13 @@
         <div class="d-none">
           {{ form_widget(form.parent.reusablePackagingPledgeReturn) }}
         </div>
-        <img class="loopeat-bowl1" src="{{ asset('img/loopeat/bowl1.png') }}" alt="Loopeat" />
         <div class="my-2">
           <a href="https://loopeat.fr/en-savoir-plus/" target="_blank">
             <span class="mr-2">{{ 'form.checkout_address.reusable_packaging.loopeat.learn_more'|trans }}</span>
             <i class="fa fa-external-link"></i>
           </a>
         </div>
+        <img class="loopeat-bowl1" src="{{ asset('img/loopeat/bowl1.png') }}" alt="Loopeat" />
       {% endif %}
     </div>
   {% else %}
@@ -179,4 +169,42 @@
       '%field%': form_widget(form, { attr: attr, label_attr: { class: 'm-0' } })
     })|raw }}
   </label>
+{% endblock %}
+
+{% block _checkout_address_customer_row %}
+{% if form|length > 0 %}
+  <div class="border-bottom mb-5">
+    <div class="my-4">
+    {% if form.email is defined or form.phoneNumber is defined %}
+      {% if form.email is defined and form.phoneNumber is defined %}
+      <div class="row">
+        <div class="col-xs-12 col-sm-6">
+          {{ form_row(form.email) }}
+        </div>
+        <div class="col-xs-12 col-sm-6">
+          {{ form_row(form.phoneNumber) }}
+        </div>
+      </div>
+      {% else %}
+        {% if form.email is defined %}
+          {{ form_row(form.email) }}
+        {% endif %}
+        {% if form.phoneNumber is defined %}
+          {{ form_row(form.phoneNumber) }}
+        {% endif %}
+      {% endif %}
+    {% endif %}
+    {% if form.fullName is defined %}
+    <div class="row">
+      <div class="col-xs-12">
+      {{ form_row(form.fullName) }}
+      </div>
+    </div>
+    {% endif %}
+    {% if form.legal is defined %}
+      {{ form_row(form.legal) }}
+    {% endif %}
+    </div>
+  </div>
+{% endif %}
 {% endblock %}

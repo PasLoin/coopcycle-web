@@ -106,7 +106,6 @@
         "ADMIN_DASHBOARD_TASK_FORM_ADDRESS_CONTACT_NAME_LABEL": "Kontaktní osoba",
         "ADMIN_DASHBOARD_TASK_FORM_ADDRESS_DESCRIPTION_PLACEHOLDER": "2. dveře vlevo…",
         "ADMIN_DASHBOARD_TASK_FORM_ADDRESS_DESCRIPTION_LABEL": "Instrukce",
-        "ADMIN_DASHBOARD_TASK_FORM_ADDRESS_FLOOR_LABEL": "Patro",
         "ADMIN_DASHBOARD_TASK_FORM_ADDRESS_TELEPHONE_LABEL": "Telefonní číslo",
         "ADMIN_DASHBOARD_TASK_FORM_ADDRESS_NAME_PLACEHOLDER": "Domov, Práce…",
         "ADMIN_DASHBOARD_TASK_FORM_ADDRESS_NAME_LABEL": "Název",
@@ -115,7 +114,7 @@
         "ADMIN_DASHBOARD_TASK_ASSIGNED_TO": "Přiřazeno k {{username}}",
         "ADMIN_DASHBOARD_TASK_TIME_RANGE": "Mezi {{after}} a {{before}}",
         "ADMIN_DASHBOARD_TASK_CAPTION_SHORT": "Úkol #{{id}}",
-        "ADMIN_DASHBOARD_TASK_CAPTION": "#{{id}} - {{- address}} před {{date}}",
+        "ADMIN_DASHBOARD_TASK_CAPTION": "{{- address}} před {{date}}",
         "ADMIN_DASHBOARD_TASK_FORM_ADDRESS_STREET_ADDRESS_LABEL": "Adresa",
         "ADMIN_DASHBOARD_TASK_TITLE_NEW": "Nový úkol",
         "ADMIN_DASHBOARD_TASK_TITLE": "Úkol #{{id}}",
@@ -203,8 +202,8 @@
         "RULE_PICKER_LINE_DROPOFF_ADDRESS": "Adresa doručení",
         "RULE_PICKER_LINE_PICKUP_ADDRESS": "Adresa vyzvednutí",
         "RULE_PICKER_LINE_BIKE_TYPE": "Typ kola",
-        "RULE_PICKER_LINE_WEIGHT": "Váha (g)",
-        "RULE_PICKER_LINE_DISTANCE": "Vzdálenost (m)",
+        "RULE_PICKER_LINE_WEIGHT": "Váha (kg)",
+        "RULE_PICKER_LINE_DISTANCE": "Vzdálenost (km)",
         "RULE_PICKER_ADD_CONDITION": "Přidat podmínku",
         "ORDER_TIMELINE_AFTER_PICKED_DESCRIPTION": "Připravte se!",
         "ORDER_TIMELINE_AFTER_PICKED_TITLE": "Kurýr přichází!",
@@ -215,6 +214,7 @@
         "ORDER_TIMELINE_CANCELLED_TITLE": "Objednávka zrušena {{date}}",
         "ORDER_TIMELINE_DROPPED_TITLE": "Objednávka doručena {{date}}",
         "DOWNLOAD_EXAMPLE_SPREADSHEET": "Stáhnout příklad tabulky",
-        "ADMIN_DASHBOARD_FILTERS_ALWAYS_SHOW_UNASSIGNED": "Vždy zobrazovat nepřiřazené"
+        "ADMIN_DASHBOARD_FILTERS_ALWAYS_SHOW_UNASSIGNED": "Vždy zobrazovat nepřiřazené",
+        "ADMIN_DASHBOARD_SETTINGS_CLUSTERS_ENABLED": "Povolené klastry mapy"
     }
 }

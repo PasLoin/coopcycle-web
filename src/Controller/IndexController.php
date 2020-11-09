@@ -4,13 +4,20 @@ namespace AppBundle\Controller;
 
 use AppBundle\Annotation\HideSoftDeleted;
 use AppBundle\Controller\Utils\UserTrait;
+use AppBundle\Entity\Delivery;
+use AppBundle\Entity\DeliveryForm;
 use AppBundle\Entity\LocalBusiness;
 use AppBundle\Entity\LocalBusinessRepository;
 use AppBundle\Enum\FoodEstablishment;
 use AppBundle\Enum\Store;
+use AppBundle\Form\DeliveryEmbedType;
+use Hashids\Hashids;
 use MyCLabs\Enum\Enum;
+use Sylius\Component\Order\Context\CartContextInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 
@@ -69,6 +76,29 @@ class IndexController extends AbstractController
         [ $stores, $storesCount ] =
             $this->getItems($repository, Store::class, $appCache, sprintf('homepage.stores.%s', $cacheKeySuffix));
 
+
+        $qb = $this->getDoctrine()
+            ->getRepository(DeliveryForm::class)
+            ->createQueryBuilder('f');
+
+        $qb->where('f.showHomepage = :showHomepage');
+        $qb->setParameter('showHomepage', ($showHomepage = true));
+        $qb->setMaxResults(1);
+
+        $deliveryForm = $qb->getQuery()->getOneOrNullResult();
+        $form = null;
+
+        if ($deliveryForm) {
+            $form = $this->get('form.factory')->createNamed('delivery', DeliveryEmbedType::class, new Delivery(), [
+                'with_weight'      => $deliveryForm->getWithWeight(),
+                'with_vehicle'     => $deliveryForm->getWithVehicle(),
+                'with_time_slot'   => $deliveryForm->getTimeSlot(),
+                'with_package_set' => $deliveryForm->getPackageSet(),
+            ]);
+        }
+
+        $hashids = new Hashids($this->getParameter('secret'), 12);
+
         return $this->render('index/index.html.twig', array(
             'restaurants' => $restaurants,
             'stores' => $stores,
@@ -76,6 +106,23 @@ class IndexController extends AbstractController
             'show_more_stores' => $storesCount > self::MAX_RESULTS,
             'max_results' => self::MAX_RESULTS,
             'addresses_normalized' => $this->getUserAddresses(),
+            'delivery_form' => $form ? $form->createView() : null,
+            'hashid' => $deliveryForm ? $hashids->encode($deliveryForm->getId()) : '',
         ));
+    }
+
+    /**
+     * @Route("/cart.json", name="cart_json")
+     */
+    public function cartAsJsonAction(CartContextInterface $cartContext, Request $request)
+    {
+        $cart = $cartContext->getCart();
+
+        $data = [
+            'itemsTotal' => $cart->getItemsTotal(),
+            'total' => $cart->getTotal(),
+        ];
+
+        return new JsonResponse($data);
     }
 }

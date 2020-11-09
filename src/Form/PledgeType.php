@@ -20,7 +20,9 @@ class PledgeType extends AbstractType {
                 'help' => 'form.suggest.name.help'
             ])
             ->add('address', AddressType::class, [
-                'label' => false
+                'label' => false,
+                'with_widget' => true,
+                'with_description' => false,
             ]);
     }
 }

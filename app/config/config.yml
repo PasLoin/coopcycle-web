@@ -22,7 +22,7 @@ parameters:
     database_user:     "%env(COOPCYCLE_DB_USER)%"
     database_password: "%env(COOPCYCLE_DB_PASSWORD)%"
     locale: "%coopcycle.locale%"
-    locale_regex: ca|fr|en|es|de|it|pl|pt-BR
+    locale_regex: an|ca|fr|en|es|de|it|pl|pt-BR
     router.request_context.host: "%env(APP_HOST)%"
     loopeat_enabled: '%env(bool:LOOPEAT_ENABLED)%'
     loopeat_base_url: '%env(LOOPEAT_BASE_URL)%'
@@ -41,6 +41,7 @@ parameters:
     is_demo: "%env(bool:COOPCYCLE_DEMO)%"
     sentry_public_dsn: "%env(COOPCYCLE_SENTRY_DSN)%"
     foodtech_enabled: "%env(bool:COOPCYCLE_FOODTECH_ENABLED)%"
+    b2b_enabled: '%env(bool:COOPCYCLE_B2B_ENABLED)%'
 
 services:
     tag_manager.cache:
@@ -69,6 +70,7 @@ framework:
         handler_id: snc_redis.session.handler
         cookie_lifetime: 604800 # 7 days
         gc_maxlifetime: 604800 # 7 days
+        cookie_samesite: 'lax'
     fragments:       ~
     http_method_override: true
     assets: ~
@@ -104,6 +106,7 @@ framework:
                     group: "%database_name%"
                     consumer: "%database_name%:consumer"
         routing:
+            'AppBundle\Message\CalculateRoute': async
             'AppBundle\Message\Email': async
             'AppBundle\Message\PushNotification': async
             'AppBundle\Message\ImportTasks': async
@@ -130,6 +133,7 @@ twig:
         analytics_disabled: "%kernel.debug%"
         matomo_hostname: "%env(COOPCYCLE_MATOMO_HOSTNAME)%"
         matomo_site_id: "%env(COOPCYCLE_MATOMO_SITE_ID)%"
+        matomo_checkout_completed_goal_id: "%env(MATOMO_CHECKOUT_COMPLETED_GOAL_ID)%"
         countly_script: "%env(COOPCYCLE_COUNTLY_SCRIPT)%"
         countly_hostname: "%env(COOPCYCLE_COUNTLY_HOSTNAME)%"
         countly_app_key: "%env(COOPCYCLE_COUNTLY_APP_KEY)%"
@@ -138,6 +142,10 @@ twig:
         loopeat_context: '@AppBundle\LoopEat\Context'
         sentry_apm_enabled: "%env(bool:COOPCYCLE_SENTRY_APM_ENABLED)%"
         legacy_taxes: '%env(bool:COOPCYCLE_LEGACY_TAXES)%'
+        payment_gateway_resolver: '@AppBundle\Payment\GatewayResolver'
+        context_channel: "@sylius.context.channel"
+        loopeat_enabled: '%env(bool:LOOPEAT_ENABLED)%'
+        embed_context: '@AppBundle\Embed\Context'
     exception_controller: null
 
 # Doctrine Configuration
@@ -252,7 +260,7 @@ nelmio_cors:
 fos_user:
     db_driver: orm
     firewall_name: web
-    user_class: AppBundle\Entity\ApiUser
+    user_class: AppBundle\Entity\User
     service:
         mailer: fos_user.mailer.twig_swift
         user_manager: coopcycle.user_manager
@@ -551,6 +559,7 @@ event_bus:
     logging: ~
 
 nelmio_alice:
+    # FIXME Do not hardcode this
     locale: 'fr_FR'
 
 fos_js_routing:
@@ -583,6 +592,7 @@ fos_js_routing:
         - admin_task_list_create
         - admin_task_list_modify
         - admin_task_receipt
+        - admin_users_search
         - profile_jwt
         - profile_notifications
         - profile_notifications_mark_as_read
@@ -752,6 +762,16 @@ oneup_uploader:
                 application/octet-stream: []
                 text/csv: []
                 text/plain: []
+        banner:
+            frontend: dropzone
+            storage:
+                type: flysystem
+                filesystem: oneup_flysystem.assets_filesystem
+            namer: AppBundle\Utils\BannerNamer
+            allowed_mimetypes:
+                text/html: ['svg']
+                image/svg+xml: ['svg']
+                image/svg: ['svg']
 
 trikoder_oauth2:
     authorization_server:
@@ -782,3 +802,6 @@ mjml:
 sensio_framework_extra:
     router:
         annotations: false
+    request:
+        converters: true
+        disable: ['doctrine.orm']

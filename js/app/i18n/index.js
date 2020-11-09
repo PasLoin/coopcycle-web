@@ -11,6 +11,8 @@ import { initReactI18next } from 'react-i18next'
 import moment from 'moment'
 import 'moment-timezone'
 
+import an from './locales/an.json'
+import ca from './locales/ca.json'
 import de from './locales/de.json'
 import en from './locales/en.json'
 import es from './locales/es.json'
@@ -26,12 +28,14 @@ import pl_PL from 'antd/es/locale/pl_PL'
 import antd_pt_BR from 'antd/es/locale/pt_BR'
 
 import numbro from 'numbro'
-import deDE from 'numbro/languages/de-DE'
-import enGB from 'numbro/languages/en-GB'
-import esES from 'numbro/languages/es-ES'
-import frFR from 'numbro/languages/fr-FR'
-import plPL from 'numbro/languages/pl-PL'
-import ptBR from 'numbro/languages/pt-BR'
+// Use minified language files to avoid syntax error
+// @see https://github.com/BenjaminVanRyseghem/numbro/pull/413
+import deDE from 'numbro/dist/languages/de-DE.min.js'
+import enGB from 'numbro/dist/languages/en-GB.min.js'
+import esES from 'numbro/dist/languages/es-ES.min.js'
+import frFR from 'numbro/dist/languages/fr-FR.min.js'
+import plPL from 'numbro/dist/languages/pl-PL.min.js'
+import ptBR from 'numbro/dist/languages/pt-BR.min.js'
 
 export const localeDetector = () => $('html').attr('lang')
 
@@ -48,7 +52,7 @@ i18next
   .use(initReactI18next)
   .init({
     fallbackLng: 'en',
-    resources: { de, en, fr, es, pl, "pt-BR": pt_BR },
+    resources: { an, ca, de, en, fr, es, pl, "pt-BR": pt_BR },
     ns: ['common'],
     defaultNS: 'common',
     debug: process.env.DEBUG

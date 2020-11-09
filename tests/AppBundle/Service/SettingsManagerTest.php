@@ -10,28 +10,17 @@ use libphonenumber\PhoneNumberUtil;
 use PHPUnit\Framework\TestCase;
 use Prophecy\PhpUnit\ProphecyTrait;
 use Psr\Log\NullLogger;
+use AppBundle\Payment\GatewayResolver;
 
 class SettingsManagerTest extends TestCase
 {
     use ProphecyTrait;
-
-    private $innerGeocoder;
 
     public function setUp(): void
     {
         $this->craueConfig = $this->prophesize(CraueConfig::class);
         $this->doctrine = $this->prophesize(ManagerRegistry::class);
         $this->phoneNumberUtil = $this->prophesize(PhoneNumberUtil::class);
-
-        $this->settingsManager = new SettingsManager(
-            $this->craueConfig->reveal(),
-            Setting::class,
-            $this->doctrine->reveal(),
-            $this->phoneNumberUtil->reveal(),
-            'fr',
-            true,
-            new NullLogger()
-        );
     }
 
     public function canSendSmsProvider()
@@ -97,8 +86,10 @@ class SettingsManagerTest extends TestCase
             $this->doctrine->reveal(),
             $this->phoneNumberUtil->reveal(),
             $country,
-            true,
-            new NullLogger()
+            $foodtechEnable = true,
+            $b2bEnabled = false,
+            new NullLogger(),
+            new GatewayResolver('fr')
         );
 
         $this->assertEquals($expected, $settingsManager->canSendSms());

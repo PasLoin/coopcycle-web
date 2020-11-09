@@ -5,14 +5,13 @@ namespace Tests\AppBundle\Domain\Order\Reactor;
 use ApiPlatform\Core\Api\IriConverterInterface;
 use AppBundle\Domain\Order\Event;
 use AppBundle\Domain\Order\Reactor\SendRemotePushNotification;
-use AppBundle\Entity\ApiUser;
+use AppBundle\Entity\User;
 use AppBundle\Entity\Restaurant;
 use AppBundle\Entity\Sylius\Order;
 use AppBundle\Message\PushNotification;
 use AppBundle\Security\UserManager;
 use Prophecy\Argument;
 use Prophecy\PhpUnit\ProphecyTrait;
-use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\MessageBusInterface;
@@ -32,7 +31,6 @@ class SendRemotePushNotificationTest extends KernelTestCase
         self::bootKernel();
 
         // @see https://symfony.com/blog/new-in-symfony-4-1-simpler-service-testing
-        $serializer = self::$container->get(SerializerInterface::class);
         $iriConverter = self::$container->get(IriConverterInterface::class);
 
         $this->messageBus = $this->prophesize(MessageBusInterface::class);
@@ -43,7 +41,7 @@ class SendRemotePushNotificationTest extends KernelTestCase
                 return new Envelope($args[0]);
             });
 
-        $admin = new ApiUser();
+        $admin = new User();
         $admin->setUsername('admin');
 
         $this->userManager = $this->prophesize(UserManager::class);
@@ -56,7 +54,6 @@ class SendRemotePushNotificationTest extends KernelTestCase
             $this->userManager->reveal(),
             $this->messageBus->reveal(),
             $iriConverter,
-            $serializer,
             $this->translator->reveal()
         );
     }
@@ -70,7 +67,7 @@ class SendRemotePushNotificationTest extends KernelTestCase
 
     public function testSendsNotification()
     {
-        $owner = new ApiUser();
+        $owner = new User();
         $owner->setUsername('bob');
 
         $order = new Order();
@@ -80,7 +77,6 @@ class SendRemotePushNotificationTest extends KernelTestCase
         $restaurant->addOwner($owner);
 
         $order->setRestaurant($restaurant);
-        $order->setShippedAt(new \DateTime('2020-05-10 12:30:00'));
 
         $this->setId($restaurant, 1);
         $this->setId($order, 1);
@@ -106,11 +102,6 @@ class SendRemotePushNotificationTest extends KernelTestCase
                     'event' => [
                         'name' => 'order:created',
                         'data' => [
-                            'restaurant' => [
-                                '@id' => '/api/restaurants/1',
-                                'name' => 'Foo'
-                            ],
-                            'date' => '2020-05-10',
                             'order' => '/api/orders/1',
                         ]
                     ]

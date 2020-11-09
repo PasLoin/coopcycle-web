@@ -26,6 +26,14 @@ function resolveProductInput(taxonId, productId) {
     .filter((index, el) => $(el).val() === productId)
 }
 
+function reorderSource() {
+  const els = Array.from(source.querySelectorAll('[data-product-id]'))
+  els.sort((a, b) => a.textContent.trim() < b.textContent.trim() ? -1 : 1)
+  els.forEach(el => {
+    el.parentNode.appendChild(el)
+  })
+}
+
 function reorderProducts(taxonId) {
 
   const container = document
@@ -76,15 +84,22 @@ $('#editTaxonModal form').on('submit', function(e) {
   e.preventDefault()
 
   const taxonId = parseInt($(this).find('input[type="hidden"]').val(), 10)
-  const taxonName = $(this).find('input[type="text"]').val()
+  const taxonName = $(this).find('input[type="text"][data-prop="name"]').val()
+  const taxonDesc = $(this).find('textarea[data-prop="description"]').val()
 
   $(`[data-edit-taxon-id="${taxonId}"] > span`).text(taxonName)
 
-  const input = childrenContainer
+  const nameInput = childrenContainer
     .querySelector(`[data-taxon-id="${taxonId}"]`)
-    .querySelector('input[type="text"]')
+    .querySelector('[data-prop="name"]')
 
-  input.value = taxonName
+  nameInput.value = taxonName
+
+  const descInput = childrenContainer
+    .querySelector(`[data-taxon-id="${taxonId}"]`)
+    .querySelector('[data-prop="description"]')
+
+  descInput.value = taxonDesc
 
   $('#editTaxonModal').modal('hide')
 })
@@ -99,11 +114,18 @@ $('#editTaxonModal').on('show.bs.modal', function (e) {
   const taxonName =
     childrenContainer
       .querySelector(`[data-taxon-id="${taxonId}"]`)
-      .querySelector('input[type="text"]')
+      .querySelector('[data-prop="name"]')
+      .value
+
+  const taxonDesc =
+    childrenContainer
+      .querySelector(`[data-taxon-id="${taxonId}"]`)
+      .querySelector('[data-prop="description"]')
       .value
 
   $modal.find('.modal-body input[type="hidden"]').val(taxonId)
-  $modal.find('.modal-body input[type="text"]').val(taxonName)
+  $modal.find('.modal-body [data-prop="name"]').val(taxonName)
+  $modal.find('.modal-body [data-prop="description"]').val(taxonDesc)
 })
 
 function removeProduct(taxonId, productId) {
@@ -160,6 +182,11 @@ productContainers.forEach(container => {
         removeProduct(taxonId, productId)
         reorderProducts(taxonId)
       }
+
+      if (e.from.hasAttribute('data-draggable-target') &&
+        e.to.hasAttribute('data-draggable-source')) {
+        reorderSource()
+      }
     },
   })
 })
@@ -173,3 +200,5 @@ sectionContainers.forEach(container => {
     },
   })
 })
+
+reorderSource()

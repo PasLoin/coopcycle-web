@@ -5,10 +5,12 @@ namespace AppBundle\Entity\Sylius;
 use AppBundle\Entity\Delivery;
 use AppBundle\Entity\LocalBusiness;
 use AppBundle\Entity\Task;
+use AppBundle\Entity\Vendor;
 use AppBundle\Sylius\Order\OrderInterface;
 use Doctrine\ORM\Query\Expr\Join;
 use Doctrine\ORM\QueryBuilder;
 use Sylius\Bundle\OrderBundle\Doctrine\ORM\OrderRepository as BaseOrderRepository;
+use Sylius\Component\Customer\Model\CustomerInterface;
 use Sylius\Component\Promotion\Model\PromotionCouponInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
@@ -17,8 +19,9 @@ class OrderRepository extends BaseOrderRepository
     public function findCartsByRestaurant(LocalBusiness $restaurant)
     {
         return $this->createQueryBuilder('o')
+            ->join(Vendor::class, 'v', Join::WITH, 'o.vendor = v.id')
             ->andWhere('o.state = :state')
-            ->andWhere('o.restaurant = :restaurant')
+            ->andWhere('v.restaurant = :restaurant')
             ->setParameter('state', OrderInterface::STATE_CART)
             ->setParameter('restaurant', $restaurant)
             ->getQuery()
@@ -30,7 +33,7 @@ class OrderRepository extends BaseOrderRepository
     {
         $qb = $this->createQueryBuilder('o');
         $qb
-            ->andWhere('o.restaurant IS NOT NULL')
+            ->andWhere('o.vendor IS NOT NULL')
             ->andWhere('o.state != :state')
             ->andWhere('OVERLAPS(o.shippingTimeRange, CAST(:range AS tsrange)) = TRUE')
             ->setParameter('state', OrderInterface::STATE_CART)
@@ -44,7 +47,8 @@ class OrderRepository extends BaseOrderRepository
     {
         $qb = $this->createQueryBuilder('o');
         $qb
-            ->andWhere('o.restaurant = :restaurant')
+            ->join(Vendor::class, 'v', Join::WITH, 'o.vendor = v.id')
+            ->andWhere('v.restaurant = :restaurant')
             ->andWhere('o.state != :state_cart')
             ->andWhere('OVERLAPS(o.shippingTimeRange, CAST(:range AS tsrange)) = TRUE')
             ->setParameter('restaurant', $restaurant)
@@ -95,14 +99,14 @@ class OrderRepository extends BaseOrderRepository
         return $qb->getQuery()->getResult();
     }
 
-    public function findByUser($user)
+    public function findByUser(UserInterface $user)
     {
         $qb = $this->createQueryBuilder('o');
         $qb
             ->andWhere('o.state != :state_cart')
             ->andWhere('o.customer = :customer')
             ->setParameter('state_cart', OrderInterface::STATE_CART)
-            ->setParameter('customer', $user)
+            ->setParameter('customer', $user->getCustomer())
             ->addOrderBy('o.createdAt', 'DESC');
 
         return $qb->getQuery()->getResult();
@@ -128,7 +132,7 @@ class OrderRepository extends BaseOrderRepository
         return $this;
     }
 
-    public function countByCustomerAndCoupon(UserInterface $customer, PromotionCouponInterface $coupon): int
+    public function countByCustomerAndCoupon(CustomerInterface $customer, PromotionCouponInterface $coupon): int
     {
         return (int) $this->createQueryBuilder('o')
             ->select('COUNT(o.id)')
@@ -154,5 +158,28 @@ class OrderRepository extends BaseOrderRepository
             ;
 
         return $qb->getQuery()->getOneOrNullResult();
+    }
+
+    public function search($q)
+    {
+        $qb = $this->createQueryBuilder('o');
+
+        $qb
+            ->join(Customer::class, 'c', Join::WITH, 'o.customer = c.id')
+            // ->andWhere('o.state != :state_cart')
+            ->add('where', $qb->expr()->orX(
+                $qb->expr()->gt('SIMILARITY(o.number, :q)', 0),
+                $qb->expr()->gt('SIMILARITY(c.email, :q)', 0)
+            ))
+            ->add('where', $qb->expr()->neq('o.state', ':state_cart'))
+            ->addOrderBy('SIMILARITY(o.number, :q)', 'DESC')
+            ->addOrderBy('SIMILARITY(c.email, :q)', 'DESC')
+            ->addOrderBy('o.createdAt', 'DESC')
+            ->setParameter('q', strtolower($q))
+            ->setParameter('state_cart', OrderInterface::STATE_CART);
+
+        $qb->setMaxResults(10);
+
+        return $qb->getQuery()->getResult();
     }
 }

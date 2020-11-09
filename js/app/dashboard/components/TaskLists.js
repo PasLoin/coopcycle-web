@@ -4,9 +4,11 @@ import Modal from 'react-modal'
 import _ from 'lodash'
 import { withTranslation } from 'react-i18next'
 
-import { addTaskList, closeAddUserModal, openAddUserModal, openNewTaskModal, closeNewTaskModal, setCurrentTask } from '../redux/actions'
+import { createTaskList, closeAddUserModal, openAddUserModal, openNewTaskModal, closeNewTaskModal, setCurrentTask } from '../redux/actions'
 import CourierSelect from './CourierSelect'
 import TaskList from './TaskList'
+
+import { selectTaskLists, selectSelectedDate } from '../../coopcycle-frontend-js/dispatch/redux'
 
 class TaskLists extends React.Component {
 
@@ -27,7 +29,7 @@ class TaskLists extends React.Component {
   }
 
   addUser() {
-    this.props.addTaskList(this.state.selectedCourier)
+    this.props.createTaskList(this.props.date, this.state.selectedCourier)
     this.props.closeAddUserModal()
   }
 
@@ -107,8 +109,9 @@ function mapStateToProps (state) {
 
   return {
     addModalIsOpen: state.addModalIsOpen,
-    taskLists: state.taskLists,
-    taskListsLoading: state.taskListsLoading,
+    taskLists: selectTaskLists(state),
+    date: selectSelectedDate(state),
+    taskListsLoading: state.dispatch.taskListsLoading,
     taskModalIsOpen: state.taskModalIsOpen,
   }
 }
@@ -116,7 +119,7 @@ function mapStateToProps (state) {
 function mapDispatchToProps (dispatch) {
 
   return {
-    addTaskList: (date, username) => dispatch(addTaskList(date, username)),
+    createTaskList: (date, username) => dispatch(createTaskList(date, username)),
     openAddUserModal: () => { dispatch(openAddUserModal()) },
     closeAddUserModal: () => { dispatch(closeAddUserModal()) },
     openNewTaskModal: () => dispatch(openNewTaskModal()),

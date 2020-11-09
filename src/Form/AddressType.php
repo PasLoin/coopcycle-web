@@ -49,6 +49,10 @@ class AddressType extends AbstractType
             $streetAddressOptions['attr']['placeholder'] = $options['placeholder'];
         }
 
+        if ($options['with_widget']) {
+            $streetAddressOptions['attr']['data-widget'] = 'address-input';
+        }
+
         $builder
             ->add('streetAddress', SearchType::class, $streetAddressOptions)
             ->add('postalCode', HiddenType::class, [
@@ -59,15 +63,7 @@ class AddressType extends AbstractType
                 'required' => false,
                 'label' => 'form.address.addressLocality.label'
             ])
-            ->add('floor', TextType::class, [
-                'required' => false,
-                'label' => 'form.address.floor.label'
-            ])
-            ->add('description', TextareaType::class, [
-                'required' => false,
-                'label' => 'form.address.description.label',
-                'attr' => ['rows' => '3', 'placeholder' => 'form.address.description.placeholder']
-            ])
+
             ->add('latitude', HiddenType::class, [
                 'mapped' => false,
             ])
@@ -102,6 +98,15 @@ class AddressType extends AbstractType
                 ]);
         }
 
+        if (true === $options['with_description']) {
+            $builder
+                ->add('description', TextareaType::class, [
+                    'required' => false,
+                    'label' => 'form.address.description.label',
+                    'attr' => ['rows' => '3', 'placeholder' => 'form.address.description.placeholder']
+                ]);
+        }
+
         $constraints = [
             new Constraints\NotBlank(),
             new Constraints\Type(['type' => 'numeric']),
@@ -125,7 +130,13 @@ class AddressType extends AbstractType
                 if (count($latitudeViolations) > 0 || count($longitudeViolations) > 0) {
 
                     $message = 'form.address.streetAddress.error.noLatLng';
-                    $error = new FormError($this->translator->trans($message), $message);
+                    $error = new FormError(
+                        $this->translator->trans($message),
+                        $message,
+                        $messageParameters = [],
+                        $messagePluralization = null,
+                        $cause = count($latitudeViolations) > 0 ? $latitudeViolations->get(0) : $longitudeViolations->get(0)
+                    );
 
                     $form->get('streetAddress')->addError($error);
                 } else {
@@ -157,6 +168,8 @@ class AddressType extends AbstractType
             'with_name' => false,
             'placeholder' => null,
             'street_address_label' => 'form.address.streetAddress.label',
+            'with_widget' => false,
+            'with_description' => true,
         ));
     }
 }

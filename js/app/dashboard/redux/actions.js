@@ -1,6 +1,14 @@
 import _ from 'lodash'
 import axios from 'axios'
 import { taskComparator, withoutTasks, withLinkedTasks } from './utils'
+import {
+  selectSelectedDate,
+  selectTaskLists,
+  selectAllTasks,
+  createTaskListRequest,
+  createTaskListSuccess,
+  createTaskListFailure,
+} from '../../coopcycle-frontend-js/dispatch/redux'
 
 function createClient(dispatch) {
 
@@ -23,7 +31,7 @@ function createClient(dispatch) {
   function refreshToken() {
     return new Promise((resolve) => {
       // TODO Check response is OK, reject promise
-      $.getJSON(window.Routing.generate('profile_jwt')).then(token => resolve(token))
+      $.getJSON(window.Routing.generate('profile_jwt')).then(result => resolve(result.jwt))
     })
   }
 
@@ -56,7 +64,7 @@ function createClient(dispatch) {
                 return token
               })
               .then(token => onTokenFetched(token))
-              .catch(e => Promise.reject(e))
+              .catch(error => Promise.reject(error))
               .finally(() => {
                 isRefreshingToken = false
               })
@@ -75,18 +83,19 @@ function createClient(dispatch) {
   return client
 }
 
-export const ADD_CREATED_TASK = 'ADD_CREATED_TASK'
 export const UPDATE_TASK = 'UPDATE_TASK'
 export const OPEN_ADD_USER = 'OPEN_ADD_USER'
 export const CLOSE_ADD_USER = 'CLOSE_ADD_USER'
 export const MODIFY_TASK_LIST_REQUEST = 'MODIFY_TASK_LIST_REQUEST'
 export const MODIFY_TASK_LIST_REQUEST_SUCCESS = 'MODIFY_TASK_LIST_REQUEST_SUCCESS'
+export const TASK_LIST_UPDATED = 'TASK_LIST_UPDATED'
 export const TOGGLE_POLYLINE = 'TOGGLE_POLYLINE'
 export const TOGGLE_TASK = 'TOGGLE_TASK'
 export const SELECT_TASK = 'SELECT_TASK'
+export const SELECT_TASKS = 'SELECT_TASKS'
+export const CLEAR_SELECTED_TASKS = 'CLEAR_SELECTED_TASKS'
 export const SET_TASK_LIST_GROUP_MODE = 'SET_TASK_LIST_GROUP_MODE'
-export const ADD_TASK_LIST_REQUEST = 'ADD_TASK_LIST_REQUEST'
-export const ADD_TASK_LIST_REQUEST_SUCCESS = 'ADD_TASK_LIST_REQUEST_SUCCESS'
+
 export const SET_GEOLOCATION = 'SET_GEOLOCATION'
 export const SET_OFFLINE = 'SET_OFFLINE'
 export const OPEN_NEW_TASK_MODAL = 'OPEN_NEW_TASK_MODAL'
@@ -111,6 +120,7 @@ export const CLOSE_SEARCH = 'CLOSE_SEARCH'
 export const OPEN_SETTINGS = 'OPEN_SETTINGS'
 export const CLOSE_SETTINGS = 'CLOSE_SETTINGS'
 export const SET_POLYLINE_STYLE = 'SET_POLYLINE_STYLE'
+export const SET_CLUSTERS_ENABLED = 'SET_CLUSTERS_ENABLED'
 
 export const LOAD_TASK_EVENTS_REQUEST = 'LOAD_TASK_EVENTS_REQUEST'
 export const LOAD_TASK_EVENTS_SUCCESS = 'LOAD_TASK_EVENTS_SUCCESS'
@@ -128,11 +138,14 @@ function setTaskListsLoading(loading = true) {
   return { type: SET_TASK_LISTS_LOADING, loading }
 }
 
-export function assignAfter(username, task, after) {
+function assignAfter(username, task, after) {
 
   return function(dispatch, getState) {
 
-    const { allTasks, taskLists } = getState()
+    let state = getState()
+    let allTasks = selectAllTasks(state)
+    let taskLists = selectTaskLists(state)
+
     const taskList = _.find(taskLists, taskList => taskList.username === username)
     const taskIndex = _.findIndex(taskList.items, t => taskComparator(t, after))
 
@@ -158,7 +171,10 @@ function removeTasks(username, tasks) {
       return
     }
 
-    const { allTasks, taskLists } = getState()
+    let state = getState()
+    let allTasks = selectAllTasks(state)
+    let taskLists = selectTaskLists(state)
+
     const taskList = _.find(taskLists, taskList => taskList.username === username)
 
     dispatch(modifyTaskList(username, withoutTasks(taskList.items, withLinkedTasks(tasks, allTasks))))
@@ -214,7 +230,9 @@ function modifyTaskList(username, tasks) {
 
   return function(dispatch, getState) {
 
-    const { date, allTasks } = getState()
+    let state = getState()
+    let allTasks = selectAllTasks(state)
+    let date = selectSelectedDate(state)
 
     const url = window.Routing.generate('admin_task_list_modify', {
       date: date.format('YYYY-MM-DD'),
@@ -251,6 +269,10 @@ function togglePolyline(username) {
   return { type: TOGGLE_POLYLINE, username }
 }
 
+function taskListUpdated(taskList) {
+  return { type: TASK_LIST_UPDATED, taskList }
+}
+
 function toggleTask(task, multiple = false) {
   return { type: TOGGLE_TASK, task, multiple }
 }
@@ -259,40 +281,37 @@ function selectTask(task) {
   return { type: SELECT_TASK, task }
 }
 
+function selectTasks(tasks) {
+  return { type: SELECT_TASKS, tasks }
+}
+
+function clearSelectedTasks() {
+  return { type: CLEAR_SELECTED_TASKS }
+}
+
 function setTaskListGroupMode(mode) {
   return { type: SET_TASK_LIST_GROUP_MODE, mode }
 }
 
-function addTaskListRequest(username) {
-  return { type: ADD_TASK_LIST_REQUEST, username }
-}
+function createTaskList(date, username) {
 
-function addTaskListRequestSuccess(taskList) {
-  return { type: ADD_TASK_LIST_REQUEST_SUCCESS, taskList }
-}
-
-function addTaskList(username) {
-
-  return function(dispatch, getState) {
-
-    const { date } = getState()
+  return function(dispatch) {
 
     const url = window.Routing.generate('admin_task_list_create', {
       date: date.format('YYYY-MM-DD'),
       username
     })
 
-    dispatch(addTaskListRequest(username))
+    dispatch(createTaskListRequest())
 
-    return fetch(url, {
-      credentials: 'include',
-      method: 'POST',
+    return axios.post(url, {}, {
+      withCredentials: true,
       headers: {
         'Content-Type': 'application/json'
-      }
+      },
     })
-      .then(res => res.json())
-      .then(taskList => dispatch(addTaskListRequestSuccess(taskList)))
+      .then(res => dispatch(createTaskListSuccess(res.data)))
+      .catch(error => dispatch(createTaskListFailure(error)))
   }
 }
 
@@ -300,7 +319,9 @@ function moveToTop(task) {
 
   return function(dispatch, getState) {
 
-    const { taskLists } = getState()
+    let state = getState()
+    let taskLists = selectTaskLists(state)
+
     const taskList = _.find(taskLists, taskList => taskList.username === task.assignedTo)
 
     if (taskList) {
@@ -315,7 +336,9 @@ function moveToBottom(task) {
 
   return function(dispatch, getState) {
 
-    const { taskLists } = getState()
+    let state = getState()
+    let taskLists = selectTaskLists(state)
+
     const taskList = _.find(taskLists, taskList => taskList.username === task.assignedTo)
 
     if (taskList) {
@@ -400,6 +423,10 @@ function closeSettings() {
 
 function setPolylineStyle(style) {
   return {type: SET_POLYLINE_STYLE, style}
+}
+
+function setClustersEnabled(enabled) {
+  return {type: SET_CLUSTERS_ENABLED, enabled}
 }
 
 function loadTaskEventsRequest() {
@@ -647,8 +674,9 @@ function loadTaskEvents(task) {
 }
 
 export {
+  assignAfter,
   updateTask,
-  addTaskList,
+  createTaskList,
   modifyTaskList,
   removeTasks,
   openAddUserModal,
@@ -657,6 +685,7 @@ export {
   setTaskListGroupMode,
   toggleTask,
   selectTask,
+  selectTasks,
   setGeolocation,
   setOffline,
   openNewTaskModal,
@@ -687,4 +716,7 @@ export {
   importSuccess,
   importError,
   startTask,
+  setClustersEnabled,
+  taskListUpdated,
+  clearSelectedTasks,
 }

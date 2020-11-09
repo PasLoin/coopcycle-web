@@ -2,6 +2,8 @@
 
 namespace AppBundle\Entity;
 
+use AppBundle\Entity\LocalBusiness\FulfillmentMethod;
+use AppBundle\Entity\LocalBusiness\ShippingOptionsInterface;
 use AppBundle\Utils\OpeningHoursSpecification;
 use ApiPlatform\Core\Annotation\ApiResource;
 use Doctrine\Common\Collections\ArrayCollection;
@@ -248,5 +250,28 @@ class TimeSlot
         $this->sameDayCutoff = $sameDayCutoff;
 
         return $this;
+    }
+
+    public static function create(ShippingOptionsInterface $options, FulfillmentMethod $fulfillmentMethod): TimeSlot
+    {
+        $timeSlot = new self();
+        $timeSlot->setWorkingDaysOnly(false);
+
+        $minutes = $options->getOrderingDelayMinutes();
+        if ($minutes > 0) {
+            $hours = (int) $minutes / 60;
+            $timeSlot->setPriorNotice(sprintf('%d %s', $hours, ($hours > 1 ? 'hours' : 'hour')));
+        }
+
+        $shippingOptionsDays = $options->getShippingOptionsDays();
+        if ($shippingOptionsDays > 0) {
+            $timeSlot->setInterval(sprintf('%d days', $shippingOptionsDays));
+        }
+
+        $timeSlot->setOpeningHours(
+            $fulfillmentMethod->getOpeningHours()
+        );
+
+        return $timeSlot;
     }
 }

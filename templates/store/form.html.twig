@@ -69,6 +69,9 @@
       {% if form.rcs_number is defined %}
         {{ form_row(form.rcs_number) }}
       {% endif %}
+      {% if form.cuit is defined %}
+        {{ form_row(form.cuit) }}
+      {% endif %}
     </div>
   </div>
   <hr>
@@ -115,13 +118,12 @@
     <hr>
   {% endif %}
 
+  {% if form.tags is defined %}
+    {{ form_row(form.tags) }}
+  {% endif %}
+
   {% if form.address is defined %}
-    {{ form_row(form.address.streetAddress) }}
-    {{ form_row(form.address.postalCode) }}
-    {{ form_row(form.address.addressLocality) }}
-    {{ form_widget(form.address.longitude) }}
-    {{ form_widget(form.address.latitude) }}
-    {% do form.address.setRendered %}
+    {{ form_row(form.address) }}
   {% endif %}
 
   {% if store.id is not empty %}
@@ -174,26 +176,15 @@
 
   <hr>
 
-  <button type="submit" class="btn btn-lg btn-block btn-primary">{% trans %}stores.form.save{% endtrans %}</button>
+  <button type="submit" class="btn btn-lg btn-block btn-primary">{% trans %}basics.save{% endtrans %}</button>
 
 {{ form_end(form) }}
 
 {% endblock %}
 
 {% block scripts %}
+{{ encore_entry_script_tags('store-form') }}
 {% if form.address is defined %}
-<script>
-function initMap() {
-  new CoopCycle.AddressInput(document.querySelector('#store_address_streetAddress'), {
-    elements: {
-      latitude: document.querySelector('#store_address_latitude'),
-      longitude: document.querySelector('#store_address_longitude'),
-      postalCode: document.querySelector('#store_address_postalCode'),
-      addressLocality: document.querySelector('#store_address_addressLocality')
-    }
-  });
-}
-</script>
 <script src="https://maps.googleapis.com/maps/api/js?key={{ coopcycle_setting('google_api_key') }}&libraries=places&callback=initMap" async defer></script>
 {% endif %}
 {% endblock %}

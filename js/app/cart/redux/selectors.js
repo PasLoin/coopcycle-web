@@ -4,26 +4,16 @@ import _ from 'lodash'
 import { totalTaxExcluded } from '../../utils/tax'
 
 export const selectIsDeliveryEnabled = createSelector(
-  state => state.cart.restaurant.fulfillmentMethods,
+  state => state.cart.vendor.fulfillmentMethods,
   (fulfillmentMethods) => _.includes(fulfillmentMethods, 'delivery')
 )
 
 export const selectIsCollectionEnabled = createSelector(
-  state => state.cart.restaurant.fulfillmentMethods,
+  state => state.cart.vendor.fulfillmentMethods,
   (fulfillmentMethods) => _.includes(fulfillmentMethods, 'collection')
 )
 
-export const selectIsSameRestaurant = createSelector(
-  state => state.cart,
-  state => state.restaurant,
-  (cart, restaurant) => cart.restaurant.id === restaurant.id
-)
-
-export const selectItems = createSelector(
-  state => state.cart.items,
-  selectIsSameRestaurant,
-  (items, isSameRestaurant) => isSameRestaurant ? items : []
-)
+export const selectItems = state => state.cart.items
 
 export const selectShowPricesTaxExcluded = createSelector(
   state => state.country,
@@ -31,15 +21,10 @@ export const selectShowPricesTaxExcluded = createSelector(
 )
 
 export const selectItemsTotal = createSelector(
-  state => state.cart.items,
+  selectItems,
   state => state.cart.itemsTotal,
-  selectIsSameRestaurant,
   selectShowPricesTaxExcluded,
-  (items, itemsTotal, isSameRestaurant, showPricesTaxExcluded) => {
-
-    if (!isSameRestaurant) {
-      return 0
-    }
+  (items, itemsTotal, showPricesTaxExcluded) => {
 
     if (showPricesTaxExcluded) {
       return _.reduce(items, (sum, item) => {
@@ -48,5 +33,16 @@ export const selectItemsTotal = createSelector(
     }
 
     return itemsTotal
+  }
+)
+
+export const selectVariableCustomerAmountEnabled = createSelector(
+  state => state.cart,
+  (cart) => {
+    if (cart.vendor) {
+      return cart.vendor.variableCustomerAmountEnabled
+    }
+
+    return false
   }
 )

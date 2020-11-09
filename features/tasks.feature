@@ -268,7 +268,6 @@ Feature: Tasks
           "@type":"http://schema.org/Place",
           "contactName":"John Doe",
           "description":null,
-          "floor":null,
           "geo":{
             "latitude":48.846656,
             "longitude":2.369052
@@ -292,7 +291,9 @@ Feature: Tasks
         "assignedTo":"bob",
         "previous":null,
         "next":null,
-        "doorstep":false
+        "doorstep":false,
+        "orgName": "",
+        "ref":null
       }
       """
 
@@ -554,7 +555,6 @@ Feature: Tasks
           "firstName":null,
           "lastName":null,
           "description": "Sonner à l'interphone",
-          "floor":null,
           "geo":{
             "latitude":48.870473,
             "longitude":2.331933
@@ -577,7 +577,9 @@ Feature: Tasks
         "group":null,
         "tags":@array@,
         "images":@array@,
-        "doorstep":false
+        "doorstep":false,
+        "orgName": "",
+        "ref":null
       }
       """
 
@@ -625,7 +627,6 @@ Feature: Tasks
           "firstName":null,
           "lastName":null,
           "description": "Sonner à l'interphone",
-          "floor":null,
           "geo":{
             "latitude":48.870473,
             "longitude":2.331933
@@ -650,7 +651,9 @@ Feature: Tasks
           {"name":"Important","slug":"important","color":"#000000"}
         ],
         "images":@array@,
-        "doorstep":false
+        "doorstep":false,
+        "orgName": "",
+        "ref":null
       }
       """
 
@@ -1209,15 +1212,18 @@ Feature: Tasks
     Given the fixtures files are loaded:
       | sylius_channels.yml |
       | stores.yml          |
+      | tags.yml            |
     Given the store with name "Acme" has an OAuth client named "Acme"
     And the OAuth client with name "Acme" has an access token
     When I add "Content-Type" header equal to "text/csv"
     And I add "Accept" header equal to "application/ld+json"
     And the OAuth client "Acme" sends a "POST" request to "/api/tasks/import" with body:
       """
-      type,address.streetAddress,address.telephone,address.name,after,before
-      pickup,"1, rue de Rivoli Paris",,Foo,2018-02-15 09:00,2018-02-15 10:00
-      dropoff,"54, rue du Faubourg Saint Denis Paris",,Bar,2018-02-15 09:00,2018-02-15 10:00
+      type,address.streetAddress,address.telephone,address.name,after,before,tags
+      pickup,"1, rue de Rivoli Paris",,Foo,2018-02-15 09:00,2018-02-15 10:00,"important"
+      dropoff,"54, rue du Faubourg Saint Denis Paris",,Bar,2018-02-15 09:00,2018-02-15 10:00,"important fragile"
+      dropoff,"68, rue du Faubourg Saint Denis Paris",,Baz,2018-02-15 10:00,2018-02-15 11:00,"fragile"
+      dropoff,"42, rue de Rivoli Paris",,Bat,2018-02-15 11:30,2018-02-15 12:00,
       """
     Then the response status code should be 201
     And the JSON should match:
@@ -1226,8 +1232,192 @@ Feature: Tasks
         "@context":"/api/contexts/TaskGroup",
         "@id":"/api/task_groups/1",
         "@type":"TaskGroup",
-        "id":@integer@,
         "name":@string@,
-        "tags":[]
+        "tasks":[
+          "@string@.matchRegex('#/api/tasks/[0-9]+#')",
+          "@string@.matchRegex('#/api/tasks/[0-9]+#')",
+          "@string@.matchRegex('#/api/tasks/[0-9]+#')",
+          "@string@.matchRegex('#/api/tasks/[0-9]+#')"
+        ]
+      }
+      """
+    And all the tasks should belong to organization with name "Acme"
+    When I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And the OAuth client "Acme" sends a "GET" request to "/api/tasks/1"
+    Then the response status code should be 200
+
+  Scenario: Import tasks with CSV format (one line)
+    Given the fixtures files are loaded:
+      | sylius_channels.yml |
+      | stores.yml          |
+      | tags.yml            |
+    Given the store with name "Acme" has an OAuth client named "Acme"
+    And the OAuth client with name "Acme" has an access token
+    When I add "Content-Type" header equal to "text/csv"
+    And I add "Accept" header equal to "application/ld+json"
+    And the OAuth client "Acme" sends a "POST" request to "/api/tasks/import" with body:
+      """
+      type,address.streetAddress,address.telephone,address.name,after,before,tags
+      pickup,"1, rue de Rivoli Paris",,Foo,2018-02-15 09:00,2018-02-15 10:00,"important"
+      """
+    Then the response status code should be 201
+    And the JSON should match:
+      """
+      {
+        "@context":"/api/contexts/TaskGroup",
+        "@id":"/api/task_groups/1",
+        "@type":"TaskGroup",
+        "name":@string@,
+        "tasks":[
+          "@string@.matchRegex('#/api/tasks/[0-9]+#')"
+        ]
+      }
+      """
+    And all the tasks should belong to organization with name "Acme"
+
+  Scenario: Import tasks with CSV format with duplicate ref
+    Given the fixtures files are loaded:
+      | sylius_channels.yml |
+      | stores.yml          |
+    Given the store with name "Acme" has an OAuth client named "Acme"
+    And the OAuth client with name "Acme" has an access token
+    When I add "Content-Type" header equal to "text/csv"
+    And I add "Accept" header equal to "application/ld+json"
+    And the OAuth client "Acme" sends a "POST" request to "/api/tasks/import" with body:
+      """
+      type,address.streetAddress,address.telephone,address.name,after,before,ref
+      pickup,"1, rue de Rivoli Paris",,Foo,2018-02-15 09:00,2018-02-15 10:00,123456
+      dropoff,"54, rue du Faubourg Saint Denis Paris",,Bar,2018-02-15 09:00,2018-02-15 10:00,123456
+      """
+    Then the response status code should be 400
+    And the response should be in JSON
+    And the JSON should match:
+      """
+      {
+        "@context":"/api/contexts/ConstraintViolationList",
+        "@type":"ConstraintViolationList",
+        "hydra:title":"An error occurred",
+        "hydra:description":@string@,
+        "violations":[
+          {
+            "propertyPath":"tasks[1]",
+            "message":@string@
+          }
+        ]
+      }
+      """
+
+  Scenario: Import tasks with CSV format with existing ref
+    Given the fixtures files are loaded:
+      | sylius_channels.yml |
+      | stores.yml          |
+    Given the store with name "Acme" has an OAuth client named "Acme"
+    And the OAuth client with name "Acme" has an access token
+    And a task with ref "123456" exists and is attached to store with name "Acme"
+    When I add "Content-Type" header equal to "text/csv"
+    And I add "Accept" header equal to "application/ld+json"
+    And the OAuth client "Acme" sends a "POST" request to "/api/tasks/import" with body:
+      """
+      type,address.streetAddress,address.telephone,address.name,after,before,ref
+      pickup,"1, rue de Rivoli Paris",,Foo,2018-02-15 09:00,2018-02-15 10:00,654321
+      dropoff,"54, rue du Faubourg Saint Denis Paris",,Bar,2018-02-15 09:00,2018-02-15 10:00,123456
+      """
+    Then the response status code should be 400
+    And the response should be in JSON
+    And the JSON should match:
+      """
+      {
+        "@context":"/api/contexts/ConstraintViolationList",
+        "@type":"ConstraintViolationList",
+        "hydra:title":"An error occurred",
+        "hydra:description":@string@,
+        "violations":[
+          {
+            "propertyPath":"tasks[1].ref",
+            "message":@string@
+          }
+        ]
+      }
+      """
+
+  Scenario: Authorized to retrieve task group
+    Given the fixtures files are loaded:
+      | sylius_channels.yml |
+      | stores.yml          |
+    Given the store with name "Acme" has imported tasks:
+      | type    | address.streetAddress                 | after            | before           |
+      | pickup  | 1, rue de Rivoli Paris                | 2018-02-15 09:00 | 2018-02-15 10:00 |
+      | dropoff | 54, rue du Faubourg Saint Denis Paris | 2018-02-15 09:00 | 2018-02-15 10:00 |
+    Given the store with name "Acme" has an OAuth client named "Acme"
+    And the OAuth client with name "Acme" has an access token
+    When I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And the OAuth client "Acme" sends a "GET" request to "/api/task_groups/1"
+    Then the response status code should be 200
+    And the JSON should match:
+      """
+      {
+        "@context":"/api/contexts/TaskGroup",
+        "@id":"/api/task_groups/1",
+        "@type":"TaskGroup",
+        "name":@string@,
+        "tasks":[
+          "@string@.matchRegex('#/api/tasks/[0-9]+#')",
+          "@string@.matchRegex('#/api/tasks/[0-9]+#')"
+        ]
+      }
+      """
+
+  Scenario: Not authorized to retrieve task group
+    Given the fixtures files are loaded:
+      | sylius_channels.yml |
+      | stores.yml          |
+    Given the store with name "Acme" has imported tasks:
+      | type    | address.streetAddress                 | after            | before           |
+      | pickup  | 1, rue de Rivoli Paris                | 2018-02-15 09:00 | 2018-02-15 10:00 |
+      | dropoff | 54, rue du Faubourg Saint Denis Paris | 2018-02-15 09:00 | 2018-02-15 10:00 |
+    Given the store with name "Acme2" has an OAuth client named "Acme2"
+    And the OAuth client with name "Acme2" has an access token
+    When I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And the OAuth client "Acme2" sends a "GET" request to "/api/task_groups/1"
+    Then the response status code should be 403
+
+  Scenario: Create task with invalid address
+    Given the fixtures files are loaded:
+      | sylius_channels.yml |
+      | dispatch.yml        |
+    And the user "bob" has role "ROLE_ADMIN"
+    And the user "bob" is authenticated
+    When I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And the user "bob" sends a "POST" request to "/api/tasks" with body:
+      """
+      {
+        "address": {},
+        "doneAfter": "2020-09-01T13:53:29.536Z",
+        "doneBefore": "2020-09-01T14:23:29.537Z"
+      }
+      """
+    Then the response status code should be 400
+    And the response should be in JSON
+    And the JSON should match:
+      """
+      {
+         "@context":"/api/contexts/ConstraintViolationList",
+         "@type":"ConstraintViolationList",
+         "hydra:title":"An error occurred",
+         "hydra:description":@string@,
+         "violations":[
+            {
+               "propertyPath":"address.geo",
+               "message":@string@
+            },
+            {
+               "propertyPath":"address.streetAddress",
+               "message":@string@
+            }
+         ]
       }
       """

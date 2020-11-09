@@ -95,14 +95,14 @@ COPY src src/
 COPY web web/
 
 COPY docker/php/start.sh /usr/local/bin/docker-app-start
+COPY docker/php/enable-xdebug.sh /usr/local/bin/enable-xdebug
 
 RUN chmod +x /usr/local/bin/docker-app-start
+RUN chmod +x /usr/local/bin/enable-xdebug
 RUN chmod +x bin/demo
 
 ENV APP_ENV dev
 ENV APP_DEBUG 1
-
-RUN composer global require "hirak/prestissimo"
 
 ENTRYPOINT ["docker-app-start"]
 CMD ["php-fpm"]

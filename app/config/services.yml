@@ -72,22 +72,22 @@ services:
   Sylius\Component\Order\Context\CartContextInterface: '@sylius.context.cart.composite'
   Sylius\Component\Channel\Repository\ChannelRepositoryInterface: '@sylius.repository.channel'
   Sylius\Component\Channel\Context\ChannelContextInterface: '@sylius.context.channel.composite'
-  Redis: '@snc_redis.default'
+  Redis:
+    alias: 'snc_redis.default'
+    public: true
   Sylius\Bundle\CurrencyBundle\Templating\Helper\CurrencyHelperInterface: '@sylius.templating.helper.currency'
   FOS\UserBundle\Util\UserManipulator:
     alias: 'fos_user.util.user_manipulator'
     public: true
   FOS\UserBundle\Mailer\MailerInterface: '@fos_user.mailer.twig_swift'
   Lexik\Bundle\JWTAuthenticationBundle\Services\JWTManagerInterface: '@lexik_jwt_authentication.jwt_manager'
-  libphonenumber\PhoneNumberUtil:
-    alias: 'libphonenumber.phone_number_util'
-    public: true
   Liip\ImagineBundle\Service\FilterService: '@liip_imagine.service.filter'
   League\Flysystem\MountManager: '@oneup_flysystem.mount_manager'
   AppBundle\Service\RoutingInterface: '@routing_service'
 
   League\Flysystem\Filesystem $taskImportsFilesystem: '@task_imports_filesystem'
   League\Flysystem\Filesystem $receiptsFilesystem: '@receipts_filesystem'
+  FOS\UserBundle\Util\CanonicalizerInterface: '@fos_user.util.canonicalizer.default'
 
   AppBundle\Routing\FoodtechEnabledAwareLoader:
     arguments:
@@ -97,6 +97,8 @@ services:
   AppBundle\Controller\OrderController:
     arguments:
       $objectManager: '@sylius.manager.order'
+      $orderFactory: '@sylius.factory.order'
+      $sessionKeyName: "%sylius_cart_restaurant_session_key_name%"
     tags:
       - { name: monolog.logger, channel: stripe }
 
@@ -120,18 +122,18 @@ services:
       - { name: csa_guzzle.client }
       - { name: monolog.logger, channel: loopeat }
 
-  AppBundle\LoopEat\Context: ~
+  AppBundle\LoopEat\Context:
+    tags:
+      - { name: monolog.logger, channel: loopeat }
 
   AppBundle\Controller\RestaurantController:
     arguments:
       $orderManager: '@sylius.manager.order'
-      $seoPage: '@sonata.seo.page'
       $validator: '@validator'
       $productRepository: '@sylius.repository.product'
       $orderItemRepository: '@sylius.repository.order_item'
       $orderItemFactory: '@sylius.factory.order_item'
       $productVariantResolver: '@coopcycle.sylius.product_variant_resolver.lazy'
-      $productOptionValueRepository: '@sylius.repository.product_option_value'
       $orderItemQuantityModifier: '@sylius.order_item_quantity_modifier'
       $orderModifier: '@sylius.order_modifier'
       $serializer: '@serializer'
@@ -141,6 +143,9 @@ services:
       $loopeatBaseUrl: '%loopeat_base_url%'
       $loopeatClientId: '%loopeat_client_id%'
       $loopeatClientSecret: '%loopeat_client_secret%'
+      $loopeatOAuthFlow: '%env(LOOPEAT_OAUTH_FLOW)%'
+    tags:
+      - { name: monolog.logger, channel: loopeat }
 
   AppBundle\Controller\PaymentController:
     arguments:
@@ -152,7 +157,8 @@ services:
       - { name: kernel.event_subscriber }
 
   AppBundle\EventListener\SeoListener:
-    arguments: ['@translator', '@coopcycle.settings_manager', '@sonata.seo.page.default']
+    arguments:
+      $seoPage: '@sonata.seo.page.default'
     tags:
       - { name: kernel.event_listener, event: kernel.request }
 
@@ -168,6 +174,12 @@ services:
       $templating: '@twig'
     tags:
       - { name: kernel.event_listener, event: kernel.request, method: onKernelRequest }
+
+  AppBundle\EventListener\DeauthenticatedListener:
+    arguments:
+      $sessionKeyName: "%sylius_cart_restaurant_session_key_name%"
+    tags:
+      - { name: kernel.event_listener, event: Symfony\Component\Security\Http\Event\DeauthenticatedEvent, method: logoutOnChange }
 
   sylius.context.locale.request_based:
     class: Sylius\Bundle\LocaleBundle\Context\RequestBasedLocaleContext
@@ -186,6 +198,11 @@ services:
     arguments: ['@coopcycle.settings_manager']
     tags:
       - { name: sylius.context.currency }
+
+  sylius.tax_rate_resolver:
+    class: AppBundle\Sylius\Taxation\Resolver\TaxRateResolver
+    arguments:
+      $region: '%region_iso%'
 
   # IMPORTANT
   # OrderOptionsProcessor MUST be invoked BEFORE OrderFeeProcessor
@@ -261,6 +278,16 @@ services:
         label: 'Fixed discount'
         form_type: AppBundle\Form\Sylius\Promotion\Action\FixedDiscountConfigurationType
 
+  sylius.promotion_action.percentage_discount:
+    class: AppBundle\Sylius\Promotion\Action\PercentageDiscountPromotionActionCommand
+    arguments:
+      - "@sylius.factory.adjustment"
+    tags:
+      - name: sylius.promotion_action
+        type: order_percentage_discount
+        label: 'Percentage discount'
+        form_type: AppBundle\Form\Sylius\Promotion\Action\AppBundle\Form\Sylius\Promotion\Action\PercentageDiscountConfigurationType
+
   sylius.promotion.eligibility_checker.promotion_coupon_per_customer_usage_limit:
     class: AppBundle\Sylius\Promotion\Checker\Eligibility\PromotionCouponPerCustomerUsageLimitEligibilityChecker
     arguments:
@@ -307,6 +334,8 @@ services:
       - "@sylius.product_variant_resolver.default"
       - "@sylius.factory.product_variant"
     public: true
+
+  AppBundle\Sylius\Cart\RestaurantResolver: ~
 
   AppBundle\Sylius\Cart\RestaurantCartContext:
     arguments:
@@ -393,6 +422,18 @@ services:
     tags:
       - { name: doctrine.orm.entity_listener }
 
+  AppBundle\Entity\Listener\AddressListener:
+    tags:
+      - { name: doctrine.orm.entity_listener }
+
+  AppBundle\Entity\Listener\DeliveryListener:
+    tags:
+      - { name: doctrine.orm.entity_listener }
+
+  AppBundle\Entity\Listener\OrderListener:
+    tags:
+      - { name: doctrine.orm.entity_listener }
+
   AppBundle\EventListener\JwtListener:
     tags:
       - { name: kernel.event_listener, event: lexik_jwt_authentication.on_authentication_success, method: onAuthenticationSuccess }
@@ -411,6 +452,11 @@ services:
       - method: setRestaurantFilter
         arguments:
             - '@coopcycle.utils.restaurant_filter'
+
+  AppBundle\Entity\HubRepository:
+    factory: ['@doctrine.orm.default_entity_manager', getRepository]
+    arguments:
+      - AppBundle\Entity\Hub
 
   AppBundle\Service\Routing\Osrm:
     arguments:
@@ -464,13 +510,11 @@ services:
 
   AppBundle\Service\SettingsManager:
     arguments:
-      - "@craue_config"
-      - "%craue_config.entity_name%"
-      - "@doctrine"
-      - "@libphonenumber.phone_number_util"
-      - "%country_iso%"
-      - "%foodtech_enabled%"
-      - "@logger"
+      $craueConfig: "@craue_config"
+      $configEntityName: "%craue_config.entity_name%"
+      $country: "%country_iso%"
+      $foodtechEnabled: "%foodtech_enabled%"
+      $b2bEnabled: "%b2b_enabled%"
 
   AppBundle\Service\EmailManager:
     arguments:
@@ -501,6 +545,10 @@ services:
     tags:
       - { name: doctrine.event_subscriber, connection: default, priority: 16 }
 
+  AppBundle\Doctrine\EventSubscriber\OrganizationSubscriber:
+    tags:
+      - { name: doctrine.event_subscriber }
+
   AppBundle\Api\EventSubscriber\PricingSubscriber:
     arguments:
         - '@coopcycle.delivery.manager'
@@ -528,6 +576,9 @@ services:
     arguments:
         - '@snc_redis.default'
         - '@translator'
+    tags: [ 'kernel.event_subscriber' ]
+
+  AppBundle\Api\EventSubscriber\TaskOrganizationSubscriber:
     tags: [ 'kernel.event_subscriber' ]
 
   AppBundle\Action\Settings:
@@ -621,6 +672,15 @@ services:
     tags:
       - { name: 'sylius.context.channel', priority: -64 }
 
+  AppBundle\Sylius\Channel\ProChannelContext:
+    tags:
+      - { name: 'sylius.context.channel', priority: 128 }
+
+
+  AppBundle\EventListener\ChangeChannelListener:
+    tags:
+      - { name: kernel.event_listener, event: kernel.response }
+
   AppBundle\EventSubscriber\ApiLogSubscriber:
     tags:
       - { name: monolog.logger, channel: api }
@@ -630,6 +690,7 @@ services:
       $mappingFactory: '@vich_uploader.property_mapping_factory'
       $uploadHandler: '@vich_uploader.upload_handler'
       $secret: '%secret%'
+      $isDemo: '%is_demo%'
     tags:
       - { name: kernel.event_listener, event: oneup_uploader.post_persist, method: onUpload }
 
@@ -681,7 +742,6 @@ services:
 
   AppBundle\Api\DataTransformer\CartItemInputDataTransformer:
     arguments:
-      $productOptionValueRepository: "@sylius.repository.product_option_value"
       $orderItemFactory: "@sylius.factory.order_item"
       $variantResolver: "@coopcycle.sylius.product_variant_resolver.lazy"
 
@@ -696,6 +756,9 @@ services:
   AppBundle\Security\TokenStoreExtractor: ~
 
   AppBundle\Utils\LogoNamer:
+    public: true
+
+  AppBundle\Utils\BannerNamer:
     public: true
 
   # https://digitalist.se/blogg/using-open-source-minio-and-flysystem-s3-module-handle-drupal-files
@@ -716,6 +779,10 @@ services:
       $secret: '%secret%'
     tags:
       - { name: monolog.logger, channel: stripe }
+
+  AppBundle\Service\MercadopagoManager:
+    arguments:
+      $secret: '%secret%'
 
   AppBundle\Sylius\Order\ReceiptGenerator:
     arguments:
@@ -748,6 +815,10 @@ services:
   AppBundle\MessageHandler\ImportTasksHandler:
     arguments:
       $secret: '%secret%'
+
+  AppBundle\MessageHandler\CalculateRouteHandler:
+    arguments:
+      $eventBus: '@simple_bus.event_bus'
 
   AppBundle\Service\MaintenanceManager: ~
 
@@ -789,3 +860,54 @@ services:
   AppBundle\EventListener\AjaxSessionCloseListener:
     tags:
       - { name: "kernel.event_listener", event: "kernel.request", priority: -255 }
+
+  AppBundle\Payment\GatewayResolver:
+    arguments:
+      $country: '%country_iso%'
+      $mercadopagoCountries:
+        - ar
+        - br
+        - cr
+        - mx
+
+  AppBundle\Payment\Gateway: ~
+
+  AppBundle\Security\ProVoter:
+    tags: [ 'security.voter' ]
+
+  AppBundle\EventSubscriber\RegistrationInitializeListener:
+    arguments:
+      $orderRepository: '@sylius.repository.order'
+      $customerRepository: '@sylius.repository.customer'
+      $secret: '%secret%'
+
+  AppBundle\Embed\Context: ~
+
+  AppBundle\Security\DeleteClosingRuleVoter:
+    tags: [ 'security.voter' ]
+
+  AppBundle\Security\OrderActionsVoter:
+    tags: [ 'security.voter' ]
+
+  # While adding a priority is optional, it’s recommended to add one to make sure the expected value is injected.
+  # The built-in RequestAttributeValueResolver, which fetches attributes from the Request, has a priority of 100.
+  # If your resolver also fetches Request attributes, set a priority of 100 or more.
+  # Otherwise, set a priority lower than 100 to make sure the argument resolver is not triggered when the Request attribute is present.
+  AppBundle\Controller\ArgumentResolver\AddressValueResolver:
+    tags:
+      - { name: controller.argument_value_resolver, priority: 50 }
+
+  AppBundle\Security\TaskOperationsVoter:
+    tags: [ 'security.voter' ]
+
+  AppBundle\Sylius\Cart\SessionSubscriber:
+    arguments:
+      $sessionKeyName: "%sylius_cart_restaurant_session_key_name%"
+      $enabled: "%foodtech_enabled%"
+    tags:
+      - { name: kernel.event_subscriber }
+      - { name: monolog.logger, channel: checkout }
+
+  AppBundle\Utils\OptionsPayloadConverter:
+    arguments:
+      $productOptionValueRepository: '@sylius.repository.product_option_value'

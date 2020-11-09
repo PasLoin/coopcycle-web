@@ -4,11 +4,17 @@ import { Switch } from 'antd'
 import Dropzone from 'dropzone'
 import _ from 'lodash'
 import Select from 'react-select'
+import 'prismjs'
+import 'prismjs/plugins/toolbar/prism-toolbar'
+import 'prismjs/plugins/copy-to-clipboard/prism-copy-to-clipboard'
 
 import i18n from '../i18n'
-import AddressInput from '../widgets/AddressInput'
 import DropzoneWidget from '../widgets/Dropzone'
 import OpeningHoursInput from '../widgets/OpeningHoursInput'
+import DeliveryZonePicker from '../components/DeliveryZonePicker'
+
+import 'prismjs/themes/prism.css'
+import 'prismjs/plugins/toolbar/prism-toolbar.css'
 
 Dropzone.autoDiscover = false
 
@@ -86,6 +92,10 @@ const onInvalid = function(e) {
   }
 }
 
+// FIXME
+// This doesn't work for elements added after page load (like DeliveryZonePicker)
+// We would need to use event delegation, but "invalid" event doesn't bubble
+// https://stackoverflow.com/questions/18462859/why-is-the-event-listener-for-the-invalid-event-not-being-called-when-using-even
 document.querySelector('form[name="restaurant"]')
   .querySelectorAll('input,select,textarea')
   .forEach(el => el.addEventListener('invalid', onInvalid))
@@ -101,14 +111,12 @@ $(function() {
 
   const zonePickerEl = document.getElementById('restaurant_deliveryPerimeterExpression__picker')
   if (zonePickerEl) {
-    window.CoopCycle.DeliveryZonePicker(
-      zonePickerEl,
-      {
-        zones: JSON.parse(formData.dataset.zones),
-        expression: formData.dataset.restaurantDeliveryPerimeterExpression,
-        onExprChange: (expr) => { $('#restaurant_deliveryPerimeterExpression').val(expr)}
-      }
-    )
+    render(
+      <DeliveryZonePicker
+        zones={ JSON.parse(formData.dataset.zones) }
+        expression={ formData.dataset.restaurantDeliveryPerimeterExpression }
+        onExprChange={ expr => $('#restaurant_deliveryPerimeterExpression').val(expr) }
+      />, zonePickerEl)
   }
 
   const openingHoursInputs = new Map()
@@ -184,29 +192,17 @@ $(function() {
   $('#restaurant_useDifferentBusinessAddress').on('change', function() {
     if ($(this).is(':checked')) {
       $('#restaurant_businessAddress_streetAddress').closest('.form-group').removeClass('d-none')
+      $('#restaurant_businessAddress_streetAddress').attr('required', true)
       setTimeout(() => $('#restaurant_businessAddress_streetAddress').focus(), 350)
     } else {
       $('#restaurant_businessAddress_streetAddress').closest('.form-group').addClass('d-none')
+      $('#restaurant_businessAddress_streetAddress').attr('required', false)
     }
   })
+
+  if (!$('#restaurant_useDifferentBusinessAddress').is(':checked')) {
+    $('#restaurant_businessAddress_streetAddress').closest('.form-group').addClass('d-none')
+    $('#restaurant_businessAddress_streetAddress').attr('required', false)
+  }
 
 })
-
-window.initMap = function() {
-  new AddressInput(document.querySelector('#restaurant_address_streetAddress'), {
-    elements: {
-      latitude: document.querySelector('#restaurant_address_latitude'),
-      longitude: document.querySelector('#restaurant_address_longitude'),
-      postalCode: document.querySelector('#restaurant_address_postalCode'),
-      addressLocality: document.querySelector('#restaurant_address_addressLocality')
-    }
-  })
-  new AddressInput(document.querySelector('#restaurant_businessAddress_streetAddress'), {
-    elements: {
-      latitude: document.querySelector('#restaurant_businessAddress_latitude'),
-      longitude: document.querySelector('#restaurant_businessAddress_longitude'),
-      postalCode: document.querySelector('#restaurant_businessAddress_postalCode'),
-      addressLocality: document.querySelector('#restaurant_businessAddress_addressLocality')
-    }
-  })
-}

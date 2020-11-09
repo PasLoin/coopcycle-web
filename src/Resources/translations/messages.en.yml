@@ -3,9 +3,10 @@ navbar.login: Login
 navbar.myAccount: My Account
 base.footer.contactUs: Contact us
 base.footer.companyRegister: Become a partner
+base.footer.RegisterMyRestaurant: Register my restaurant
 base.footer.help: Help
 base.footer.legal: Legal notice
-base.footer.suggest: Suggest a restaurant
+base.footer.suggest: Suggest a business
 base.footer.privacy: Privacy
 base.footer.terms: Terms of service
 adminDashboard.title: Admin dashboard
@@ -23,7 +24,6 @@ adminDashboard.dashboard.exportTasks: Export tasks
 adminDashboard.dashboard.deleteTaskGroup: Delete task group
 adminDashboard.dashboard.displayByGroups: Display by groups
 adminDashboard.dashboard.displayAll: Display all
-adminDashboard.dashboard.cancel: Cancel
 adminDashboard.deliveries.title: Deliveries
 adminDashboard.deliveries.type: Type
 adminDashboard.deliveries.dueDate: Due date
@@ -32,7 +32,6 @@ adminDashboard.deliveries.address: Address
 adminDashboard.deliveries.delivery: Delivery
 adminDashboard.deliveries.originAddress: Origin address
 adminDashboard.deliveries.deliveryAddress: Delivery address
-adminDashboard.deliveries.save: Save
 adminDashboard.embed.title: External Display
 adminDashboard.package_sets.title: Packages
 adminDashboard.customize.title: Customize
@@ -54,7 +53,6 @@ embed.delivery.billing_address: Billing address
 adminDashboard.menuCategories.menu: Menu
 adminDashboard.menuCategories.categories: Categories
 adminDashboard.menuCategories.addCategory: Add category
-adminDashboard.menuCategories.save: Save
 adminDashboard.stores.title: Stores
 adminDashboard.stores.createNew: Create a new store
 adminDashboard.stores.form.uploadImage: Upload an image
@@ -65,13 +63,15 @@ adminDashboard.restaurants.title: Restaurants
 adminDashboard.restaurants.createNew: Create a new restaurant
 adminDashboard.restaurants.exclusive: Exclusive
 adminDashboard.users.title: Users
-adminDashboard.users.edit: Edit
 adminDashboard.users.roles: Roles
 adminDashboard.users.editUser: Edit user
 adminDashboard.users.edit.addStore: Add a store
 adminDashboard.users.edit.addRestaurant: Add a restaurant
 adminDashboard.users.createNew: Add user
 adminDashboard.users.invite: Invite user
+adminDashboard.users.orders_count: Number of orders
+adminDashboard.users.registered_at: Registered
+adminDashboard.users.last_order: Last order
 form.user.quotes_allowed.label: Allow this user to request a quote
 adminDashboard.settings.title: Settings
 adminDashboard.pricing.title: Pricing
@@ -83,7 +83,6 @@ adminDashboard.pricing.noRuleFound: No pricing rule found. Pricing rules define 
   the delivery cost is calculated.
 adminDashboard.pricing.addRule: Add rule
 adminDashboard.tags.title: Tags
-adminDashboard.tags.save: Save
 adminDashboard.tags.createNew: Create new tag
 adminDashboard.tags.name: Name
 adminDashboard.tags.color: Color
@@ -93,9 +92,6 @@ adminDashboard.tags.confirm_delete: "Are you sure you want to delete this tag? \
 adminDashboard.taxation.title: Taxation
 adminDashboard.taxation.button: Add taxation
 adminDashboard.zones.title: Zones
-adminDashboard.zones.cancel: Cancel
-adminDashboard.zones.save: Save
-adminDashboard.zones.delete: Delete
 adminDashboard.zones.uploadGeoJSON: Upload a GeoJSON file
 adminDashboard.zones.send: Send
 adminDashboard.back.title: Back to website
@@ -164,7 +160,6 @@ restaurant.form.temporaryClosingRule: Click here to temporarily disable orders t
 restaurant.form.deposit_refund_enabled.label: Enable deposit-refund system
 restaurant.form.accessPlanning: Access planning
 restaurant.form.createRestaurant: Create restaurant
-restaurant.form.save: Save
 restaurant.form.exclusive.label: This restaurant is exclusive
 restaurant.form.quotes_allowed.label: 'This restaurant also accepts quotes (e.g.:
   catering)'
@@ -238,6 +233,7 @@ restaurant.closingForm.reason.label: Reason
 restaurant.closingForm.dates.label: Closing from/to
 restaurant.list.manage: Manage
 restaurant.list.orders: Orders
+restaurant.list.refunds: Refunds
 restaurant.list.products: Products
 restaurant.list.product_options: Options
 restaurant.list.menus: Menus
@@ -275,15 +271,12 @@ profile.myOrders: My orders
 profile.myAddresses: My addresses
 profile.myPersonalInfo: My personal information
 profile.payment: Payment
-profile.task.cancel: Cancel
 profile.task.noTasks: No tasks scheduled
 profile.task.dueDate: Due date
 profile.task.address: Address
 profile.task.complete: Complete
 profile.task.date: Date
-profile.edit.save: Save
 profile.addresses.newAddress: New address
-profile.addresses.save: Save
 profile.addresses.add: Add
 profile.editProfile: Edit profile
 profile.payment.title: Payment
@@ -293,6 +286,7 @@ profile.email: Email
 profile.telephone: Telephone
 profile.familyName: Family name
 profile.givenName: Given name
+profile.fullName: Full name
 profile.managedStores: Stores managed by user
 profile.managedRestaurants: Restaurants managed by user
 profile.accountType: Account type
@@ -306,6 +300,10 @@ order.total_tax: VAT
 order.total_tax_by_rate: Total %name%
 order.preparation_expected_at: Preparation expected at %date%
 order.shipping_date.title: Your shipping date
+order.payer.title: Buyer information
+order.payer.email: E-mail
+order.payer.identificationType: ID type
+order.payer.identificationNumber: Identification number
 order.payment.title: Your payment information
 order.payment.expiration.label: Expiration
 order.payment.month.label: Month
@@ -327,7 +325,7 @@ order.state.cart: Cart
 order.state.accepted: Accepted
 order.state.refused: Refused
 order.state.new: New
-order.state.fulfilled: Delivered
+order.state.fulfilled: Fulfilled
 order.state.cancelled: Cancelled
 order.reusable_packaging.alert: This order must be packed in reusable packaging
 order.public_link: Shareable link
@@ -348,7 +346,6 @@ order.adjustment_type.tip: Tip
 order_item.adjustment_type.reusable_packaging: '%quantity% × packaging(s)'
 order.list.total: Total
 order.list.shippedAt: Shipping time
-order.list.cancel: Cancel
 order.list.type: Type
 order.list.customer: Customer
 order.list.state: State
@@ -362,7 +359,6 @@ vehicle.bike: Bike
 vehicle.cargo_bike: Cargo bike
 task.form.create: Create task
 task.form.timeWindow: Time window
-task.form.cancel: Cancel
 task.form.showHistory: Show history
 task.form.modal.moreOptions: More options
 task.form.edit: Modify task %id%
@@ -399,6 +395,7 @@ cart.widget.title: Your delivery details
 cart.widget.button: Order
 checkout.breadcrumb.address: Address
 checkout.breadcrumb.payment: Payment
+checkout.breadcrumb.confirm: Confirmation
 form.geojson_upload.file: File
 form.store_type.pricing_rule_set.label: Pricing
 form.store_type.prefill_pickup_address.label: Pre-fill automatically pickup address
@@ -409,7 +406,9 @@ form.store_type.pricing_rule_set.placeholder: Choose a pricing
 form.store_type.setAsDefault.label: Set as default address
 form.store_type.defaultAddress.label: Default Address
 form.store_type.time_slot.label: Time slot
+form.store_type.time_slot.placeholder: Choose a time slot
 form.store_type.package_set.label: Package set
+form.store_type.package_set.placeholder: Choose a package set
 form.store_type.weight_required.label: Require input of weight
 form.store_type.packages_required.label: Require input of packages
 form.delivery.vehicle.placeholder: Choose a vehicle type
@@ -438,7 +437,6 @@ form.delivery.view_order: View order
 form.order.accept.label: Accept
 form.order.accept.help: Once you have accepted the order, the customer will be notified
   by email.
-form.order.cancel.label: Cancel
 form.order.refuse.label: Refuse
 form.order.fulfill.label: Fulfill
 form.order.payment_complete.label: Complete
@@ -447,15 +445,20 @@ form.order.refund_modal.title: Refund
 form.order.refuse.refund.alert: This order was paid with a payment method that does
   not manage pre-authorizations. If you refuse it, the payment will be refunded. Are
   you sure?
-form.payment.refund_amount.label: Amount
+form.payment.state.label: State
+form.payment.amount.label: Amount
+form.payment.refund_amount.label: Refunded Amount
+form.payment.last_update.label: Last update
 form.payment.refund_amount.help: The amount you specify will be refunded to the customer
-form.payment.refund_application_fee.label: Refund fees
+form.payment.refund_liable.label: Liable party
+form.payment.refund_liable.help: Which party is liable for the incident?
+form.payment.refund_comment.label: Comments
+form.payment.refund_comment.help: Please describe what happened
 form.payment.refund_application_fee.help: "If you check this box, the commission charged\
   \ by the platform to the partner will be refunded proportionally\n<br>\n<a href=\"\
   https://stripe.com/docs/connect/direct-charges#issuing-refunds\">Learn more</a>\n"
 form.address.addressLocality.label: City
 form.address.postalCode.label: Postal code
-form.address.floor.label: Floor
 form.address.description.label: Instructions
 form.address.description.placeholder: 2nd door on the left…
 form.address.streetAddress.label: Address
@@ -520,13 +523,19 @@ form.settings.enable_restaurant_pledges.label: Allow customers to suggest restau
 form.settings.company_logo.label: Company logo
 form.settings.company_logo.help: This logo will be used invoices & proofs of delivery
 form.settings.subject_to_vat.label: Subject to VAT
+form.settings.sms_enabled.label: Enable SMS sending
+form.settings.sms.title: SMS
+form.settings.sms_gateway.label: SMS Gateway
+form.settings.sms_gateway_config.mailjet.api_token.label: Mailjet API Token
+form.settings.sms_gateway_config.twilio.sid.label: Twilio SID
+form.settings.sms_gateway_config.twilio.auth_token.label: Twilio Auth Token
+form.settings.sms_gateway_config.twilio.from.label: Twilio phone number
 form.suggest.name.label: Name
 form.suggest.name.help: Please indicate the exact name so that we can find it
 form.suggest.submit.label: Suggest now
-form.suggest.message: "Can't find your favourite restaurant ?\n<br>\nTell us its name\
-  \ and address. Then other users can vote to see it appear in the list of restaurants.\n\
-  <br>\nThis will allow us to better identify the restaurants to be approached and\
-  \ provide them the proof of a real demand.\n"
+form.suggest.message: "Can't find your favourite restaurant or shop?\n<br>\nTell us\
+  \ its name and address.\n<br>\nThis will allow us to better identify the businesses\
+  \ to be approached and provide them with proof of a real demand.\n"
 form.suggest.thank_you_message: Thank you for suggesting this restaurant!
 restaurant.suggest.message: "Help us convince %restaurant.name% to work with %brand_name%!\n\
   <br>\nTo see it on the platform, we need you and your voice to support our future\
@@ -588,6 +597,36 @@ form.local_business.stripe_account.link_ok: "This restaurant is linked to a Stri
   \ account and can receive payments from the platform.<br>\nTo manage your Stripe\
   \ account and the transfers to your account, please use the <a href=\"https://dashboard.stripe.com/\"\
   \ target=\"_blank\">Stripe dashboard</a>.\n"
+form.settings.mercadopago.title: Mercado Pago
+form.local_business.mercadopago_account.title: MercadoPago Account
+form.local_business.mercadopago_account.success: MercadoPago account successfully
+  connected
+form.local_business.mercadopago.connect_button.text: Connect with Mercado Pago
+form.mercadopago_livemode.enable.label: Use Mercadopago in « live » mode
+form.mercadopago_livemode.enable.alert: In « live » mode, credit cards will be charged.
+form.mercadopago_livemode.disable.label: Use Mercadopago in « test » mode
+form.mercadopago_livemode.disable.alert: In « test » mode, credit cards will not be
+  charged.
+form.mercadopago_livemode.disable_and_enable_maintenance.label: Switch to « test »
+  mode and enable maintenance
+form.mercadopago_livemode.disable_and_enable_maintenance.alert: You are in « live
+  » mode.<br>If you switch to « test » mode, maintenance will be enabled automatically.
+form.settings.mercadopago_testmode.help: 'In « test » mode, you will have to use <a
+  href="https://www.mercadopago.com.ar/developers/en/guides/online-payments/checkout-api/testing#bookmark_how_to_test_your_integration">test
+  credit cards</a> numbers to pay on the platform. <strong>No money will be exchanged.</strong> '
+form.settings.mercadopago_enable_livemode.help: To enable « live » mode, you need
+  to configure « live » keys first.
+form.settings.mercadopago.publishable_key.label: Publishable key
+form.settings.mercadopago.publishable_key.help: "Get the <a href=\"https://www.mercadopago.com.%country%/developers/panel/credentials\"\
+  \ target=\"_blank\">publishable key</a>"
+form.settings.mercadopago.access_token.label: Access token
+form.settings.mercadopago.access_token.help: "Get the <a href=\"https://www.mercadopago.com.%country%/developers/panel/credentials\"\
+  \ target=\"_blank\">access token</a>"
+form.settings.mercadopago.app_id.label: Application ID
+form.settings.mercadopago.app_id.help: You need to <a href="https://www.mercadopago.com.br/developers/es/guides/marketplace/api/create-marketplace/">create
+  an application</a> to obtain your application ID.
+form.settings.mercadopago.redirect_uri.help: "When configuring your app, use the following\
+  \ redirect URI: <code>%redirect_uri%</code>"
 form.menu_item.name.label: Name
 form.menu_item.price.label: Price
 form.menu_item_modifier.name.label: Name
@@ -665,7 +704,10 @@ form.api_app.store.label: Store
 form.api_app.client_id.label: Identifier
 form.api_app.client_secret.label: Secret key
 form.credit_note.user_search.help: The promotion will only be usable by this user
+form.credit_note.user_search.label: User
+form.credit_note.type.label: Discount type
 form.credit_note.amount.label: Amount
+form.credit_note.percentage.label: Percentage
 form.credit_note.name.label: Name
 form.credit_note.name.help: The name of the promotion that will be displayed in the
   cart
@@ -709,6 +751,8 @@ form.customize.custom_terms_enabled.label: Enable custom terms & conditions
 form.customize.custom_terms.label: Custom terms & conditions page content
 form.customize.custom_privacy_enabled.label: Enable custom privacy policy
 form.customize.custom_privacy.label: Custom privacy policy page content
+form.customize.custom_banner.label: Custom banner
+form.customize.custom_banner.help: Make sure that the banner is a repeatable SVG pattern
 promotion_coupon.used.label: Number of uses
 product_option.strategy.free: Free
 product_option.strategy.option_value: Each option has a different price
@@ -728,7 +772,6 @@ roles.ROLE_COURIER.help: "Courier: view waiting tasks, modify assigned tasks…\
 roles.ROLE_RESTAURANT.help: 'Restaurant owner: manage assigned restaurants, manage
   orders…'
 roles.ROLE_STORE.help: 'Store owner: manage assigned stores, manage deliveries…'
-stores.form.save: Save
 stores.manage: Manage
 stores.settings: Settings
 stores.createNewDelivery: Create new delivery
@@ -793,6 +836,7 @@ basics.tax_category: VAT
 basics.export: Export
 basics.import: Import
 basics.name: Name
+basics.description: Description
 basics.today: Today
 basics.are_you_sure: Are you sure?
 basics.no_entries: No element yet
@@ -806,6 +850,7 @@ basics.net_income: Net income
 basics.send_invitation: Send an invitation
 basics.send_invitation.confirm: Your invitation has been sent! You can now edit the
   settings of the new user.
+basics.configure: Configure
 profile.password.change: Change your password
 authentication.forgot_password: Forgot password?
 authentication.not_registered_yet: Not registered yet?
@@ -831,6 +876,7 @@ delivery.table.heading.courier: Courier
 delivery.table.heading.order: Order
 delivery.table.heading.owner: Owner
 search.users: Search a user…
+search.orders: Search an order (number, customer email…)
 allergens.CEREALS_CONTAINING_GLUTEN: Cereals containing gluten
 allergens.CRUSTACEANS: Crustaceans
 allergens.EGGS: Eggs
@@ -869,6 +915,8 @@ sylius.form.promotion_coupon.per_customer_usage_limit: Per customer usage limit
 deliveries.sort.newest: Newest first
 deliveries.sort.oldest: Oldest first
 deliveries.filter.clear: Show all
+deliveries.section.upcoming: Upcoming
+deliveries.section.past: Past
 orders.new: New order
 basics.copy: Copy
 orders.payment_link.send_by_email: Send payment link by email
@@ -880,6 +928,7 @@ form.min_max.infinity.label: No maximum
 form.local_business.iso_code.fr.siret: SIRET number
 form.local_business.iso_code.fr.vat_number: VAT number
 form.local_business.iso_code.fr.rcs_number: RCS number
+form.local_business.iso_code.ar.cuit: CUIT/CUIL number
 receipt.title: 'Receipt of your order #%number%'
 receipt.line_item.name: Product
 receipt.line_item.unit_price: Unit price
@@ -900,6 +949,7 @@ basics.view_example: View example
 notifications.restaurant.new_order: New order to accept
 profile.loopeat.connect: Connect my LoopEat account
 profile.loopeat.connected: LoopEat account connected
+profile.loopeat.disconnect: Disconnect LoopEat
 basics.free: free
 task.receipt.greeting: Dear customer,
 task.receipt.message: Hereby we confirm that we have delivered your parcel at <strong>%address%</strong>
@@ -1030,3 +1080,48 @@ form.time_slot.same_day_cutoff.help: For example of your select 11:00, choices o
   the same day won't be displayed after 11:00
 order.reusable_packaging.pledge_return.disclaimer: The customer has indicated that
   %count% packages will be returned
+form:
+  restaurant:
+    name:
+      label: Restaurant name
+    contact_referent:
+      label: Contact person for the restaurant
+    b2b:
+      label: Would you like to propose special offers for companies?
+refund.list.amount: Refunded amount
+refund.list.liable_party: Liable party
+refund.list.comments: Comments
+refund.list.debit_total: Total amount due by the platform to the business
+refund.list.refunded_at: Refunded at
+refund.list.disclaimer.admin: "When the platform is responsible for the incident,\
+  \ it means the platform owes the merchant the amount of the refund, because the\
+  \ merchant actually refunded the customer."
+form.time_slot.choices.error.empty: The list of choices cannot be empty
+form.attach_to_org.modal.title: Attach to store
+loopeat.oauth_connect.success: LoopEat account connected successfully!
+loopeat.oauth_redirect.warning: You will be redirected to the LoopEat website to login
+  or create your account
+authentication.register_benefits: Register for a faster checkout experience. You will
+  also be able to find your previous orders history.
+form.checkout_address.telephone.help: To contact you in case of a problem
+guest_checkout.user_with_same_email_exists: An account with the same email already
+  exists. Please log in to continue, or use another email to order without creating
+  an account.
+guest_checkout.use_another_email: Use another email
+restaurant.form.section.embed: Embed
+restaurant.embed.disclaimer: You can embed the checkout directly on your website.
+  Follow the instructions below to get started.
+restaurant.embed.step_1: 'Add the <code>coopcycle.js</code> script to your page'
+restaurant.embed.step_2: 'Add the <code>data-coopcycle-embed="%url%"</code> to a clickable
+  HTML element'
+restaurant.embed.greeting: That's all! Now when visitors click on the button, it opens
+  a window directly on your website.
+form.settings.guest_checkout_enabled.label: Enable guest checkout
+order.list.reorder: Reorder
+homepage.form.title: Do you need something delivered?
+homepage.form.content: "<strong>%brand_name%</strong> is operating local and non polluting\
+  \ on-demand bike delivery services. Ship a single package, or fulfill recuring shipping\
+  \ for your business."
+promotion_action.percentage_discount: '%percentage% discount'
+promotion_action.delivery_percentage_discount: '%percentage% discount on delivery fees'
+promotion_action.fixed_discount: '%amount% discount'

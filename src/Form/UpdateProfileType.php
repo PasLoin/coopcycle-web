@@ -2,7 +2,7 @@
 
 namespace AppBundle\Form;
 
-use AppBundle\Entity\ApiUser;
+use AppBundle\Entity\User;
 use AppBundle\Entity\LocalBusiness;
 use AppBundle\Entity\Store;
 use libphonenumber\PhoneNumberFormat;
@@ -13,6 +13,7 @@ use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\Extension\Core\Type\CollectionType;
 use Symfony\Component\Form\Extension\Core\Type\EmailType;
+use Symfony\Component\Form\Extension\Core\Type\SubmitType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\Form\FormEvents;
@@ -41,13 +42,10 @@ class UpdateProfileType extends AbstractType
                 'label' => 'profile.username',
                 'required' => false,
             ])
-            ->add('familyName', TextType::class, [
-                'label' => 'profile.familyName',
+            ->add('fullName', TextType::class, [
+                'label' => 'profile.fullName',
                 'required' => false,
-            ])
-            ->add('givenName', TextType::class, [
-                'label' => 'profile.givenName',
-                'required' => false,
+                'property_path' => 'customer.fullName',
             ])
             ->add('telephone', PhoneNumberType::class, [
                 'label' => 'profile.telephone',
@@ -107,6 +105,12 @@ class UpdateProfileType extends AbstractType
                     ]);
                 }
 
+                if ($user->getCustomer()->hasLoopEatCredentials()) {
+                    $event->getForm()->add('loopeatDisconnect', SubmitType::class, [
+                        'label' => 'profile.loopeat.disconnect',
+                    ]);
+                }
+
                 if ($user->hasRole('ROLE_RESTAURANT') && $options['with_restaurants']) {
                     $event->getForm()->add('restaurants', CollectionType::class, array(
                         'entry_type' => EntityType::class,
@@ -141,7 +145,7 @@ class UpdateProfileType extends AbstractType
     public function configureOptions(OptionsResolver $resolver)
     {
         $resolver->setDefaults(array(
-           'data_class' => ApiUser::class,
+           'data_class' => User::class,
            'with_restaurants' => false,
            'with_stores' => false,
            'with_roles' => false,
