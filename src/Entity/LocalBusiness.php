@@ -11,7 +11,6 @@ use AppBundle\Action\Restaurant\Deliveries as RestaurantDeliveriesController;
 use AppBundle\Action\Restaurant\Menus;
 use AppBundle\Action\Restaurant\Orders;
 use AppBundle\Action\Restaurant\Timing;
-use AppBundle\Annotation\Enabled;
 use AppBundle\Api\Dto\RestaurantInput;
 use AppBundle\Entity\Base\LocalBusiness as BaseLocalBusiness;
 use AppBundle\Entity\LocalBusiness\CatalogInterface;
@@ -63,7 +62,8 @@ use Vich\UploaderBundle\Mapping\Annotation as Vich;
  *   itemOperations={
  *     "get"={
  *       "method"="GET",
- *       "normalization_context"={"groups"={"restaurant", "address", "order"}}
+ *       "normalization_context"={"groups"={"restaurant", "address", "order", "restaurant_potential_action"}},
+ *       "security"="is_granted('view', object)"
  *     },
  *     "restaurant_menu"={
  *       "method"="GET",
@@ -81,13 +81,13 @@ use Vich\UploaderBundle\Mapping\Annotation as Vich;
  *       "method"="PUT",
  *       "input"=RestaurantInput::class,
  *       "denormalization_context"={"groups"={"restaurant_update"}},
- *       "access_control"="is_granted('ROLE_ADMIN') or (is_granted('ROLE_RESTAURANT') and user.ownsRestaurant(object))"
+ *       "security"="is_granted('edit', object)"
  *     },
  *     "close"={
  *       "method"="PUT",
  *       "path"="/restaurants/{id}/close",
  *       "controller"=CloseController::class,
- *       "access_control"="is_granted('ROLE_ADMIN') or (is_granted('ROLE_RESTAURANT') and user.ownsRestaurant(object))"
+ *       "security"="is_granted('edit', object)"
  *     },
  *     "restaurant_deliveries"={
  *       "method"="GET",
@@ -106,13 +106,12 @@ use Vich\UploaderBundle\Mapping\Annotation as Vich;
  *       "method"="GET",
  *       "path"="/restaurants/{id}/orders",
  *       "controller"=Orders::class,
- *       "access_control"="is_granted('ROLE_ADMIN') or (is_granted('ROLE_RESTAURANT') and user.ownsRestaurant(object))"
+ *       "security"="is_granted('edit', object)"
  *     }
  *   }
  * )
  * @Vich\Uploadable
  * @AssertIsActivableRestaurant(groups="activable")
- * @Enabled
  */
 class LocalBusiness extends BaseLocalBusiness implements
     CatalogInterface,
@@ -494,8 +493,6 @@ class LocalBusiness extends BaseLocalBusiness implements
      */
     public function setPledge($pledge)
     {
-        $pledge->setRestaurant($this);
-
         $this->pledge = $pledge;
 
         return $this;
@@ -787,5 +784,10 @@ class LocalBusiness extends BaseLocalBusiness implements
         }
 
         return null;
+    }
+
+    public function asOriginCode(): string
+    {
+        return (string) $this->getId();
     }
 }

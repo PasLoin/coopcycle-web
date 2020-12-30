@@ -96,8 +96,8 @@ restaurants.placeholder.title: Un peu de patience…
 restaurants.placeholder.text: De nouveaux restaurants arrivent bientôt !
 localBusiness.form.orderingDelayMinutes: Délai additionnel pour les prises de commandes
 localBusiness.form.orderingDelayMinutes.help: Utilisez ces champs pour ajouter un
-  délai avant la commande. N'influe pas sur le temps réservé à la préparation (20
-  minutes) ni sur le temps réservé à la course (25 minutes).
+  délai avant la commande. N'influe pas sur le temps réservé à la préparation ni sur
+  le temps réservé à la course.
 localBusiness.form.orderingDelayDays: Jour(s)
 localBusiness.form.orderingDelayHours: Heure(s)
 localBusiness.form.name: Nom
@@ -939,7 +939,6 @@ order.export.heading.stripe_fee: Frais Stripe
 order.export.heading.platform_fee: Frais Plateforme
 order.export.heading.net_revenue: Revenu net
 order.export.heading.completed_by: Livrée par
-form.order_export.date.label: Date
 form.order_export.messenger.label: Inclure une colonne avec le coursier ayant livré
   la commande
 basics.show: Afficher
@@ -1101,3 +1100,30 @@ form.order.refuse.refund.alert: Cette commande a été payée avec une méthode 
 form.store_type.package_set.placeholder: Choisissez un ensemble de paquets
 form.store_type.time_slot.placeholder: Choisissez une tranche horaire
 order.payment.waiting_failure: Votre banque a décliné le paiement
+order.list.summary.hub.text: Commande au hub %name%
+index.view_all_merchants: Voir toutes les boutiques
+form.hub.restaurants.label: Liste des boutiques
+basics.search: Rechercher…
+store.SHOE_STORE: Chaussures
+store.MUSIC_STORE: Magasin de musique
+store.JEWELRY_STORE: Bijoux
+store.GROCERY_STORE: Épicerie
+store.ELECTRONIC_STORE: Magasin d'électronique
+store.CLOTHING_STORE: Mode et accessoires
+store.BOOK_STORE: Librairie
+store.HOME_GOODS_STORE: Articles de maison
+store.CONVENIENCE_STORE: Cosmétiques
+store.GARDEN_STORE: Jardinerie
+store.HOBBY_SHOP: Loisirs
+store.FURNITURE_STORE: Ameublement
+store.COMPUTER_STORE: Informatique
+store.BIKE_STORE: Cycles
+store.AUTO_PARTS_STORE: Automobile
+store.TOY_STORE: Jeux
+basics.enabled: Activé
+form.option_value.value.placeholder: ex. frites, salade…
+order.hub.sub_total.disclaimer: Cette commande a été réalisée auprès de plusieurs marchands. La colonne "%column%" affiche le montant qui correspond à vos produits (%amount%).
+profile.dashboard_suggest: Vous cherchez à gérer vos commandes et vos livraisons ? <a href="%link%">Découvrez votre nouveau tableau de bord</a> ✨
+form.fulfillment_method.pre_ordering_allowed.label: Autoriser les pré-commandes
+form.fulfillment_method.pre_ordering_allowed.help: Si vous décochez cette case, les client·es pourront ne pourront commander que pour le jour même.
+form.fulfillment_method.options.range_duration.label: Durée des créneaux

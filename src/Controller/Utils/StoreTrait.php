@@ -14,16 +14,21 @@ use AppBundle\Form\AddressType;
 use AppBundle\Form\DeliveryImportType;
 use AppBundle\Service\DeliveryManager;
 use AppBundle\Service\OrderManager;
+use AppBundle\Sylius\Order\OrderFactory;
+use AppBundle\Sylius\Product\ProductVariantFactory;
 use Carbon\Carbon;
 use Doctrine\ORM\Query\Expr;
+use Doctrine\ORM\EntityManagerInterface;
 use FOS\UserBundle\Model\UserManagerInterface;
 use Knp\Component\Pager\PaginatorInterface;
+use Sylius\Component\Product\Factory\ProductVariantFactoryInterface;
 use Sylius\Component\Taxation\Resolver\TaxRateResolverInterface;
 use Symfony\Component\Form\FormError;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Contracts\Translation\TranslatorInterface;
+use Webmozart\Assert\Assert;
 
 trait StoreTrait
 {
@@ -79,7 +84,7 @@ trait StoreTrait
         ]);
     }
 
-    public function storeAddressAction($storeId, $addressId, Request $request)
+    public function storeAddressAction($storeId, $addressId, Request $request, TranslatorInterface $translator)
     {
         $store = $this->getDoctrine()->getRepository(Store::class)->find($storeId);
 
@@ -91,10 +96,10 @@ trait StoreTrait
             throw new AccessDeniedHttpException('Access denied');
         }
 
-        return $this->renderStoreAddressForm($store, $address, $request);
+        return $this->renderStoreAddressForm($store, $address, $request, $translator);
     }
 
-    public function newStoreAddressAction($id, Request $request)
+    public function newStoreAddressAction($id, Request $request, TranslatorInterface $translator)
     {
         $store = $this->getDoctrine()->getRepository(Store::class)->find($id);
 
@@ -102,10 +107,10 @@ trait StoreTrait
 
         $address = new Address();
 
-        return $this->renderStoreAddressForm($store, $address, $request);
+        return $this->renderStoreAddressForm($store, $address, $request, $translator);
     }
 
-    protected function renderStoreForm(Store $store, Request $request)
+    protected function renderStoreForm(Store $store, Request $request, TranslatorInterface $translator)
     {
         $form = $this->createForm(StoreType::class, $store);
 
@@ -121,7 +126,7 @@ trait StoreTrait
 
             $this->addFlash(
                 'notice',
-                $this->get('translator')->trans('global.changesSaved')
+                $translator->trans('global.changesSaved')
             );
 
             return $this->redirectToRoute($routes['store'], [ 'id' => $store->getId() ]);
@@ -139,7 +144,7 @@ trait StoreTrait
         ]);
     }
 
-    protected function renderStoreAddressForm(Store $store, Address $address, Request $request)
+    protected function renderStoreAddressForm(Store $store, Address $address, Request $request, TranslatorInterface $translator)
     {
         $routes = $request->attributes->get('routes');
 
@@ -166,7 +171,7 @@ trait StoreTrait
 
             $this->addFlash(
                 'notice',
-                $this->get('translator')->trans('global.changesSaved')
+                $translator->trans('global.changesSaved')
             );
 
             return $this->redirectToRoute($routes['store'], ['id' => $store->getId()]);
@@ -184,7 +189,11 @@ trait StoreTrait
     public function newStoreDeliveryAction($id, Request $request,
         OrderManager $orderManager,
         DeliveryManager $deliveryManager,
-        TaxRateResolverInterface $taxRateResolver)
+        OrderFactory $orderFactory,
+        TaxRateResolverInterface $taxRateResolver,
+        ProductVariantFactoryInterface $productVariantFactory,
+        EntityManagerInterface $entityManager,
+        TranslatorInterface $translator)
     {
         $routes = $request->attributes->get('routes');
 
@@ -211,16 +220,19 @@ trait StoreTrait
                 try {
 
                     $price = $this->getDeliveryPrice($delivery, $store->getPricingRuleSet(), $deliveryManager);
-                    $order = $this->createOrderForDelivery($delivery, $price, $this->getUser()->getCustomer());
+                    $order = $this->createOrderForDelivery($orderFactory, $delivery, $price, $this->getUser()->getCustomer());
 
-                    $this->get('sylius.repository.order')->add($order);
+                    $entityManager->persist($order);
+                    $entityManager->flush();
+
                     $orderManager->onDemand($order);
-                    $this->get('sylius.manager.order')->flush();
+
+                    $entityManager->flush();
 
                     return $this->redirectToRoute($routes['success'], ['id' => $id]);
 
                 } catch (NoRuleMatchedException $e) {
-                    $message = $this->get('translator')->trans('delivery.price.error.priceCalculation', [], 'validators');
+                    $message = $translator->trans('delivery.price.error.priceCalculation', [], 'validators');
                     $form->addError(new FormError($message));
                 }
 
@@ -240,7 +252,9 @@ trait StoreTrait
             }
         }
 
-        $variant = $this->get('sylius.factory.product_variant')
+        Assert::isInstanceOf($productVariantFactory, ProductVariantFactory::class);
+
+        $variant = $productVariantFactory
             ->createForDelivery($delivery, 0);
 
         $rate = $taxRateResolver->resolve($variant, [
@@ -259,13 +273,13 @@ trait StoreTrait
         ]);
     }
 
-    public function storeAction($id, Request $request)
+    public function storeAction($id, Request $request, TranslatorInterface $translator)
     {
         $store = $this->getDoctrine()->getRepository(Store::class)->find($id);
 
         $this->accessControl($store);
 
-        return $this->renderStoreForm($store, $request);
+        return $this->renderStoreForm($store, $request, $translator);
     }
 
     public function storeDeliveriesAction($id, Request $request,

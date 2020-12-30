@@ -83,34 +83,47 @@ Feature: Tasks
     And the JSON should match:
       """
       {
-        "@context":"/api/contexts/TaskEvent",
-        "@id":"/api/tasks/2/events",
+        "@context":"/api/contexts/Task",
+        "@id":"/api/tasks",
         "@type":"hydra:Collection",
         "hydra:member":[
           {
             "@id":"@string@.startsWith('/api/task_events')",
             "@type":"TaskEvent",
-            "id":@integer@,
-            "task":"/api/tasks/2",
             "name":"task:created",
             "data":[],
-            "metadata":[],
             "createdAt":"@string@.isDateTime()"
           },
           {
             "@id":"@string@.startsWith('/api/task_events')",
             "@type":"TaskEvent",
-            "id":@integer@,
-            "task":"/api/tasks/2",
             "name":"task:assigned",
             "data":{
               "username":"bob"
             },
-            "metadata":[],
             "createdAt":"@string@.isDateTime()"
           }
         ],
-        "hydra:totalItems":2
+        "hydra:totalItems":2,
+        "hydra:search":{
+          "@type":"hydra:IriTemplate",
+          "hydra:template":"/api/tasks/2/events{?date,assigned}",
+          "hydra:variableRepresentation":"BasicRepresentation",
+          "hydra:mapping":[
+            {
+              "@type":"IriTemplateMapping",
+              "variable":"date",
+              "property":"date",
+              "required":false
+            },
+            {
+              "@type":"IriTemplateMapping",
+              "variable":"assigned",
+              "property":"assigned",
+              "required":false
+            }
+          ]
+        }
       }
       """
 
@@ -1419,5 +1432,41 @@ Feature: Tasks
                "message":@string@
             }
          ]
+      }
+      """
+
+  Scenario: Authorized to retrieve task events
+    Given the fixtures files are loaded:
+      | sylius_channels.yml |
+      | stores.yml          |
+    Given the store with name "Acme" has imported tasks:
+      | type    | address.streetAddress                 | after            | before           |
+      | pickup  | 1, rue de Rivoli Paris                | 2018-02-15 09:00 | 2018-02-15 10:00 |
+      | dropoff | 54, rue du Faubourg Saint Denis Paris | 2018-02-15 09:00 | 2018-02-15 10:00 |
+    Given the store with name "Acme" has an OAuth client named "Acme"
+    And the OAuth client with name "Acme" has an access token
+    When I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And the OAuth client "Acme" sends a "GET" request to "/api/tasks/1/events"
+    Then the response status code should be 200
+    And the JSON should match:
+      """
+      {
+        "@context":"/api/contexts/Task",
+        "@id":"/api/tasks",
+        "@type":"hydra:Collection",
+        "hydra:member":[
+          {
+            "@id":"/api/task_events/1",
+            "@type":"TaskEvent",
+            "name":"task:created",
+            "data":[],
+            "createdAt":"@string@.isDateTime()"
+          }
+        ],
+        "hydra:totalItems":1,
+        "hydra:search":{
+          "@*@":"@*@"
+        }
       }
       """

@@ -16,7 +16,7 @@ import Time from './Time'
 import Takeaway from './Takeaway'
 
 import { changeAddress, sync, disableTakeaway, enableTakeaway } from '../redux/actions'
-import { selectIsDeliveryEnabled, selectIsCollectionEnabled } from '../redux/selectors'
+import { selectIsDeliveryEnabled, selectIsCollectionEnabled, selectIsOrderingAvailable } from '../redux/selectors'
 
 class Cart extends Component {
 
@@ -48,7 +48,7 @@ class Cart extends Component {
                   disabled={ this.props.isCollectionOnly || this.props.takeaway }
                   required />
                 { this.props.isCollectionEnabled && (
-                <div className="text-center">
+                <div className="text-center mb-4">
                   <Takeaway
                     defaultChecked={ this.props.isCollectionOnly }
                     checked={ this.props.takeaway || this.props.isCollectionOnly }
@@ -56,12 +56,13 @@ class Cart extends Component {
                     disabled={ this.props.loading || this.props.isCollectionOnly } />
                 </div>
                 )}
-                <Time />
+                { this.props.isOrderingAvailable && <Time /> }
               </div>
               <CartItems />
               <div>
                 <CartTotal />
-                <CartButton />
+                { this.props.isOrderingAvailable && <hr /> }
+                { this.props.isOrderingAvailable && <CartButton /> }
               </div>
             </div>
           </div>
@@ -86,6 +87,7 @@ function mapStateToProps(state) {
     isCollectionOnly: (selectIsCollectionEnabled(state) && !selectIsDeliveryEnabled(state)),
     takeaway: state.cart.takeaway,
     loading: state.isFetching,
+    isOrderingAvailable: selectIsOrderingAvailable(state),
   }
 }
 

@@ -89,6 +89,19 @@ services:
   League\Flysystem\Filesystem $receiptsFilesystem: '@receipts_filesystem'
   FOS\UserBundle\Util\CanonicalizerInterface: '@fos_user.util.canonicalizer.default'
 
+  Spatie\GuzzleRateLimiterMiddleware\Store: '@AppBundle\Geocoder\RateLimiterStore'
+  Twig\CacheExtension\Extension: '@twig.cache_extension'
+
+  # Autowiring variables in controllers
+
+  Doctrine\Persistence\ObjectRepository $productRepository: '@sylius.repository.product'
+  AppBundle\Entity\Sylius\TaxonRepository $taxonRepository: '@sylius.repository.taxon'
+  Sylius\Component\Product\Repository\ProductOptionRepositoryInterface $productOptionRepository: '@sylius.repository.product_option'
+  Sylius\Component\Resource\Factory\FactoryInterface $taxonFactory: '@sylius.factory.taxon'
+  Sylius\Component\Resource\Factory\FactoryInterface $productFactory: '@sylius.factory.product'
+  Sylius\Component\Resource\Factory\FactoryInterface $productOptionFactory: '@sylius.factory.product_option'
+  League\Flysystem\Filesystem $assetsFilesystem: '@assets_filesystem'
+
   AppBundle\Routing\FoodtechEnabledAwareLoader:
     arguments:
       $isFoodtechEnabled: '%foodtech_enabled%'
@@ -99,12 +112,10 @@ services:
       $objectManager: '@sylius.manager.order'
       $orderFactory: '@sylius.factory.order'
       $sessionKeyName: "%sylius_cart_restaurant_session_key_name%"
-    tags:
-      - { name: monolog.logger, channel: stripe }
 
   AppBundle\LoopEat\Client:
     arguments:
-      $config: { base_uri: "%loopeat_base_url%", timeout: 5.0 }
+      $config: { base_uri: "%loopeat_base_url%" }
     calls:
       - method: setLoopEatClientId
         arguments:
@@ -151,8 +162,15 @@ services:
     arguments:
       $secret: '%secret%'
 
+  AppBundle\Controller\StripeController:
+    arguments:
+      $secret: '%secret%'
+      $debug: '%kernel.debug%'
+    tags:
+      - { name: monolog.logger, channel: stripe }
+
   AppBundle\EventListener\LocaleListener:
-    arguments: ['%kernel.default_locale%']
+    arguments: ['%env(COOPCYCLE_LOCALE)%']
     tags:
       - { name: kernel.event_subscriber }
 
@@ -221,6 +239,13 @@ services:
     tags:
       - { name: monolog.logger, channel: fee_calculation }
 
+  sylius.order_processing.order_vendor_processor:
+    class: AppBundle\Sylius\OrderProcessing\OrderVendorProcessor
+    arguments:
+      $adjustmentFactory: "@sylius.factory.adjustment"
+    tags:
+      - { name: monolog.logger, channel: fee_calculation }
+
   AppBundle\Sylius\OrderProcessing\OrderDisabledProductProcessor:
     tags:
       - { name: sylius.order_processor, priority: 96 }
@@ -237,6 +262,7 @@ services:
     arguments:
       - "@sylius.order_processing.order_options_processor"
       - "@sylius.order_processing.order_fee_processor"
+      - "@sylius.order_processing.order_vendor_processor"
     tags:
       - { name: sylius.order_processor, priority: 48 }
 
@@ -324,8 +350,12 @@ services:
   AppBundle\Sylius\Order\OrderFactory:
     decorates: sylius.factory.order
     arguments:
-      - '@AppBundle\Sylius\Order\OrderFactory.inner'
-      - "@sylius.context.channel"
+      $factory: '@AppBundle\Sylius\Order\OrderFactory.inner'
+      $channelContext: "@sylius.context.channel"
+      $orderItemFactory: "@sylius.factory.order_item"
+      $productVariantFactory: "@sylius.factory.product_variant"
+      $orderItemQuantityModifier: "@sylius.order_item_quantity_modifier"
+      $orderModifier: "@sylius.order_modifier"
     public: false
 
   coopcycle.sylius.product_variant_resolver.lazy:
@@ -404,9 +434,7 @@ services:
 
   AppBundle\Utils\PickupTimeResolver: ~
 
-  AppBundle\Utils\PreparationTimeResolver:
-    arguments:
-      $redis: "@snc_redis.default"
+  AppBundle\Utils\PreparationTimeResolver: ~
 
   AppBundle\Utils\ShippingDateFilter:
     tags:
@@ -415,6 +443,7 @@ services:
   AppBundle\Utils\OrderTimeHelper:
     arguments:
       $country: "%country_iso%"
+      $redis: "@snc_redis.default"
     tags:
       - { name: monolog.logger, channel: timing }
 
@@ -518,20 +547,21 @@ services:
 
   AppBundle\Service\EmailManager:
     arguments:
-      - "@mailer"
-      - "@twig"
-      - "@mjml"
-      - "@translator"
-      - "@coopcycle.settings_manager"
-      - "%transactional_address%"
+      $transactionalAddress: "%transactional_address%"
 
   AppBundle\Service\RemotePushNotificationManager: ~
 
   AppBundle\Service\Geocoder:
     arguments:
-      - "@coopcycle.settings_manager"
-      - "%country_iso%"
-      - "%kernel.default_locale%"
+      $openCageApiKey: "%env(OPENCAGE_API_KEY)%"
+      $country: "%country_iso%"
+      $locale: "%env(COOPCYCLE_LOCALE)%"
+      $rateLimitPerSecond: 15
+
+  AppBundle\Geocoder\RateLimiterStore:
+    arguments:
+      $redis: '@snc_redis.shared'
+      $service: opencage
 
   AppBundle\Doctrine\EventSubscriber\TaskSubscriber:
     arguments:
@@ -587,7 +617,7 @@ services:
       $assetsFilesystem: '@assets_filesystem'
       $phoneNumberNormalizer: '@misd_phone_number.serializer.normalizer'
       $country: '%country_iso%'
-      $locale: '%kernel.default_locale%'
+      $locale: '%env(COOPCYCLE_LOCALE)%'
 
   AppBundle\Action\Register:
     public: true
@@ -610,7 +640,12 @@ services:
       $tile38: '@snc_redis.tile38'
       $fleetKey: '%tile38_fleet_key%'
 
-  AppBundle\EventListener\EnabledFilterConfigurator:
+  AppBundle\Action\Order\Pay:
+    public: true
+    tags:
+      - { name: monolog.logger, channel: stripe }
+
+  AppBundle\EventListener\RestaurantFilterConfigurator:
     tags:
       - { name: kernel.event_listener, event: kernel.request, priority: 5 }
 
@@ -684,6 +719,14 @@ services:
   AppBundle\EventSubscriber\ApiLogSubscriber:
     tags:
       - { name: monolog.logger, channel: api }
+
+  AppBundle\EventSubscriber\ClearTwigCacheSubscriber:
+    arguments:
+      $annotation: '%restaurant_menu_cache_annotation%'
+
+  AppBundle\EventSubscriber\EmbedSubscriber:
+    arguments:
+      $debug: '%kernel.debug%'
 
   AppBundle\EventListener\Upload\UploadListener:
     arguments:
@@ -774,6 +817,46 @@ services:
             secret: '%env(S3_CREDENTIALS_SECRET)%'
           use_path_style_endpoint: true
 
+  cdn_s3_client:
+    class: Aws\S3\S3Client
+    arguments:
+        - endpoint: '%env(CDN_S3_ENDPOINT)%'
+          version: latest
+          region: '%env(CDN_S3_REGION)%'
+          credentials:
+            key: '%env(CDN_S3_CREDENTIALS_KEY)%'
+            secret: '%env(CDN_S3_CREDENTIALS_SECRET)%'
+          use_path_style_endpoint: true
+          # https://docs.aws.amazon.com/sdk-for-php/v3/developer-guide/guide_configuration.html#config-retries
+          # https://www.digitalocean.com/docs/spaces/#limits
+          # https://www.digitalocean.com/docs/spaces/resources/performance-tips/#50x-errors
+          retries:
+            mode: standard
+            max_attempts: 3
+
+  # https://symfony.com/doc/current/bundles/LiipImagineBundle/cache-resolver/cache.html
+
+  coopcycle.imagine.cache.resolver.flysystem:
+    class: Liip\ImagineBundle\Imagine\Cache\Resolver\FlysystemResolver
+    arguments:
+      $flysystem: '@oneup_flysystem.cdn_filesystem'
+      $rootUrl: '%env(CDN_ROOT_URL)%'
+      $cachePrefix: '%env(CDN_CACHE_PREFIX)%'
+
+  coopcycle.imagine.cache.redis:
+    class: Symfony\Component\Cache\DoctrineProvider
+    arguments:
+      - '@s3_flysystem.cache'
+
+  coopcycle.imagine.cache.resolver.flysystem.cache:
+    class: Liip\ImagineBundle\Imagine\Cache\Resolver\CacheResolver
+    arguments:
+      - "@coopcycle.imagine.cache.redis"
+      - "@coopcycle.imagine.cache.resolver.flysystem"
+      - { prefix: "s3_flysystem" }
+    tags:
+      - { name: "liip_imagine.cache.resolver", resolver: "cached_s3_flysystem" }
+
   AppBundle\Service\StripeManager:
     arguments:
       $secret: '%secret%'
@@ -789,7 +872,7 @@ services:
       $httpClient: '@csa_guzzle.client.browserless'
       $filesystem: '@receipts_filesystem'
       $taxRateRepository: '@sylius.repository.tax_rate'
-      $locale: '%kernel.default_locale%'
+      $locale: '%env(COOPCYCLE_LOCALE)%'
 
   AppBundle\Service\TagManager:
     arguments:
@@ -803,9 +886,7 @@ services:
     tags:
       - { name: monolog.processor, channel: api }
 
-  AppBundle\MessageHandler\EmailHandler:
-    arguments:
-      $transport: '@swiftmailer.transport.real'
+  AppBundle\MessageHandler\EmailHandler: ~
 
   AppBundle\Api\Swagger\SwaggerDecorator:
       decorates: 'api_platform.swagger.normalizer.api_gateway'
@@ -819,6 +900,12 @@ services:
   AppBundle\MessageHandler\CalculateRouteHandler:
     arguments:
       $eventBus: '@simple_bus.event_bus'
+
+  AppBundle\MessageHandler\RetrieveStripeFeeHandler:
+    arguments:
+      $adjustmentFactory: '@sylius.factory.adjustment'
+    tags:
+      - { name: monolog.logger, channel: stripe }
 
   AppBundle\Service\MaintenanceManager: ~
 
@@ -889,6 +976,27 @@ services:
   AppBundle\Security\OrderActionsVoter:
     tags: [ 'security.voter' ]
 
+  AppBundle\Security\LocalBusinessVoter:
+    tags: [ 'security.voter' ]
+
+  AppBundle\Security\DashboardViewVoter:
+    tags: [ 'security.voter' ]
+
+  AppBundle\Security\ProductVoter:
+    tags: [ 'security.voter' ]
+
+  AppBundle\Security\DeliveriesVoter:
+    tags: [ 'security.voter' ]
+
+  AppBundle\Security\StoreVoter:
+    tags: [ 'security.voter' ]
+
+  AppBundle\Security\CartSessionVoter:
+    tags: [ 'security.voter' ]
+
+  AppBundle\Security\TaskGroupVoter:
+    tags: [ 'security.voter' ]
+
   # While adding a priority is optional, it’s recommended to add one to make sure the expected value is injected.
   # The built-in RequestAttributeValueResolver, which fetches attributes from the Request, has a priority of 100.
   # If your resolver also fetches Request attributes, set a priority of 100 or more.
@@ -911,3 +1019,29 @@ services:
   AppBundle\Utils\OptionsPayloadConverter:
     arguments:
       $productOptionValueRepository: '@sylius.repository.product_option_value'
+
+  Psonic\Client:
+    arguments:
+      - '%env(SONIC_HOST)%'
+      - '%env(SONIC_PORT)%'
+      - 30
+
+  sonic.ingest.client:
+    class: Psonic\Client
+    arguments:
+      - '%env(SONIC_HOST)%'
+      - '%env(SONIC_PORT)%'
+      - 30
+
+  sonic.control.client:
+    class: Psonic\Client
+    arguments:
+      - '%env(SONIC_HOST)%'
+      - '%env(SONIC_PORT)%'
+      - 30
+
+  AppBundle\Serializer\RoutingProblemNormalizer: ~
+
+  AppBundle\Service\RouteOptimizer:
+    arguments:
+      $client: '@csa_guzzle.client.vroom'

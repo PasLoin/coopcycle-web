@@ -60,9 +60,14 @@ class StripeManager
 
         $order = $payment->getOrder();
 
+        if (!$order->hasVendor()) {
+            return $options;
+        }
+
         $vendor = $order->getVendor();
-        if (null === $vendor || $vendor->isHub()) {
-            return;
+
+        if ($vendor->isHub()) {
+            return $options;
         }
 
         $restaurant = $order->getRestaurant();
@@ -140,6 +145,41 @@ class StripeManager
 
         $this->logger->info(
             sprintf('Order #%d | StripeManager::createIntent | %s', $order->getId(), json_encode($payload))
+        );
+
+        $intent = Stripe\PaymentIntent::create($payload, $stripeOptions);
+
+        return $intent;
+    }
+
+    /**
+     * @see https://stripe.com/docs/payments/giropay/accept-a-payment#create-payment-intent
+     *
+     * @param PaymentInterface $payment
+     * @return Stripe\PaymentIntent
+     */
+    public function createGiropayIntent(PaymentInterface $payment): Stripe\PaymentIntent
+    {
+        $this->configure();
+
+        $order = $payment->getOrder();
+
+        $payload = [
+            'amount' => $payment->getAmount(),
+            'currency' => strtolower($payment->getCurrencyCode()),
+            'description' => sprintf('Order %s', $order->getNumber()),
+            'payment_method_types' => ['giropay'],
+            // TODO Add statement descriptor
+            // 'statement_descriptor' => '...',
+        ];
+
+        $this->configurePayment($payment);
+
+        $payload = $this->configureCreateIntentPayload($payment, $payload);
+        $stripeOptions = $this->getStripeOptions($payment);
+
+        $this->logger->info(
+            sprintf('Order #%d | StripeManager::createGiropayIntent | %s', $order->getId(), json_encode($payload))
         );
 
         $intent = Stripe\PaymentIntent::create($payload, $stripeOptions);
@@ -276,9 +316,17 @@ class StripeManager
                 $this->getStripeOptions($payment)
             );
 
-            $intent->capture([
-                'amount_to_capture' => $payment->getAmount()
-            ]);
+            // Make sure the payment intent needs to be captured
+            // When using Giropay, it's not needed
+            if ($intent->capture_method === 'manual' && $intent->amount_capturable > 0) {
+                $intent->capture([
+                    'amount_to_capture' => $payment->getAmount()
+                ]);
+            }
+
+            if ($charge = $this->getChargeFromPaymentIntent($intent)) {
+                $this->createTransfersForHub($payment, $charge);
+            }
 
             // TODO Return charge
             return $intent;
@@ -299,27 +347,12 @@ class StripeManager
             // be done here (after capture) to avoid error
             // "Cannot use an uncaptured charge as a source_transaction"
             $order = $payment->getOrder();
-            $vendor = $order->getVendor();
-            if ($vendor->isHub()) {
 
-                $livemode = $this->settingsManager->isStripeLivemode();
-                $hub = $vendor->getHub();
-
-                foreach ($hub->getRestaurants() as $restaurant) {
-
-                    $stripeAccount = $restaurant->getStripeAccount($livemode);
-                    $feePart = $order->getFeeTotal() * $hub->getPercentageForRestaurant($order, $restaurant);
-
-                    // @see https://stripe.com/docs/connect/charges-transfers
-                    Stripe\Transfer::create([
-                        'amount' => $hub->getItemsTotalForRestaurant($order, $restaurant) - $feePart,
-                        'currency' => strtolower($payment->getCurrencyCode()),
-                        'destination' => $stripeAccount->getStripeUserId(),
-                        // @see https://stripe.com/docs/connect/charges-transfers#transfer-availability
-                        'source_transaction' => $payment->getCharge(),
-                    ]);
-                }
+            if (!$order->hasVendor()) {
+                return $charge;
             }
+
+            $this->createTransfersForHub($payment, $charge);
         }
 
         return $charge;
@@ -358,30 +391,53 @@ class StripeManager
     }
 
     /**
-     * @return Stripe\Source
+     * @return Stripe\StripeObject|null
      */
-    public function createGiropaySource(PaymentInterface $payment, string $ownerName)
+    private function getChargeFromPaymentIntent(Stripe\PaymentIntent $intent): ?Stripe\StripeObject
     {
-        $this->configure();
+        // @see https://stripe.com/docs/api/payment_intents/object#payment_intent_object-charges
+        if (count($intent->charges->data) === 1) {
+            return current($intent->charges->data);
+        }
 
-        $hashids = new Hashids($this->secret, 8);
+        return null;
+    }
 
-        $returnUrl = $this->urlGenerator->generate('payment_confirm', [
-            'hashId' => $hashids->encode($payment->getId()),
-        ], UrlGeneratorInterface::ABSOLUTE_URL);
+    private function createTransfersForHub(PaymentInterface $payment, Stripe\StripeObject $charge)
+    {
+        $order = $payment->getOrder();
 
-        $stripeOptions = $this->getStripeOptions($payment);
+        if (!$order->hasVendor()) {
+            return;
+        }
 
-        return Stripe\Source::create([
-            'type' => 'giropay',
-            'amount' => $payment->getAmount(),
-            'currency' => strtolower($payment->getCurrencyCode()),
-            'owner' => [
-                'name' => $ownerName
-            ],
-            'redirect' => [
-                'return_url' => $returnUrl
-            ]
-        ], $stripeOptions);
+        $vendor = $order->getVendor();
+
+        if ($vendor->isHub()) {
+
+            $subVendors = $order->getVendors();
+
+            if (count($subVendors) > 1) {
+
+                $livemode = $this->settingsManager->isStripeLivemode();
+
+                foreach ($subVendors as $restaurant) {
+
+                    $stripeAccount = $restaurant->getStripeAccount($livemode);
+                    $transferAmount = $order->getTransferAmount($restaurant);
+
+                    if ($transferAmount > 0) {
+                        // @see https://stripe.com/docs/connect/charges-transfers
+                        Stripe\Transfer::create([
+                            'amount' => $transferAmount,
+                            'currency' => strtolower($payment->getCurrencyCode()),
+                            'destination' => $stripeAccount->getStripeUserId(),
+                            // @see https://stripe.com/docs/connect/charges-transfers#transfer-availability
+                            'source_transaction' => $charge->id,
+                        ]);
+                    }
+                }
+            }
+        }
     }
 }

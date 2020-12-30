@@ -114,7 +114,7 @@ restaurants.placeholder.text: New restaurants are coming soon!
 localBusiness.form.orderingDelayMinutes: Additional delay before ordering
 localBusiness.form.orderingDelayMinutes.help: Use this field to add some time before
   the customer can order. This setting doesn't change the time needed for cooking
-  (20 minutes) and cycling (25 minutes).
+  and cycling.
 localBusiness.form.enabled: Enabled
 localBusiness.form.orderingDelayDays: Day(s)
 localBusiness.form.orderingDelayHours: Hour(s)
@@ -808,11 +808,11 @@ activity.order.picked: "@%owner% has picked order #order/%aggregate_id%\n"
 activity.order.dropped: "@%owner% has dropped order #order/%aggregate_id%\n"
 activity.order.fulfilled: "Order #order/#%aggregate_id% is fulfilled\n"
 social.sign_in_with_facebook: Sign in with Facebook
-embed.delivery.summary: "You have requested a delivery on<strong>%dropoff_date%</strong>\
+embed.delivery.summary: "You have requested a delivery on <strong>%dropoff_date%</strong>\
   \ at the following address: <strong>%dropoff_address%</strong> <br> We calculated\
   \ a distance of <strong>%distance% kilometers</strong>. <br> The delivery price\
   \ is <strong>%total_excluding_tax% (excl. VAT); </strong> %total_including_tax%\
-  \ (excl. VAT). <br><br>If any of the above details are incorrect, please change\
+  \ (incl. VAT). <br><br>If any of the above details are incorrect, please change\
   \ them by clicking the 'Edit' button. "
 embed.delivery.submit.help: Click to book the delivery.
 embed.delivery.confirm_message: Your delivery order has been placed and you will receive
@@ -979,7 +979,7 @@ order.export.heading.stripe_fee: Stripe fee
 order.export.heading.platform_fee: Platform fee
 order.export.heading.net_revenue: Net revenue
 order.export.heading.completed_by: Completed by
-form.order_export.date.label: Date
+order.export.empty: There are no orders to export
 form.order_export.messenger.label: Add column with messenger who completed the order
 basics.show: Show
 basics.hide: Hide
@@ -1123,5 +1123,19 @@ homepage.form.content: "<strong>%brand_name%</strong> is operating local and non
   \ on-demand bike delivery services. Ship a single package, or fulfill recuring shipping\
   \ for your business."
 promotion_action.percentage_discount: '%percentage% discount'
-promotion_action.delivery_percentage_discount: '%percentage% discount on delivery fees'
+promotion_action.delivery_percentage_discount: '%percentage% discount on delivery
+  fees'
 promotion_action.fixed_discount: '%amount% discount'
+order.list.summary.hub.text: Order at hub %name%
+index.view_all_merchants: View all merchants
+form.hub.restaurants.label: List of merchants
+basics.search: Search…
+basics.enabled: Enabled
+form.option_value.value.placeholder: e.g. fries, salad…
+form.customize.order_confirm_enabled.label: Show a custom order confirmation message
+form.customize.order_confirm.label: This message will appear on the order confirmation page
+order.hub.sub_total.disclaimer: This order has been placed with several merchants. The "%column%" column shows the amount that corresponds to your products (%amount%).
+profile.dashboard_suggest: Looking to manage your orders & your deliveries? <a href="%link%">Discover your new dashboard</a> ✨
+form.fulfillment_method.pre_ordering_allowed.label: Allow pre-ordering
+form.fulfillment_method.pre_ordering_allowed.help: If you uncheck this box, customers will only be allowed to place same-day orders.
+form.fulfillment_method.options.range_duration.label: Range duration

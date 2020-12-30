@@ -103,11 +103,21 @@ class Hub implements OpenCloseInterface
     }
 
     /**
-     * @param mixed $restaurant
+     * @param LocalBusiness $restaurant
      */
-    public function addRestaurant($restaurant)
+    public function addRestaurant(LocalBusiness $restaurant)
     {
-        $this->restaurants->add($restaurant);
+        if (!$this->restaurants->contains($restaurant)) {
+            $this->restaurants->add($restaurant);
+        }
+    }
+
+    /**
+     * @param LocalBusiness $restaurant
+     */
+    public function removeRestaurant(LocalBusiness $restaurant): void
+    {
+        $this->restaurants->removeElement($restaurant);
     }
 
     /**
@@ -149,6 +159,19 @@ class Hub implements OpenCloseInterface
         $total = $order->getItemsTotal();
         $itemsTotal = $this->getItemsTotalForRestaurant($order, $restaurant);
 
-        return round($itemsTotal / $total, 2);
+        return round($itemsTotal / $total, 4);
+    }
+
+    /**
+     * @return array
+     */
+    public function getBusinessTypes(): array
+    {
+        $types = [];
+        foreach ($this->getRestaurants() as $restaurant) {
+            $types[] = $restaurant->getType();
+        }
+
+        return array_unique($types);
     }
 }

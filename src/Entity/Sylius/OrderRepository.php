@@ -4,6 +4,7 @@ namespace AppBundle\Entity\Sylius;
 
 use AppBundle\Entity\Delivery;
 use AppBundle\Entity\LocalBusiness;
+use AppBundle\Entity\Refund;
 use AppBundle\Entity\Task;
 use AppBundle\Entity\Vendor;
 use AppBundle\Sylius\Order\OrderInterface;
@@ -12,6 +13,7 @@ use Doctrine\ORM\QueryBuilder;
 use Sylius\Bundle\OrderBundle\Doctrine\ORM\OrderRepository as BaseOrderRepository;
 use Sylius\Component\Customer\Model\CustomerInterface;
 use Sylius\Component\Promotion\Model\PromotionCouponInterface;
+use Sylius\Component\Payment\Model\PaymentInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 class OrderRepository extends BaseOrderRepository
@@ -43,21 +45,21 @@ class OrderRepository extends BaseOrderRepository
         return $qb->getQuery()->getResult();
     }
 
-    public function findOrdersByRestaurantAndDateRange(LocalBusiness $restaurant, \DateTime $start, \DateTime $end)
+    public function findOrdersByRestaurantAndDateRange(LocalBusiness $restaurant, \DateTime $start, \DateTime $end, $state)
     {
         $qb = $this->createQueryBuilder('o');
         $qb
             ->join(Vendor::class, 'v', Join::WITH, 'o.vendor = v.id')
             ->andWhere('v.restaurant = :restaurant')
-            ->andWhere('o.state != :state_cart')
+            ->andWhere('o.state = :state')
             ->andWhere('OVERLAPS(o.shippingTimeRange, CAST(:range AS tsrange)) = TRUE')
             ->setParameter('restaurant', $restaurant)
-            ->setParameter('state_cart', OrderInterface::STATE_CART)
+            ->setParameter('state', $state)
             ->setParameter('range', sprintf('[%s, %s]', $start->format('Y-m-d H:i:s'), $end->format('Y-m-d H:i:s')))
             ->addOrderBy('o.shippingTimeRange', 'DESC')
             ;
 
-        return $qb->getQuery()->getResult();
+        return $qb;
     }
 
     public function findOrdersByDateRange(\DateTime $start, \DateTime $end)
@@ -73,7 +75,7 @@ class OrderRepository extends BaseOrderRepository
         return $qb->getQuery()->getResult();
     }
 
-    public function findFulfilledOrdersByDateRange(\DateTime $start, \DateTime $end)
+    public function findFulfilledOrdersByDateRange(\DateTime $start, \DateTime $end, $asQueryBuilder = false)
     {
         $qb = $this->createQueryBuilder('o');
 
@@ -82,6 +84,10 @@ class OrderRepository extends BaseOrderRepository
         $qb
             ->andWhere('o.state = :state_fulfilled')
             ->setParameter('state_fulfilled', OrderInterface::STATE_FULFILLED);
+
+        if ($asQueryBuilder) {
+            return $qb;
+        }
 
         return $qb->getQuery()->getResult();
     }
@@ -110,6 +116,14 @@ class OrderRepository extends BaseOrderRepository
             ->addOrderBy('o.createdAt', 'DESC');
 
         return $qb->getQuery()->getResult();
+    }
+
+    public static function addShippingTimeRangeClause(QueryBuilder $qb, $alias, \DateTime $start, \DateTime $end)
+    {
+        return $qb
+            ->andWhere(sprintf('OVERLAPS(%s.shippingTimeRange, CAST(:range AS tsrange)) = TRUE', $alias))
+            ->setParameter('range', sprintf('[%s, %s]', $start->format('Y-m-d H:i:s'), $end->format('Y-m-d H:i:s')))
+            ;
     }
 
     private function addDateRangeClause(QueryBuilder $qb, \DateTime $start, \DateTime $end)
@@ -179,6 +193,24 @@ class OrderRepository extends BaseOrderRepository
             ->setParameter('state_cart', OrderInterface::STATE_CART);
 
         $qb->setMaxResults(10);
+
+        return $qb->getQuery()->getResult();
+    }
+
+    public function findRefundedOrdersByRestaurantAndDateRange(LocalBusiness $restaurant, \DateTime $start, \DateTime $end)
+    {
+        $qb = $this->createQueryBuilder('o');
+        $qb
+            ->join(Vendor::class,           'v', Join::WITH, 'o.vendor = v.id')
+            ->join(PaymentInterface::class, 'p', Join::WITH, 'p.order = o.id')
+            ->join(Refund::class,           'r', Join::WITH, 'r.payment = p.id')
+            ->andWhere('v.restaurant = :restaurant')
+            ->andWhere('o.state = :state_fulfilled')
+            ->andWhere('OVERLAPS(o.shippingTimeRange, CAST(:range AS tsrange)) = TRUE')
+            ->setParameter('restaurant', $restaurant)
+            ->setParameter('range', sprintf('[%s, %s]', $start->format('Y-m-d H:i:s'), $end->format('Y-m-d H:i:s')))
+            ->setParameter('state_fulfilled', OrderInterface::STATE_FULFILLED)
+            ;
 
         return $qb->getQuery()->getResult();
     }

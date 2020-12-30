@@ -11,6 +11,10 @@ imports:
 # Put parameters here that don't need to change on each machine where the app is deployed
 # http://symfony.com/doc/current/best_practices/configuration.html#application-related-configuration
 parameters:
+    env(COOPCYCLE_PUBLIC_KEY_FILE): "%kernel.project_dir%/var/jwt/public.pem"
+    env(COOPCYCLE_PRIVATE_KEY_FILE): "%kernel.project_dir%/var/jwt/private.pem"
+    env(APP_PUBLIC_DIR): "%kernel.project_dir%/web"
+    env(APP_LOG_DIR): "%kernel.logs_dir%"
     secret: "%env(APP_SECRET)%"
     country_iso: "%env(COOPCYCLE_COUNTRY)%"
     region_iso: "%env(COOPCYCLE_REGION)%"
@@ -33,8 +37,8 @@ parameters:
     tile38_fleet_key: '%database_name%:fleet'
     tile38_doorstep_chan_namespace: '%database_name%'
     cors_allow_origin: http://localhost
-    jwt_public_key_path: "%kernel.project_dir%/%env(COOPCYCLE_PUBLIC_KEY_FILE)%"
-    jwt_private_key_path: "%kernel.project_dir%/%env(COOPCYCLE_PRIVATE_KEY_FILE)%"
+    jwt_public_key_path: "%env(COOPCYCLE_PUBLIC_KEY_FILE)%"
+    jwt_private_key_path: "%env(COOPCYCLE_PRIVATE_KEY_FILE)%"
     transactional_address: "%env(COOPCYCLE_MAIL_SENDER_ADDRESS)%"
     transactional_sender_name: "%env(COOPCYCLE_MAIL_SENDER_NAME)%"
     osrm_host: "%env(COOPCYCLE_OSRM_HOST)%"
@@ -42,6 +46,11 @@ parameters:
     sentry_public_dsn: "%env(COOPCYCLE_SENTRY_DSN)%"
     foodtech_enabled: "%env(bool:COOPCYCLE_FOODTECH_ENABLED)%"
     b2b_enabled: '%env(bool:COOPCYCLE_B2B_ENABLED)%'
+    sonic_namespace: '%database_name%'
+    sonic_secret_password: '%env(SONIC_SECRET_PASSWORD)%'
+    restaurant_menu_cache_annotation: 'restaurant_menu_v0.5'
+    restaurant_caption_cache_annotation: 'restaurant_caption_v0.1'
+    avatar_dir: '%env(APP_PUBLIC_DIR)%/images/avatars/'
 
 services:
     tag_manager.cache:
@@ -77,12 +86,18 @@ framework:
     cache:
         prefix_seed: "%database_name%"
         app: cache.adapter.redis
-        default_redis_provider: "%env(COOPCYCLE_REDIS_DSN)%"
+        default_redis_provider: "snc_redis.default"
         pools:
             enabled_filter_configurator.cache:
                 adapter: cache.adapter.filesystem
             restart_workers_signal.cache:
                 adapter: cache.adapter.redis
+            twig.cache:
+                adapter: cache.app
+            s3_flysystem.cache:
+                adapter: cache.app
+            project.cache:
+                adapter: cache.app
     messenger:
         buses:
             messenger.bus.default:
@@ -110,9 +125,14 @@ framework:
             'AppBundle\Message\Email': async
             'AppBundle\Message\PushNotification': async
             'AppBundle\Message\ImportTasks': async
+            'AppBundle\Message\OrderReceiptEmail': async
+            'AppBundle\Message\RetrieveStripeFee': async
             'AppBundle\Message\Sms': async
+            'AppBundle\Message\UpdateLocation': async
     workflows:
         enabled: true
+    mailer:
+        dsn: '%env(COOPCYCLE_MAIL_URL)%'
 
 # Twig Configuration
 twig:
@@ -146,6 +166,15 @@ twig:
         context_channel: "@sylius.context.channel"
         loopeat_enabled: '%env(bool:LOOPEAT_ENABLED)%'
         embed_context: '@AppBundle\Embed\Context'
+        algolia_places_app_id: '%env(ALGOLIA_PLACES_APP_ID)%'
+        algolia_places_api_key: '%env(ALGOLIA_PLACES_API_KEY)%'
+        algolia_places_address_template: '%env(ALGOLIA_PLACES_ADDRESS_TEMPLATE)%'
+        locationiq_access_token: '%env(LOCATIONIQ_ACCESS_TOKEN)%'
+        autocomplete_adapter: '%env(COOPCYCLE_AUTOCOMPLETE_ADAPTER)%'
+        geocode_earth_api_key: '%env(GEOCODE_EARTH_API_KEY)%'
+        restaurant_menu_cache_annotation: '%restaurant_menu_cache_annotation%'
+        restaurant_caption_cache_annotation: '%restaurant_caption_cache_annotation%'
+        cdn_root_url: '%env(CDN_ROOT_URL)%'
     exception_controller: null
 
 # Doctrine Configuration
@@ -183,7 +212,7 @@ doctrine:
 
         # Add a schema filter to avoid having PostGIS tables tiger.* & topology.* in migrations diff
         # https://symfony.com/doc/master/bundles/DoctrineMigrationsBundle/index.html#manual-tables
-        schema_filter: ~^(?!(tiger|topology)\.)~
+        schema_filter: ~^(?!((tiger|topology)\.)|view_)~
 
     orm:
         auto_generate_proxy_classes: "%kernel.debug%"
@@ -203,14 +232,15 @@ doctrine:
                 TSRANGE: AppBundle\Doctrine\Functions\TsRange
                 OVERLAPS: MartinGeorgiev\Doctrine\ORM\Query\AST\Functions\Overlaps
                 CAST: DoctrineExtensions\Query\Mysql\Cast
+                JSON_GET_FIELD_AS_TEXT: MartinGeorgiev\Doctrine\ORM\Query\AST\Functions\JsonGetFieldAsText
             datetime_functions:
                 date: DoctrineExtensions\Query\Mysql\Date
         filters:
             soft_deleteable:
                 class:   Gedmo\SoftDeleteable\Filter\SoftDeleteableFilter
                 enabled: false
-            enabled_filter:
-                class:   AppBundle\Doctrine\Filter\EnabledFilter
+            disabled_filter:
+                class:   AppBundle\Doctrine\Filter\DisabledFilter
                 enabled: true
         resolve_target_entities:
             Sylius\Component\Order\Model\OrderInterface: AppBundle\Sylius\Order\OrderInterface
@@ -310,6 +340,10 @@ snc_redis:
             options:
                 # https://github.com/phpredis/phpredis/issues/70#issuecomment-348997806
                 read_write_timeout: -1
+        shared:
+            type: phpredis
+            alias: shared
+            dsn: "%env(COOPCYCLE_REDIS_DSN)%"
     session:
         client: session
         prefix: "session:"
@@ -362,6 +396,11 @@ oneup_flysystem:
                 client: s3_client
                 bucket: '%env(S3_BUCKET)%'
                 prefix: product_imports
+        cdn:
+            awss3v3:
+                client: cdn_s3_client
+                bucket: '%env(CDN_S3_BUCKET)%'
+                prefix: ''
     filesystems:
         assets:
             adapter: assets
@@ -395,6 +434,10 @@ oneup_flysystem:
             adapter: product_imports
             alias: product_imports_filesystem
             mount: product_imports_filesystem
+        cdn:
+            adapter: cdn
+            alias: cdn_filesystem
+            mount: cdn_filesystem
 
 vich_uploader:
     db_driver: orm
@@ -459,6 +502,10 @@ csa_guzzle:
         api:
             config:
                 base_uri: "%router.request_context.scheme%://%router.request_context.host%"
+                lazy: true
+        vroom:
+            config:
+                base_uri: "%env(VROOM_HOST)%"
                 lazy: true
 
 sylius_taxation:
@@ -596,13 +643,13 @@ fos_js_routing:
         - profile_jwt
         - profile_notifications
         - profile_notifications_mark_as_read
-        - profile_order_accept
-        - profile_order_refuse
-        - profile_order_cancel
-        - profile_order_delay
-        - profile_order_fulfill
-        - profile_restaurant_dashboard
-        - profile_restaurant_stats
+        - dashboard_order_accept
+        - dashboard_order_refuse
+        - dashboard_order_cancel
+        - dashboard_order_delay
+        - dashboard_order_fulfill
+        - dashboard_restaurant_dashboard
+        - dashboard_restaurant_stats
         - routing_route
         - user_avatar
 
@@ -613,7 +660,8 @@ liip_imagine:
     resolvers:
         default:
             web_path:
-                web_root: '%kernel.project_dir%/web'
+                web_root: '%env(APP_PUBLIC_DIR)%'
+    cache: ~
     filter_sets:
         cache: ~
         restaurant_thumbnail:
@@ -645,12 +693,67 @@ liip_imagine:
                     max: 80
                     progressive: true
         product_thumbnail:
+            # cache: cached_s3_flysystem
             data_loader: product_images
             filters:
                 upscale:
                     min: [ 256, 256 ]
                 thumbnail:
                     size: [ 256, 256 ]
+                    mode: outbound
+                    allow_upscale: true
+            post_processors:
+                jpegoptim:
+                    strip_all: true
+                    max: 80
+                    progressive: true
+                optipng:
+                    strip_all: true
+                    level: 4
+        product_thumbnail_1x1:
+            # cache: cached_s3_flysystem
+            data_loader: product_images
+            filters:
+                upscale:
+                    min: [ 256, 256 ]
+                thumbnail:
+                    size: [ 256, 256 ]
+                    mode: outbound
+                    allow_upscale: true
+            post_processors:
+                jpegoptim:
+                    strip_all: true
+                    max: 80
+                    progressive: true
+                optipng:
+                    strip_all: true
+                    level: 4
+        product_thumbnail_16x9:
+            # cache: cached_s3_flysystem
+            data_loader: product_images
+            filters:
+                upscale:
+                    min: [ 640, 360 ]
+                thumbnail:
+                    size: [ 640, 360 ]
+                    mode: outbound
+                    allow_upscale: true
+            post_processors:
+                jpegoptim:
+                    strip_all: true
+                    max: 80
+                    progressive: true
+                optipng:
+                    strip_all: true
+                    level: 4
+        product_thumbnail_4x3:
+            # cache: cached_s3_flysystem
+            data_loader: product_images
+            filters:
+                upscale:
+                    min: [ 512, 384 ]
+                thumbnail:
+                    size: [ 512, 384 ]
                     mode: outbound
                     allow_upscale: true
             post_processors:
@@ -693,7 +796,7 @@ liip_imagine:
             filesystem:
                 # https://github.com/liip/LiipImagineBundle/pull/1094
                 allow_unresolvable_data_roots: true
-                data_root: '%kernel.project_dir%/web'
+                data_root: '%env(APP_PUBLIC_DIR)%'
         restaurant_images:
             flysystem:
                 filesystem_service: oneup_flysystem.restaurant_images_filesystem

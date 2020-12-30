@@ -48,13 +48,13 @@ context('Checkout', () => {
     cy.searchAddress(
       '.ReactModal__Content--enter-address',
       '91 rue de rivoli paris',
-      '91 Rue de Rivoli, Paris, France'
+      '91 Rue de Rivoli, 75004 Paris, France'
     )
 
     cy.wait('@postRestaurant')
 
     cy.get('.cart .address-autosuggest__container input[type="search"]')
-      .should('have.value', '91 Rue de Rivoli, Paris, France')
+      .should('have.value', '91 Rue de Rivoli, 75004 Paris, France')
 
     cy.contains('Cheese Cake').click()
 
@@ -81,7 +81,9 @@ context('Checkout', () => {
 
     cy.get('form[name="checkout_payment"]').submit()
 
-    cy.location('pathname').should('match', /\/order\/confirm\/[a-zA-Z0-9]+/)
+    cy.location('pathname', { timeout: 30000 }).should('match', /\/order\/confirm\/[a-zA-Z0-9]+/)
+
+    cy.get('#order-timeline').contains('Commande en attente de validation')
   })
 
   it('order something at restaurant with existing address', () => {
@@ -132,7 +134,7 @@ context('Checkout', () => {
       .should('have.value', '1, Rue de Rivoli, Paris, France')
   })
 
-  it('homepage search with vague address', () => {
+  it.skip('homepage search with vague address', () => {
 
     cy.server()
     cy.route('POST', '/fr/restaurant/*-crazy-hamburger').as('postRestaurant')
@@ -144,7 +146,7 @@ context('Checkout', () => {
 
     cy.get('[data-search="address"]')
       .find('ul[role="listbox"] li', { timeout: 5000 })
-      .contains('Rue de Rivoli, Paris, France')
+      .contains('Rue de Rivoli, 75004 Paris, France')
       .click()
 
     cy.location('pathname').should('match', /\/fr\/restaurants/)
@@ -154,7 +156,7 @@ context('Checkout', () => {
     cy.location('pathname').should('match', /\/fr\/restaurant\/[0-9]+-crazy-hamburger/)
 
     cy.get('.cart .address-autosuggest__container input[type="search"]')
-      .should('have.value', 'Rue de Rivoli, Paris, France')
+      .should('have.value', 'Rue de Rivoli, 75004 Paris, France')
 
     cy.get('.ReactModal__Content--enter-address')
       .should('be.visible')
@@ -168,13 +170,13 @@ context('Checkout', () => {
 
     cy.get('.ReactModal__Content--enter-address')
       .find('ul[role="listbox"] li', { timeout: 5000 })
-      .contains('91 Rue de Rivoli, Paris, France')
+      .contains('91 Rue de Rivoli, 75004 Paris, France')
       .click()
 
     cy.wait('@postRestaurant')
 
     cy.get('.cart .address-autosuggest__container input[type="search"]')
-      .should('have.value', '91 Rue de Rivoli, Paris, France')
+      .should('have.value', '91 Rue de Rivoli, 75004 Paris, France')
   })
 
   it.skip('order something at restaurant with existing address (via modal)', () => {
@@ -289,13 +291,13 @@ context('Checkout', () => {
 
     cy.get('.ReactModal__Content--enter-address')
       .find('ul[role="listbox"] li', { timeout: 5000 })
-      .contains('91 Rue de la Roquette, Paris, France')
+      .contains('91 Rue de la Roquette, 75011 Paris, France')
       .click()
 
     cy.wait('@postRestaurant')
 
     cy.get('.cart .address-autosuggest__container input[type="search"]')
-      .should('have.value', '91 Rue de la Roquette, Paris, France')
+      .should('have.value', '91 Rue de la Roquette, 75011 Paris, France')
 
     cy.contains('Salade au poulet').click()
     cy.wait('@postProduct')
@@ -378,13 +380,13 @@ context('Checkout', () => {
 
     cy.get('.ReactModal__Content--enter-address')
       .find('ul[role="listbox"] li', { timeout: 5000 })
-      .contains('91 Rue de Rivoli, Paris, France')
+      .contains('91 Rue de Rivoli, 75004 Paris, France')
       .click()
 
     cy.wait('@postRestaurant')
 
     cy.get('.cart .address-autosuggest__container input[type="search"]')
-      .should('have.value', '91 Rue de Rivoli, Paris, France')
+      .should('have.value', '91 Rue de Rivoli, 75004 Paris, France')
 
     cy.contains('Cheese Cake').click()
 
@@ -453,13 +455,13 @@ context('Checkout', () => {
     cy.searchAddress(
       '.ReactModal__Content--enter-address',
       '91 rue de rivoli paris',
-      '91 Rue de Rivoli, Paris, France'
+      '91 Rue de Rivoli, 75004 Paris, France'
     )
 
     cy.wait('@postRestaurant')
 
     cy.get('.cart .address-autosuggest__container input[type="search"]')
-      .should('have.value', '91 Rue de Rivoli, Paris, France')
+      .should('have.value', '91 Rue de Rivoli, 75004 Paris, France')
 
     cy.contains('Cheese Cake').click()
 
@@ -487,6 +489,8 @@ context('Checkout', () => {
     cy.get('form[name="checkout_payment"]').submit()
 
     cy.location('pathname').should('match', /\/order\/confirm\/[a-zA-Z0-9]+/)
+
+    cy.get('#order-timeline').contains('Commande en attente de validation')
   })
 
   it('start ordering in one restaurant, then navigate to another restaurant', () => {

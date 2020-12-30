@@ -12,9 +12,13 @@ use AppBundle\Entity\Restaurant\PreparationTimeRule;
 use AppBundle\Entity\ReusablePackaging;
 use AppBundle\Entity\StripeAccount;
 use AppBundle\Entity\Sylius\Order;
+use AppBundle\Entity\Sylius\OrderRepository;
+use AppBundle\Entity\Sylius\OrderView;
 use AppBundle\Entity\Sylius\Product;
 use AppBundle\Entity\Sylius\ProductImage;
 use AppBundle\Entity\Sylius\ProductTaxon;
+use AppBundle\Entity\Sylius\TaxRate;
+use AppBundle\Entity\Sylius\TaxonRepository;
 use AppBundle\Entity\Vendor;
 use AppBundle\Entity\Zone;
 use AppBundle\Form\ClosingRuleType;
@@ -38,7 +42,10 @@ use AppBundle\Utils\RestaurantStats;
 use AppBundle\Utils\ValidationUtils;
 use Cocur\Slugify\SlugifyInterface;
 use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query\Expr;
+use Doctrine\ORM\Tools\Pagination\Paginator;
+use Doctrine\Persistence\ObjectRepository;
 use Knp\Component\Pager\PaginatorInterface;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTManagerInterface;
 use Lexik\Bundle\JWTAuthenticationBundle\Encoder\JWTEncoderInterface;
@@ -47,6 +54,9 @@ use Ramsey\Uuid\Uuid;
 use Sylius\Component\Locale\Provider\LocaleProviderInterface;
 use Sylius\Component\Order\Model\OrderInterface;
 use Sylius\Component\Product\Model\ProductTranslation;
+use Sylius\Component\Product\Repository\ProductOptionRepositoryInterface;
+use Sylius\Component\Resource\Factory\FactoryInterface;
+use Symfony\Component\EventDispatcher\GenericEvent;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\Extension\Core\Type\SubmitType;
 use Symfony\Component\Form\FormError;
@@ -60,7 +70,8 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Symfony\Component\Validator\ConstraintViolationList;
-use Symfony\Component\Validator\Validation;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Vich\UploaderBundle\Handler\UploadHandler;
 
 trait RestaurantTrait
@@ -111,8 +122,10 @@ trait RestaurantTrait
     }
 
     protected function renderRestaurantForm(LocalBusiness $restaurant, Request $request,
+        ValidatorInterface $validator,
         JWTEncoderInterface $jwtEncoder,
-        IriConverterInterface $iriConverter)
+        IriConverterInterface $iriConverter,
+        TranslatorInterface $translator)
     {
         $form = $this->createForm(RestaurantType::class, $restaurant);
 
@@ -130,7 +143,7 @@ trait RestaurantTrait
 
                         $this->addFlash(
                             'notice',
-                            $this->get('translator')->trans('form.local_business.stripe_account.success')
+                            $translator->trans('form.local_business.stripe_account.success')
                         );
                     }
                 }
@@ -163,7 +176,7 @@ trait RestaurantTrait
                 }
 
                 // Make sure the restaurant can be enabled, or disable it
-                $violations = $this->get('validator')->validate($restaurant, null, ['activable']);
+                $violations = $validator->validate($restaurant, null, ['activable']);
                 if (count($violations) > 0) {
                     $restaurant->setEnabled(false);
                 }
@@ -188,14 +201,14 @@ trait RestaurantTrait
                 if (!$wasDepositRefundEnabled && $restaurant->isDepositRefundEnabled()) {
                     $this->addFlash(
                         'notice',
-                        $this->get('translator')->trans('confirm.deposit_refund_enabled', [
+                        $translator->trans('confirm.deposit_refund_enabled', [
                             '%url%' => $this->generateUrl($this->getRestaurantRoute('deposit_refund'), ['id' => $restaurant->getId()])
                         ])
                     );
                 } else {
                     $this->addFlash(
                         'notice',
-                        $this->get('translator')->trans('global.changesSaved')
+                        $translator->trans('global.changesSaved')
                     );
                 }
 
@@ -209,7 +222,6 @@ trait RestaurantTrait
             }
 
         } else {
-            $validator = $this->get('validator');
             $violations = $validator->validate($restaurant, null, ['activable']);
             $activationErrors = ValidationUtils::serializeValidationErrors($violations);
         }
@@ -265,7 +277,11 @@ trait RestaurantTrait
         ], $routes));
     }
 
-    public function restaurantAction($id, Request $request, JWTEncoderInterface $jwtEncoder, IriConverterInterface $iriConverter)
+    public function restaurantAction($id, Request $request,
+        ValidatorInterface $validator,
+        JWTEncoderInterface $jwtEncoder,
+        IriConverterInterface $iriConverter,
+        TranslatorInterface $translator)
     {
         $repository = $this->getDoctrine()->getRepository(LocalBusiness::class);
 
@@ -273,22 +289,27 @@ trait RestaurantTrait
 
         $this->accessControl($restaurant);
 
-        return $this->renderRestaurantForm($restaurant, $request, $jwtEncoder, $iriConverter);
+        return $this->renderRestaurantForm($restaurant, $request, $validator, $jwtEncoder, $iriConverter, $translator);
     }
 
-    public function newRestaurantAction(Request $request, JWTEncoderInterface $jwtEncoder, IriConverterInterface $iriConverter)
+    public function newRestaurantAction(Request $request,
+        ValidatorInterface $validator,
+        JWTEncoderInterface $jwtEncoder,
+        IriConverterInterface $iriConverter,
+        TranslatorInterface $translator)
     {
         // TODO Check roles
         $restaurant = new LocalBusiness();
         $restaurant->setContract(new Contract());
 
-        return $this->renderRestaurantForm($restaurant, $request, $jwtEncoder, $iriConverter);
+        return $this->renderRestaurantForm($restaurant, $request, $validator, $jwtEncoder, $iriConverter, $translator);
     }
 
     protected function renderRestaurantDashboard(
+        LocalBusiness $restaurant,
         Request $request,
         JWTManagerInterface $jwtManager,
-        LocalBusiness $restaurant)
+        EntityManagerInterface $entityManager)
     {
         $this->accessControl($restaurant);
 
@@ -297,7 +318,7 @@ trait RestaurantTrait
             $date = new \DateTime($request->query->get('date'));
         }
 
-        $qb = $this->get('sylius.repository.order')
+        $qb = $entityManager->getRepository(Order::class)
             ->createQueryBuilder('o')
             ->join(Vendor::class, 'v', Expr\Join::WITH, 'o.vendor = v.id')
             ->andWhere('v.restaurant = :restaurant')
@@ -315,7 +336,7 @@ trait RestaurantTrait
         $order = null;
         if ($request->query->has('order')) {
             $orderId = $request->query->getInt('order');
-            $order = $this->get('sylius.repository.order')->find($orderId);
+            $order = $entityManager->getRepository(Order::class)->find($orderId);
         }
 
         return $this->render($request->attributes->get('template'), $this->withRoutes([
@@ -345,16 +366,17 @@ trait RestaurantTrait
         ], $routes));
     }
 
-    public function restaurantDashboardAction($restaurantId, Request $request, JWTManagerInterface $jwtManager)
+    public function restaurantDashboardAction($restaurantId, Request $request,
+        JWTManagerInterface $jwtManager, EntityManagerInterface $entityManager)
     {
         $restaurant = $this->getDoctrine()
             ->getRepository(LocalBusiness::class)
             ->find($restaurantId);
 
-        return $this->renderRestaurantDashboard($request, $jwtManager, $restaurant);
+        return $this->renderRestaurantDashboard($restaurant, $request, $jwtManager, $entityManager);
     }
 
-    public function restaurantMenuTaxonsAction($id, Request $request)
+    public function restaurantMenuTaxonsAction($id, Request $request, FactoryInterface $taxonFactory)
     {
         $restaurant = $this->getDoctrine()
             ->getRepository(LocalBusiness::class)
@@ -377,7 +399,7 @@ trait RestaurantTrait
 
             $name = $form->get('name')->getData();
 
-            $menuTaxon = $this->get('sylius.factory.taxon')->createNew();
+            $menuTaxon = $taxonFactory->createNew();
 
             $uuid = Uuid::uuid1()->toString();
 
@@ -404,7 +426,9 @@ trait RestaurantTrait
         ], $routes));
     }
 
-    public function activateRestaurantMenuTaxonAction($restaurantId, $menuId, Request $request)
+    public function activateRestaurantMenuTaxonAction($restaurantId, $menuId, Request $request,
+        TaxonRepository $taxonRepository,
+        TranslatorInterface $translator)
     {
         $restaurant = $this->getDoctrine()
             ->getRepository(LocalBusiness::class)
@@ -412,7 +436,7 @@ trait RestaurantTrait
 
         $this->accessControl($restaurant);
 
-        $menuTaxon = $this->get('sylius.repository.taxon')
+        $menuTaxon = $taxonRepository
             ->find($menuId);
 
         $restaurant->setMenuTaxon($menuTaxon);
@@ -421,7 +445,7 @@ trait RestaurantTrait
 
         $this->addFlash(
             'notice',
-            $this->get('translator')->trans('restaurant.menus.activated', ['%menu_name%' => $menuTaxon->getName()])
+            $translator->trans('restaurant.menus.activated', ['%menu_name%' => $menuTaxon->getName()])
         );
 
         $routes = $request->attributes->get('routes');
@@ -432,7 +456,9 @@ trait RestaurantTrait
     }
 
 
-    public function deleteRestaurantMenuTaxonChildAction($restaurantId, $menuId, $sectionId, Request $request)
+    public function deleteRestaurantMenuTaxonChildAction($restaurantId, $menuId, $sectionId, Request $request,
+        TaxonRepository $taxonRepository,
+        EntityManagerInterface $entityManager)
     {
         $restaurant = $this->getDoctrine()
             ->getRepository(LocalBusiness::class)
@@ -440,12 +466,12 @@ trait RestaurantTrait
 
         $this->accessControl($restaurant);
 
-        $menuTaxon = $this->get('sylius.repository.taxon')->find($menuId);
-        $toRemove = $this->get('sylius.repository.taxon')->find($sectionId);
+        $menuTaxon = $taxonRepository->find($menuId);
+        $toRemove = $taxonRepository->find($sectionId);
 
         $menuTaxon->removeChild($toRemove);
 
-        $this->get('sylius.manager.taxon')->flush();
+        $entityManager->flush();
 
         $routes = $request->attributes->get('routes');
 
@@ -458,7 +484,12 @@ trait RestaurantTrait
     /**
      * @HideSoftDeleted
      */
-    public function restaurantMenuTaxonAction($restaurantId, $menuId, Request $request)
+    public function restaurantMenuTaxonAction($restaurantId, $menuId, Request $request,
+        TaxonRepository $taxonRepository,
+        FactoryInterface $taxonFactory,
+        EntityManagerInterface $entityManager,
+        EventDispatcherInterface $dispatcher,
+        TranslatorInterface $translator)
     {
         $routes = $request->attributes->get('routes');
 
@@ -468,7 +499,7 @@ trait RestaurantTrait
 
         $this->accessControl($restaurant);
 
-        $menuTaxon = $this->get('sylius.repository.taxon')
+        $menuTaxon = $taxonRepository
             ->find($menuId);
 
         $form = $this->createFormBuilder()
@@ -482,17 +513,17 @@ trait RestaurantTrait
 
             $uuid = Uuid::uuid1()->toString();
 
-            $child = $this->get('sylius.factory.taxon')->createNew();
+            $child = $taxonFactory->createNew();
             $child->setCode($uuid);
             $child->setSlug($uuid);
             $child->setName($name);
 
             $menuTaxon->addChild($child);
-            $this->get('sylius.manager.taxon')->flush();
+            $entityManager->flush();
 
             $this->addFlash(
                 'notice',
-                $this->get('translator')->trans('global.changesSaved')
+                $translator->trans('global.changesSaved')
             );
 
             return $this->redirect($request->headers->get('referer'));
@@ -558,14 +589,18 @@ trait RestaurantTrait
             $newSectionPositions = array_values($newSectionPositions);
 
             if ($originalSectionPositions !== $newSectionPositions) {
-                $this->get('sylius.repository.taxon')->reorder($menuTaxon, 'position');
+                $taxonRepository->reorder($menuTaxon, 'position');
             }
 
-            $this->get('sylius.manager.taxon')->flush();
+            $entityManager->flush();
+
+            if ($restaurant->getMenuTaxon() === $menuTaxon) {
+                $dispatcher->dispatch(new GenericEvent($restaurant), 'catalog.updated');
+            }
 
             $this->addFlash(
                 'notice',
-                $this->get('translator')->trans('global.changesSaved')
+                $translator->trans('global.changesSaved')
             );
 
             return $this->redirect($request->headers->get('referer'));
@@ -580,7 +615,7 @@ trait RestaurantTrait
         ], $routes));
     }
 
-    public function restaurantPlanningAction($id, Request $request)
+    public function restaurantPlanningAction($id, Request $request, TranslatorInterface $translator)
     {
         $restaurant = $this->getDoctrine()
             ->getRepository(LocalBusiness::class)
@@ -605,7 +640,7 @@ trait RestaurantTrait
 
             $this->addFlash(
                 'notice',
-                $this->get('translator')->trans('global.changesSaved')
+                $translator->trans('global.changesSaved')
             );
             return $this->redirectToRoute($routes['success'], ['id' => $restaurant->getId()]);
         }
@@ -652,7 +687,7 @@ trait RestaurantTrait
     /**
      * @HideSoftDeleted
      */
-    public function restaurantProductsAction($id, Request $request, IriConverterInterface $iriConverter)
+    public function restaurantProductsAction($id, Request $request, IriConverterInterface $iriConverter, PaginatorInterface $paginator)
     {
         $restaurant = $this->getDoctrine()
             ->getRepository(LocalBusiness::class)
@@ -670,7 +705,7 @@ trait RestaurantTrait
         $qb->andWhere('p.id = rp.id');
         $qb->setParameter('restaurant', $restaurant);
 
-        $products = $this->get('knp_paginator')->paginate(
+        $products = $paginator->paginate(
             $qb,
             $request->query->getInt('page', 1),
             10,
@@ -698,7 +733,10 @@ trait RestaurantTrait
         ], $routes));
     }
 
-    public function restaurantProductAction($restaurantId, $productId, Request $request)
+    public function restaurantProductAction($restaurantId, $productId, Request $request,
+        ObjectRepository $productRepository,
+        EntityManagerInterface $entityManager,
+        EventDispatcherInterface $dispatcher)
     {
         $restaurant = $this->getDoctrine()
             ->getRepository(LocalBusiness::class)
@@ -706,7 +744,7 @@ trait RestaurantTrait
 
         $this->accessControl($restaurant);
 
-        $product = $this->get('sylius.repository.product')
+        $product = $productRepository
             ->find($productId);
 
         $form =
@@ -726,11 +764,13 @@ trait RestaurantTrait
 
             if ($form->getClickedButton()) {
                 if ('delete' === $form->getClickedButton()->getName()) {
-                    $this->get('sylius.manager.product')->remove($product);
+                    $entityManager->remove($product);
                 }
             }
 
-            $this->get('sylius.manager.product')->flush();
+            $entityManager->flush();
+
+            $dispatcher->dispatch(new GenericEvent($restaurant), 'catalog.updated');
 
             return $this->redirectToRoute($routes['products'], ['id' => $restaurantId]);
         }
@@ -743,7 +783,9 @@ trait RestaurantTrait
         ], $routes));
     }
 
-    public function newRestaurantProductAction($id, Request $request)
+    public function newRestaurantProductAction($id, Request $request,
+        FactoryInterface $productFactory,
+        EntityManagerInterface $entityManager)
     {
         $restaurant = $this->getDoctrine()
             ->getRepository(LocalBusiness::class)
@@ -751,7 +793,7 @@ trait RestaurantTrait
 
         $this->accessControl($restaurant);
 
-        $product = $this->get('sylius.factory.product')
+        $product = $productFactory
             ->createNew();
 
         $product->setEnabled(false);
@@ -766,7 +808,8 @@ trait RestaurantTrait
 
             $product = $form->getData();
 
-            $this->get('sylius.repository.product')->add($product);
+            $entityManager->persist($product);
+            $entityManager->flush();
 
             return $this->redirectToRoute($routes['products'], ['id' => $id]);
         }
@@ -799,15 +842,23 @@ trait RestaurantTrait
         ], $routes));
     }
 
-    public function restaurantProductOptionAction($restaurantId, $optionId, Request $request)
+    public function restaurantProductOptionAction($restaurantId, $optionId, Request $request,
+        ProductOptionRepositoryInterface $productOptionRepository,
+        EntityManagerInterface $entityManager,
+        TranslatorInterface $translator)
     {
+        $filterCollection = $entityManager->getFilters();
+        if ($filterCollection->isEnabled('disabled_filter')) {
+            $filterCollection->disable('disabled_filter');
+        }
+
         $restaurant = $this->getDoctrine()
             ->getRepository(LocalBusiness::class)
             ->find($restaurantId);
 
         $this->accessControl($restaurant);
 
-        $productOption = $this->get('sylius.repository.product_option')
+        $productOption = $productOptionRepository
             ->find($optionId);
 
         $routes = $request->attributes->get('routes');
@@ -821,8 +872,8 @@ trait RestaurantTrait
 
             if ($form->getClickedButton() && 'delete' === $form->getClickedButton()->getName()) {
 
-                $this->get('sylius.manager.product')->remove($productOption);
-                $this->get('sylius.manager.product_option')->flush();
+                $entityManager->remove($productOption);
+                $entityManager->flush();
 
                 return $this->redirectToRoute($routes['product_options'], ['id' => $restaurantId]);
             }
@@ -833,11 +884,11 @@ trait RestaurantTrait
                 }
             }
 
-            $this->get('sylius.manager.product_option')->flush();
+            $entityManager->flush();
 
             $this->addFlash(
                 'notice',
-                $this->get('translator')->trans('global.changesSaved')
+                $translator->trans('global.changesSaved')
             );
 
             return $this->redirect($request->headers->get('referer'));
@@ -851,10 +902,11 @@ trait RestaurantTrait
     }
 
     public function restaurantProductOptionPreviewAction(Request $request,
+        FactoryInterface $productOptionFactory,
         NormalizerInterface $serializer,
         LocaleProviderInterface $localeProvider)
     {
-        $productOption = $this->get('sylius.factory.product_option')
+        $productOption = $productOptionFactory
             ->createNew();
 
         $form = $this->createForm(ProductOptionType::class, $productOption);
@@ -863,6 +915,15 @@ trait RestaurantTrait
         if ($form->isSubmitted() && $form->isValid()) {
 
             $productOption = $form->getData();
+
+            $enabledValues = $productOption->getValues()->filter(function ($value) {
+                return $value->isEnabled();
+            });
+
+            $productOption->getValues()->clear();
+            foreach ($enabledValues as $optionValue) {
+                $productOption->getValues()->add($optionValue);
+            }
 
             foreach ($productOption->getValues() as $optionValue) {
                 // FIXME We shouldn't need to call setCurrentLocale
@@ -880,7 +941,9 @@ trait RestaurantTrait
         throw new BadRequestHttpException();
     }
 
-    public function newRestaurantProductOptionAction($id, Request $request)
+    public function newRestaurantProductOptionAction($id, Request $request,
+        FactoryInterface $productOptionFactory,
+        EntityManagerInterface $entityManager)
     {
         $restaurant = $this->getDoctrine()
             ->getRepository(LocalBusiness::class)
@@ -888,7 +951,7 @@ trait RestaurantTrait
 
         $this->accessControl($restaurant);
 
-        $productOption = $this->get('sylius.factory.product_option')
+        $productOption = $productOptionFactory
             ->createNew();
 
         $productOption->setRestaurant($restaurant);
@@ -907,7 +970,7 @@ trait RestaurantTrait
                 $optionValue->setCode(Uuid::uuid4()->toString());
             }
 
-            $this->get('sylius.manager.product_option')->flush();
+            $entityManager->flush();
 
             return $this->redirectToRoute($routes['product_options'], ['id' => $id]);
         }
@@ -1101,7 +1164,10 @@ trait RestaurantTrait
         ]));
     }
 
-    public function statsAction($id, Request $request, SlugifyInterface $slugify, TranslatorInterface $translator)
+    public function statsAction($id, Request $request,
+        SlugifyInterface $slugify,
+        TranslatorInterface $translator,
+        EntityManagerInterface $entityManager)
     {
         $tab = $request->query->get('tab', 'orders');
 
@@ -1133,21 +1199,30 @@ trait RestaurantTrait
         $end->setDate($date->format('Y'), $date->format('m'), $date->format('t'));
         $end->setTime(23, 59, 59);
 
-        $orders = $this->get('sylius.repository.order')
-            ->findOrdersByRestaurantAndDateRange(
+        $maxResults = 50;
+
+        $qb = $entityManager->getRepository(OrderView::class)
+            ->createQueryBuilder('ov');
+
+        $qb = OrderRepository::addShippingTimeRangeClause($qb, 'ov', $start, $end);
+        $qb->andWhere('ov.restaurant = :restaurant');
+        $qb->setParameter('restaurant', $restaurant->getId());
+        $qb->addOrderBy('ov.shippingTimeRange', 'DESC');
+        $qb
+            ->setFirstResult(($request->query->getInt('page', 1) - 1) * $maxResults)
+            ->setMaxResults($maxResults);
+
+        $refundedOrders = $entityManager->getRepository(Order::class)
+            ->findRefundedOrdersByRestaurantAndDateRange(
                 $restaurant,
                 $start,
                 $end
             );
 
-        $fulfilledOrders = array_filter($orders, function($order) {
-            return $order->getState() === 'fulfilled';
-        });
-
         $stats = new RestaurantStats(
             $this->getParameter('kernel.default_locale'),
-            $fulfilledOrders,
-            $this->get('sylius.repository.tax_rate'),
+            $qb,
+            $entityManager->getRepository(TaxRate::class),
             $translator
         );
 
@@ -1172,13 +1247,16 @@ trait RestaurantTrait
             'layout' => $request->attributes->get('layout'),
             'restaurant' => $restaurant,
             'stats' => $stats,
+            'refunded_orders' => $refundedOrders, // new ArrayCollection($refundedOrders),
             'start' => $start,
             'end' => $end,
             'tab' => $tab,
+            'page' => $request->query->getInt('page', 1),
+            'pages' => ceil(count($stats) / $maxResults),
         ]));
     }
 
-    public function newRestaurantReusablePackagingAction($id, Request $request)
+    public function newRestaurantReusablePackagingAction($id, Request $request, TranslatorInterface $translator)
     {
         $restaurant = $this->getDoctrine()
             ->getRepository(LocalBusiness::class)
@@ -1199,7 +1277,7 @@ trait RestaurantTrait
 
             $this->addFlash(
                 'notice',
-                $this->get('translator')->trans('global.changesSaved')
+                $translator->trans('global.changesSaved')
             );
 
             return $this->redirectToRoute($this->getRestaurantRoute('deposit_refund'), ['id' => $id]);
@@ -1212,7 +1290,7 @@ trait RestaurantTrait
         ]));
     }
 
-    public function restaurantDepositRefundAction($id, Request $request)
+    public function restaurantDepositRefundAction($id, Request $request, TranslatorInterface $translator)
     {
         $restaurant = $this->getDoctrine()
             ->getRepository(LocalBusiness::class)
@@ -1229,7 +1307,7 @@ trait RestaurantTrait
 
             $this->addFlash(
                 'notice',
-                $this->get('translator')->trans('global.changesSaved')
+                $translator->trans('global.changesSaved')
             );
 
             $routes = $this->getRestaurantRoutes();
@@ -1259,7 +1337,7 @@ trait RestaurantTrait
         ]));
     }
 
-    public function newRestaurantPromotionAction($id, Request $request)
+    public function newRestaurantPromotionAction($id, Request $request, TranslatorInterface $translator)
     {
         $restaurant = $this->getDoctrine()
             ->getRepository(LocalBusiness::class)
@@ -1291,7 +1369,7 @@ trait RestaurantTrait
 
                     // $this->addFlash(
                     //     'notice',
-                    //     $this->get('translator')->trans('global.changesSaved')
+                    //     $translator->trans('global.changesSaved')
                     // );
 
                     return $this->redirectToRoute($routes['promotions'], ['id' => $id]);
@@ -1318,6 +1396,7 @@ trait RestaurantTrait
 
     public function deleteProductImageAction($restaurantId, $productId, $imageName,
         Request $request,
+        ObjectRepository $productRepository,
         UploadHandler $uploadHandler)
     {
         $restaurant = $this->getDoctrine()
@@ -1326,7 +1405,7 @@ trait RestaurantTrait
 
         $this->accessControl($restaurant);
 
-        $product = $this->get('sylius.repository.product')
+        $product = $productRepository
             ->find($productId);
 
         if (!$product) {

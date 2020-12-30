@@ -47,7 +47,7 @@ services:
       $translator: '@translator'
       $authorizationChecker: '@security.authorization_checker'
       $country: '%country_iso%'
-      $locale: '%kernel.default_locale%'
+      $locale: '%env(COOPCYCLE_LOCALE)%'
     tags: [ form.type ]
 
   AppBundle\Form\DeliveryEmbedType:
@@ -124,7 +124,6 @@ services:
 
   AppBundle\Form\Checkout\CheckoutCustomerType:
     arguments:
-      $customerFactory: '@sylius.factory.customer'
       $customerRepository: '@sylius.repository.customer'
     tags: [ form.type ]
 
@@ -157,7 +156,7 @@ services:
   AppBundle\Form\Type\TimeSlotChoiceType:
     arguments:
       $country: '%country_iso%'
-      $locale: '%kernel.default_locale%'
+      $locale: '%env(COOPCYCLE_LOCALE)%'
     tags: [ form.type ]
 
   AppBundle\Form\Type\MoneyType:
@@ -218,4 +217,10 @@ services:
     tags: [ form.type ]
 
   AppBundle\Form\Type\LegalType:
+    tags: [ form.type ]
+
+  AppBundle\Form\HubType:
+    tags: [ form.type ]
+
+  AppBundle\Form\Checkout\ChargeStripeSourceType:
     tags: [ form.type ]

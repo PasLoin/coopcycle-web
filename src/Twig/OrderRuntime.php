@@ -18,8 +18,21 @@ class OrderRuntime implements RuntimeExtensionInterface
         $this->locale = $locale;
     }
 
-    public function timeRangeForHumans(TsRange $range)
+    /**
+     * @param TsRange|string $range
+     * @return string
+     */
+    public function timeRangeForHumans($range)
     {
+        if (!$range instanceof TsRange) {
+            $range = TsRange::parse($range);
+        }
+
+        if (!$range) {
+
+            return $this->translator->trans('order.shippingTimeRange.notAvailable', [], 'validators');
+        }
+
         $rangeAsText = $this->translator->trans('time_range', [
             '%start%' => Carbon::instance($range->getLower())->locale($this->locale)->isoFormat('LT'),
             '%end%'   => Carbon::instance($range->getUpper())->locale($this->locale)->isoFormat('LT'),
@@ -38,5 +51,28 @@ class OrderRuntime implements RuntimeExtensionInterface
                 'lastWeek' => $sameElse,
                 'sameElse' => $sameElse,
             ]);
+    }
+
+    /**
+     * @param TsRange|string $range
+     * @return string
+     */
+    public function timeRangeForHumansShort($range)
+    {
+        if (!$range instanceof TsRange) {
+            $range = TsRange::parse($range);
+        }
+
+        $lower = Carbon::instance($range->getLower())->locale($this->locale);
+
+        $rangeAsText = implode(' - ', [
+            $lower->isoFormat('LT'),
+            Carbon::instance($range->getUpper())->locale($this->locale)->isoFormat('LT')
+        ]);
+
+        return sprintf('%s %s',
+            $lower->isoFormat('L'),
+            $rangeAsText
+        );
     }
 }

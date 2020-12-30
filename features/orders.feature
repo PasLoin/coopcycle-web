@@ -346,14 +346,14 @@ Feature: Orders
       {
         "preparation":"15 minutes",
         "shipping":"1 minutes",
-        "asap":"2017-09-02T12:00:00+02:00",
+        "asap":"2017-09-02T11:45:00+02:00",
         "range":[
-          "2017-09-02T11:55:00+02:00",
-          "2017-09-02T12:05:00+02:00"
+          "2017-09-02T11:40:00+02:00",
+          "2017-09-02T11:50:00+02:00"
         ],
         "today":true,
         "fast":false,
-        "diff":"55 - 65",
+        "diff":"40 - 50",
         "choices":@array@,
         "ranges":@array@,
         "behavior":@string@
@@ -428,7 +428,7 @@ Feature: Orders
       {
         "preparation":"@string@.matchRegex('/^[0-9]+ minutes$/')",
         "shipping":"@string@.matchRegex('/^[0-9]+ minutes$/')",
-        "asap":"@string@.startsWith('2017-09-04T11:45:00')",
+        "asap":"@string@.startsWith('2017-09-04T11:35:00')",
         "range": @array@,
         "today":@boolean@,
         "fast":@boolean@,
@@ -622,6 +622,7 @@ Feature: Orders
           "telephone": "+33612345678",
           "phoneNumber": "+33612345678"
         },
+        "vendor":{"@*@":"@*@"},
         "restaurant":{
           "@id":"/api/restaurants/1",
           "@type":"http://schema.org/Restaurant",
@@ -679,7 +680,7 @@ Feature: Orders
         "notes": null,
         "createdAt":@string@,
         "shippedAt":"@string@.isDateTime()",
-        "shippingTimeRange":["2017-09-02T11:55:00+02:00","2017-09-02T12:05:00+02:00"],
+        "shippingTimeRange":["2017-09-02T11:40:00+02:00","2017-09-02T11:50:00+02:00"],
         "preparationExpectedAt":null,
         "pickupExpectedAt":null,
         "reusablePackagingEnabled": false,
@@ -1138,5 +1139,42 @@ Feature: Orders
             "message":@string@
           }
         ]
+      }
+      """
+
+  Scenario: Get cart payment details
+    Given the fixtures files are loaded:
+      | sylius_channels.yml |
+      | products.yml        |
+      | restaurants.yml     |
+    And the user "bob" is loaded:
+      | email      | bob@coopcycle.org |
+      | password   | 123456            |
+      | telephone  | 0033612345678     |
+    And the restaurant with id "1" has products:
+      | code      |
+      | PIZZA     |
+      | HAMBURGER |
+    And the setting "brand_name" has value "CoopCycle"
+    And the setting "default_tax_category" has value "tva_livraison"
+    And the setting "subject_to_vat" has value "1"
+    Given the user "bob" has created a cart at restaurant with id "1"
+    And the user "bob" is authenticated
+    When I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And the user "bob" sends a "GET" request to "/api/orders/1/payment"
+    Then the response status code should be 200
+    And the response should be in JSON
+    And the JSON should match:
+      """
+      {
+        "@context":{
+          "@vocab":@string@,
+          "hydra":"http://www.w3.org/ns/hydra/core#",
+          "stripeAccount":@string@
+        },
+        "@type":"PaymentDetailsOutput",
+        "@id":@string@,
+        "stripeAccount":null
       }
       """

@@ -2,59 +2,204 @@
 
 namespace AppBundle\Utils;
 
+use AppBundle\Entity\Delivery;
+use AppBundle\Entity\Task;
+use AppBundle\Entity\User;
+use AppBundle\Entity\Sylius\Order;
+use AppBundle\Entity\Sylius\OrderItem;
 use AppBundle\Sylius\Taxation\TaxesHelper;
 use AppBundle\Sylius\Order\AdjustmentInterface;
+use Doctrine\ORM\QueryBuilder;
+use Doctrine\ORM\Query\Expr;
+use Doctrine\ORM\Tools\Pagination\Paginator;
+use Doctrine\Persistence\ObjectRepository;
+use Knp\Component\Pager\Pagination\PaginationInterface;
 use League\Csv\Writer as CsvWriter;
-use Sylius\Component\Resource\Repository\RepositoryInterface;
+use Sylius\Component\Order\Model\Adjustment;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 class RestaurantStats implements \IteratorAggregate, \Countable
 {
+    private $qb;
+    private $result;
     private $orders;
     private $translator;
-    private $withRestaurantName;
+    private $withVendorName;
     private $withMessenger;
 
-    private $itemsTotal = 0;
-    private $total = 0;
-    private $itemsTaxTotal = 0;
-
+    private $columnTotals = [];
     private $taxTotals = [];
     private $taxColumns = [];
 
     private $numberFormatter;
 
+    private $orderTotalResult;
+    private $adjustmentTotalResult;
+
     public function __construct(
         string $locale,
-        $orders,
-        RepositoryInterface $taxRateRepository,
+        QueryBuilder $qb,
+        ObjectRepository $taxRateRepository,
         TranslatorInterface $translator,
-        bool $withRestaurantName = false,
+        bool $withVendorName = false,
         bool $withMessenger = false)
     {
-        $this->orders = array_values($orders);
+        $this->qb = $qb;
+        $this->result = $qb->getQuery()->getResult();
+
+        $this->orders = new Paginator($qb->getQuery());
+        $this->ordersIterator = $this->orders->getIterator();
+
         $this->translator = $translator;
-        $this->withRestaurantName = $withRestaurantName;
+        $this->withVendorName = $withVendorName;
         $this->withMessenger = $withMessenger;
-
-        $taxesHelper = new TaxesHelper($taxRateRepository, $translator);
-
-        foreach ($orders as $index => $order) {
-    		$this->itemsTotal += $order->getItemsTotal();
-    		$this->total += $order->getTotal();
-            $this->itemsTaxTotal += $order->getItemsTaxTotal();
-
-            $taxTotals = $taxesHelper->getTaxTotals($order, $itemsOnly = true);
-
-            $this->taxTotals[$index] = $taxTotals;
-            $this->taxColumns = array_merge($this->taxColumns, array_keys($taxTotals));
-        }
-
-        $this->taxColumns = array_unique($this->taxColumns);
+        $this->taxesHelper = new TaxesHelper($taxRateRepository, $translator);
 
         $this->numberFormatter = \NumberFormatter::create($locale, \NumberFormatter::DECIMAL);
         $this->numberFormatter->setAttribute(\NumberFormatter::MIN_FRACTION_DIGITS, 2);
         $this->numberFormatter->setAttribute(\NumberFormatter::MAX_FRACTION_DIGITS, 2);
+
+        $this->ids = $this->loadIds();
+
+        $this->addAdjustments();
+        $this->computeTaxes();
+        $this->computeColumnTotals();
+
+        if ($withMessenger) {
+            $this->loadMessengers();
+        }
+    }
+
+    private function addAdjustments()
+    {
+        if (count($this->ids) === 0) {
+            return;
+        }
+
+        $qb = $this->qb->getEntityManager()
+            ->getRepository(Adjustment::class)
+            ->createQueryBuilder('a');
+
+        $qb
+            ->select('a.type')
+            ->addSelect('a.amount')
+            ->addSelect('a.neutral')
+            ->addSelect('COALESCE(IDENTITY(a.order), IDENTITY(oi.order)) AS order_id')
+            ->addSelect('IDENTITY(a.orderItem) AS order_item_id')
+            ->addSelect('a.originCode AS origin_code')
+            ->leftJoin(OrderItem::class, 'oi', Expr\Join::WITH, 'a.orderItem = oi.id')
+            ->andWhere(
+                $qb->expr()->orX(
+                    $qb->expr()->in('oi.order', $this->ids),
+                    $qb->expr()->in('a.order', $this->ids)
+                )
+            )
+            ;
+
+        $adjustments = $qb->getQuery()->getArrayResult();
+
+        $adjustmentsByOrderId = array_reduce($adjustments, function ($accumulator, $adjustment) {
+
+            if (!isset($accumulator[$adjustment['order_id']])) {
+                $accumulator[$adjustment['order_id']] = [];
+            }
+
+            $accumulator[$adjustment['order_id']][] = $adjustment;
+
+            return $accumulator;
+
+        }, []);
+
+        $this->result = array_map(function ($order) use ($adjustmentsByOrderId) {
+
+            $order->adjustments = $adjustmentsByOrderId[$order->id];
+
+            return $order;
+
+        }, $this->result);
+    }
+
+    private function computeTaxes()
+    {
+        foreach ($this->result as $order) {
+
+            $taxAdjustments = array_filter($order->adjustments, fn($adjustment) => $adjustment['type'] === 'tax');
+            $taxRateCodes = array_map(fn($adjustment) => $adjustment['origin_code'], $taxAdjustments);
+
+            $this->taxTotals[$order->getId()] = array_combine(
+                $taxRateCodes,
+                array_pad([], count($taxRateCodes), 0)
+            );
+
+            foreach ($taxAdjustments as $adjustment) {
+                $this->taxTotals[$order->getId()][$adjustment['origin_code']] += $adjustment['amount'];
+            }
+
+            $this->taxColumns = array_merge($this->taxColumns, $taxRateCodes);
+        }
+
+        $this->taxColumns = array_unique($this->taxColumns);
+    }
+
+    private function computeColumnTotals()
+    {
+        foreach ($this->getColumns() as $column) {
+
+            if (!$this->isNumericColumn($column)) {
+                continue;
+            }
+
+            $this->columnTotals[$column] = 0;
+
+            foreach ($this->result as $index => $order) {
+
+                $rowValue = $this->getRowValue($column, $index, false);
+
+                $this->columnTotals[$column] += $rowValue;
+            }
+        }
+    }
+
+    private function loadIds()
+    {
+        $qbForIds = clone $this->qb;
+        $qbForIds->select('ov.id')->setFirstResult(null)->setMaxResults(null);
+
+        return array_map(fn($row) => $row['id'], $qbForIds->getQuery()->getArrayResult());
+    }
+
+    private function loadMessengers()
+    {
+        if (count($this->ids) === 0) {
+            return;
+        }
+
+        $qb = $this->qb->getEntityManager()
+            ->getRepository(User::class)
+            ->createQueryBuilder('u');
+
+        $qb
+            ->select('IDENTITY(d.order) AS order_id')
+            ->addSelect('t.id AS task_id')
+            ->addSelect('u.username')
+            ->innerJoin(Task::class,     't', Expr\Join::WITH, 't.assignedTo = u.id')
+            ->innerJoin(Delivery::class, 'd', Expr\Join::WITH, 't.delivery = d.id')
+            ->andWhere(
+                $qb->expr()->in('d.order', $this->ids)
+            )
+            ->andWhere('t.type = :type')
+            ->setParameter('type', Task::TYPE_DROPOFF)
+            ;
+
+        $result = $qb->getQuery()->getArrayResult();
+
+        $this->messengers = array_reduce($result, function ($messengers, $value) {
+
+            $messengers[$value['order_id']] = $value['username'];
+
+            return $messengers;
+
+        }, []);
     }
 
     private function isTaxColumn($column)
@@ -62,94 +207,9 @@ class RestaurantStats implements \IteratorAggregate, \Countable
         return in_array($column, $this->taxColumns);
     }
 
-    private function formatNumber(int $amount)
+    private function formatNumber(int $amount, $bypass = false)
     {
-        return $this->numberFormatter->format($amount / 100);
-    }
-
-    public function getItemsTotal(): int
-    {
-    	return $this->itemsTotal;
-    }
-
-    public function getTotal(): int
-    {
-    	return $this->total;
-    }
-
-    public function getItemsTaxTotal(): int
-    {
-        return $this->itemsTaxTotal;
-    }
-
-    public function getTaxTotalByRate($taxRate): int
-    {
-        $total = 0;
-        foreach ($this->orders as $order) {
-            $total += $order->getTaxTotalByRate($taxRate);
-        }
-
-        return $total;
-    }
-
-    public function getItemsTaxTotalByRate($taxRate): int
-    {
-        $total = 0;
-        foreach ($this->orders as $order) {
-            $total += $order->getItemsTaxTotalByRate($taxRate);
-        }
-
-        return $total;
-    }
-
-    public function getAdjustmentsTotal(?string $type = null): int
-    {
-        $total = 0;
-        foreach ($this->orders as $order) {
-            $total += $order->getAdjustmentsTotal($type);
-        }
-
-        return $total;
-    }
-
-    public function getAdjustmentsTotalRecursively(?string $type = null): int
-    {
-        $total = 0;
-        foreach ($this->orders as $order) {
-            $total += $order->getAdjustmentsTotalRecursively($type);
-        }
-
-        return $total;
-    }
-
-    public function getFeeTotal(): int
-    {
-        $total = 0;
-        foreach ($this->orders as $order) {
-            $total += $order->getFeeTotal();
-        }
-
-        return $total;
-    }
-
-    public function getStripeFeeTotal(): int
-    {
-        $total = 0;
-        foreach ($this->orders as $order) {
-            $total += $order->getStripeFeeTotal();
-        }
-
-        return $total;
-    }
-
-    public function getRevenue(): int
-    {
-        $total = 0;
-        foreach ($this->orders as $order) {
-            $total += $order->getRevenue();
-        }
-
-        return $total;
+        return $bypass ? $amount : $this->numberFormatter->format($amount / 100);
     }
 
     public function count()
@@ -159,14 +219,14 @@ class RestaurantStats implements \IteratorAggregate, \Countable
 
     public function getIterator()
     {
-        return new \ArrayIterator($this->orders);
+        return $this->ordersIterator;
     }
 
     public function getColumns()
     {
         $headings = [];
 
-        if ($this->withRestaurantName) {
+        if ($this->withVendorName) {
             $headings[] = 'restaurant_name';
         }
         if ($this->withMessenger) {
@@ -195,56 +255,52 @@ class RestaurantStats implements \IteratorAggregate, \Countable
     {
         if ($this->isTaxColumn($column)) {
 
-            return $column;
+            return $this->taxesHelper->translate($column);
         }
 
         return $this->translator->trans(sprintf('order.export.heading.%s', $column));
     }
 
-    public function getRowValue($column, $index)
+    public function getRowValue($column, $index, $formatted = true)
     {
-        $order = $this->orders[$index];
+        $order = $this->ordersIterator->offsetGet($index);
 
         if ($this->isTaxColumn($column)) {
 
-            return $this->formatNumber(
-                $this->taxTotals[$index][$column] ?? 0
-            );
+            return $formatted ? $this->formatNumber(
+                $this->taxTotals[$order->getId()][$column] ?? 0
+            ) : $this->taxTotals[$order->getId()][$column] ?? 0;
         }
 
         switch ($column) {
             case 'restaurant_name';
-                return null !== $order->getRestaurant() ? $order->getRestaurant()->getName() : '';
+                return $order->hasVendor() ? $order->vendorName : '';
             case 'order_number';
                 return $order->getNumber();
             case 'fulfillment_method';
                 return $order->getFulfillmentMethod();
             case 'completed_by';
-                if ($order->getFulfillmentMethod() === 'delivery') {
-                    $messenger = $order->getDelivery()->getDropoff()->getAssignedCourier();
-                    return $messenger ? $messenger->getUsername() : '';
-                }
-                return '';
+                return $order->getFulfillmentMethod() === 'delivery' ? ($this->messengers[$order->getId()] ?? '') : '';
             case 'completed_at';
                 return $order->getShippedAt()->format('Y-m-d H:i');
             case 'total_products_excl_tax':
-                return $this->formatNumber($order->getItemsTotal() - $order->getItemsTaxTotal());
+                return $this->formatNumber($order->getItemsTotal() - $order->getItemsTaxTotal(), !$formatted);
             case 'total_products_incl_tax':
-                return $this->formatNumber($order->getItemsTotal());
+                return $this->formatNumber($order->getItemsTotal(), !$formatted);
             case 'delivery_fee':
-                return $this->formatNumber($order->getAdjustmentsTotal(AdjustmentInterface::DELIVERY_ADJUSTMENT));
+                return $this->formatNumber($order->getAdjustmentsTotal(AdjustmentInterface::DELIVERY_ADJUSTMENT), !$formatted);
             case 'packaging_fee':
-                return $this->formatNumber($order->getAdjustmentsTotalRecursively(AdjustmentInterface::REUSABLE_PACKAGING_ADJUSTMENT));
+                return $this->formatNumber($order->getAdjustmentsTotalRecursively(AdjustmentInterface::REUSABLE_PACKAGING_ADJUSTMENT), !$formatted);
             case 'tip':
-                return $this->formatNumber($order->getAdjustmentsTotal(AdjustmentInterface::TIP_ADJUSTMENT));
+                return $this->formatNumber($order->getAdjustmentsTotal(AdjustmentInterface::TIP_ADJUSTMENT), !$formatted);
             case 'total_incl_tax':
-                return $this->formatNumber($order->getTotal());
+                return $this->formatNumber($order->getTotal(), !$formatted);
             case 'stripe_fee':
-                return $this->formatNumber($order->getStripeFeeTotal());
+                return $this->formatNumber($order->getStripeFeeTotal(), !$formatted);
             case 'platform_fee':
-                return $this->formatNumber($order->getFeeTotal());
+                return $this->formatNumber($order->getFeeTotal(), !$formatted);
             case 'net_revenue':
-                return $this->formatNumber($order->getRevenue());
+                return $this->formatNumber($order->getRevenue(), !$formatted);
         }
 
         return '';
@@ -263,25 +319,8 @@ class RestaurantStats implements \IteratorAggregate, \Countable
             return $this->formatNumber($total);
         }
 
-        switch ($column) {
-            case 'total_products_excl_tax':
-                return $this->formatNumber($this->getItemsTotal() - $this->getItemsTaxTotal());
-            case 'total_products_incl_tax':
-                return $this->formatNumber($this->getItemsTotal());
-            case 'delivery_fee':
-                return $this->formatNumber($this->getAdjustmentsTotal(AdjustmentInterface::DELIVERY_ADJUSTMENT));
-            case 'packaging_fee':
-                return $this->formatNumber($this->getAdjustmentsTotalRecursively(AdjustmentInterface::REUSABLE_PACKAGING_ADJUSTMENT));
-            case 'tip':
-                return $this->formatNumber($this->getAdjustmentsTotal(AdjustmentInterface::TIP_ADJUSTMENT));
-            case 'total_incl_tax':
-                return $this->formatNumber($this->getTotal());
-            case 'stripe_fee':
-                return $this->formatNumber($this->getStripeFeeTotal());
-            case 'platform_fee':
-                return $this->formatNumber($this->getFeeTotal());
-            case 'net_revenue':
-                return $this->formatNumber($this->getRevenue());
+        if (isset($this->columnTotals[$column])) {
+            return $this->formatNumber($this->columnTotals[$column]);
         }
 
         return '';
@@ -319,15 +358,15 @@ class RestaurantStats implements \IteratorAggregate, \Countable
         $csv->insertOne($headings);
 
         $records = [];
-        foreach ($this->orders as $index => $order) {
 
+        foreach ($this->result as $index => $order) {
             $record = [];
             foreach ($this->getColumns() as $column) {
                 $record[] = $this->getRowValue($column, $index);
             }
-
             $records[] = $record;
         }
+
         $csv->insertAll($records);
 
         return $csv->getContent();

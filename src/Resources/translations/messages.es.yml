@@ -80,7 +80,7 @@ restaurants.placeholder.text: ¡Nuevos restaurantes llegarán pronto!
 localBusiness.form.orderingDelayMinutes: Tiempo adicional antes del pedido
 localBusiness.form.orderingDelayMinutes.help: Usa éstos campos para añadir un tiempo
   adicional antes del pedido de un usuario. Esta opción no cambia los tiempos de preparación
-  de la comida (20 minutos) y ni de entrega (25 minutos).
+  de la comida y ni de entrega.
 localBusiness.form.orderingDelayDays: Día(s)
 localBusiness.form.orderingDelayHours: Hora(s)
 localBusiness.form.name: Nombre
@@ -399,25 +399,36 @@ form.local_business.stripe_account.link_ok: "Éste restaurante ha sido enlazado 
   >panel de administración de Stripe</a>.\n"
 form.settings.mercadopago.title: Mercado Pago
 form.local_business.mercadopago_account.title: Cuenta de MercadoPago
-form.local_business.mercadopago_account.success: Cuenta MercadoPago conectada con éxito
+form.local_business.mercadopago_account.success: Cuenta MercadoPago conectada con
+  éxito
 form.local_business.mercadopago.connect_button.text: 'Conectar con Mercadopago'
-form.mercadopago_livemode.enable.label: Utilizar Mercadopago en modo « producción »
-form.mercadopago_livemode.enable.alert: En modo « producción », las tarjetas de crédito serán cargadas.
+form.mercadopago_livemode.enable.label: Utilizar Mercadopago en modo « producción
+  »
+form.mercadopago_livemode.enable.alert: En modo « producción », las tarjetas de crédito
+  serán cargadas.
 form.mercadopago_livemode.disable.label: Utilizar Mercadopago en modo « test »
-form.mercadopago_livemode.disable.alert: En modo « test », las tarjetas de crédito no serán cargadas.
-form.mercadopago_livemode.disable_and_enable_maintenance.label: Utilizar el modo « test » y activar el mantenimiento
-form.mercadopago_livemode.disable_and_enable_maintenance.alert: Estás utilizando el modo « live ».<br>Si quiere pasar en modo « test », el mantenimiento se activará automáticamente.
-form.settings.mercadopago_testmode.help: 'En modo « test », debe usar <a href="https://www.mercadopago.com.ar/developers/es/guides/online-payments/checkout-api/testing#bookmark_tarjetas_de_prueba">números de tarjetas de prueba</a> para pagar. <strong>No se intercambiará dinero.</strong> '
-form.settings.mercadopago_enable_livemode.help: Para activar el modo « live », primero necesita configurar las credenciales « live ».
+form.mercadopago_livemode.disable.alert: En modo « test », las tarjetas de crédito
+  no serán cargadas.
+form.mercadopago_livemode.disable_and_enable_maintenance.label: Utilizar el modo «
+  test » y activar el mantenimiento
+form.mercadopago_livemode.disable_and_enable_maintenance.alert: Estás utilizando el
+  modo « live ».<br>Si quiere pasar en modo « test », el mantenimiento se activará
+  automáticamente.
+form.settings.mercadopago_testmode.help: 'En modo « test », debe usar <a href="https://www.mercadopago.com.ar/developers/es/guides/online-payments/checkout-api/testing#bookmark_tarjetas_de_prueba">números
+  de tarjetas de prueba</a> para pagar. <strong>No se intercambiará dinero.</strong> '
+form.settings.mercadopago_enable_livemode.help: Para activar el modo « live », primero
+  necesita configurar las credenciales « live ».
 form.settings.mercadopago.publishable_key.label: Clave de publicación
-form.settings.mercadopago.publishable_key.help: "Obtenga la <a href=\"\
-  https://www.mercadopago.com.%country%/developers/panel/credentials\" target=\"_blank\">clave de publicación</a>"
+form.settings.mercadopago.publishable_key.help: "Obtenga la <a href=\"https://www.mercadopago.com.%country%/developers/panel/credentials\"\
+  \ target=\"_blank\">clave de publicación</a>"
 form.settings.mercadopago.access_token.label: Token de acceso
-form.settings.mercadopago.access_token.help: "Obtenga el <a href=\"\
-  https://www.mercadopago.com.%country%/developers/panel/credentials\" target=\"_blank\">token de acceso</a>"
+form.settings.mercadopago.access_token.help: "Obtenga el <a href=\"https://www.mercadopago.com.%country%/developers/panel/credentials\"\
+  \ target=\"_blank\">token de acceso</a>"
 form.settings.mercadopago.app_id.label: ID de Aplicación
-form.settings.mercadopago.app_id.help: Necesita <a href="https://www.mercadopago.com.br/developers/es/guides/marketplace/api/create-marketplace/">crear una aplicación</a> para obtener su ID de Aplicación.
-form.settings.mercadopago.redirect_uri.help: "Cuando configure su app, use la siguiente URI de redirección: <code>%redirect_uri%</code>"
+form.settings.mercadopago.app_id.help: Necesita <a href="https://www.mercadopago.com.br/developers/es/guides/marketplace/api/create-marketplace/">crear
+  una aplicación</a> para obtener su ID de Aplicación.
+form.settings.mercadopago.redirect_uri.help: "Cuando configure su app, use la siguiente\
+  \ URI de redirección: <code>%redirect_uri%</code>"
 form.menu_item.name.label: Nombre
 form.menu_item.price.label: Precio
 form.menu_item_modifier.name.label: Nombre
@@ -629,10 +640,10 @@ embed.delivery.specify_billing_address: Especifica una dirección de facturació
 embed.delivery.billing_address: Dirección de Envio
 embed.delivery.summary: "Has solicitado un pedido que será entregado en <strong>%dropoff_date%</strong>\
   \ a la siguiente dirección: <strong>%dropoff_address%</strong> <br> Calculamos la\
-  \ distancia de <strong>%distance% kilometers</strong>. <br> El prescio del pedido\
-  \ es <strong>%total_excluding_tax% (sin IVA); </strong> %total_including_tax% (sin\
-  \ IVA). <br><br>If any of the above details are incorrect, please change them by\
-  \ clicking the 'Edit' button. "
+  \ distancia de <strong>%distance% kilometers</strong>. <br> El precio del pedido\
+  \ es <strong>%total_excluding_tax% (sin IVA); </strong> %total_including_tax% (con\
+  \ IVA). <br><br>Si alguno de estos datos están equivocados, por favor, cambialos\
+  \ através de el butón de editar. "
 embed.delivery.submit.help: Haz clic para confirmar el pedido y realizar la entrega.
 embed.delivery.confirm_message: Su pedido de entrega se ha realizado y recibirá un
   resumen por correo electrónico en breve. Verificaremos su pedido y le enviaremos
@@ -642,7 +653,7 @@ basics.continue: Continuar
 basics.created_at: Creado el %date%
 promotions.add_free_delivery_coupon: Añadir un cupón de promoción " envío gratuito
   "
-base.footer.suggest: Sugerir un restaurante
+base.footer.suggest: Sugerir un comercio
 adminDashboard.package_sets.title: Paquetes
 adminDashboard.restaurants.exclusive: Exclusivo
 adminDashboard.pledges.title: Sugerencias
@@ -676,9 +687,8 @@ form.settings.enable_restaurant_pledges.label: Permitir a los clientes sugerir r
 form.suggest.name.label: Nombre
 form.suggest.name.help: Indique el nombre exacto para que podamos encontrarlo
 form.suggest.submit.label: Sugerir ahora
-form.suggest.message: "¿No encuentras tu restaurante favorito?\n<br>\nDinos su nombre\
-  \ y dirección. Luego, otros usuarios pueden votar para verlo aparecer en la lista\
-  \ de restaurantes.\n<br>\nEsto nos permitirá identificar mejor los restaurantes\
+form.suggest.message: "¿No encuentras tu restaurante o comercio favorito?\n<br>\n\
+  Dinos su nombre y dirección. \n<br>\nEsto nos permitirá identificar mejor los locales\
   \ a los que nos dirigiremos y proporcionarles la prueba de una demanda real.\n"
 form.suggest.thank_you_message: ¡Gracias por sugerir este restaurante!
 restaurant.suggest.message: "Ayúdanos a convencer %restaurant.name% trabajar con %brand_name%!\n\
@@ -759,7 +769,6 @@ form.reusable_packaging.name.label: Nombre
 order.export.heading.restaurant_name: Restaurante
 order.export.heading.net_revenue: Ingresos netos
 order.export.heading.completed_by: Completado por
-form.order_export.date.label: Fecha
 basics.show: Mostrar
 basics.import: Importar
 form.min_max.lower.label: Número mínimo
@@ -1008,7 +1017,108 @@ refund.list.refunded_at: Devuelto en
 refund.list.liable_party: Parte responsable
 refund.list.amount: Monto devuelto
 refund.list.comments: Comentarios
-authentication.register_benefits: Crea una cuenta para pedir más rápidamente. También podrás recuperar el historial de tus pedidos anteriores.
+authentication.register_benefits: Crea una cuenta para pedir más rápidamente. También
+  podrás recuperar el historial de tus pedidos anteriores.
 form.checkout_address.telephone.help: Para contactar contigo en caso de un problema
-guest_checkout.user_with_same_email_exists: Ya existe una cuenta con el mismo correo electrónico. Por favor, inicia sesión para continuar, o usa otro correo electrónico para hacer un pedido sin crear una cuenta.
+guest_checkout.user_with_same_email_exists: Ya existe una cuenta con el mismo correo
+  electrónico. Por favor, inicia sesión para continuar, o usa otro correo electrónico
+  para hacer un pedido sin crear una cuenta.
 guest_checkout.use_another_email: Usar otro correo electrónico
+form.store_type.package_set.placeholder: Elija un paquete conjunto
+form.store_type.time_slot.placeholder: Elija una franja horaria
+profile.fullName: Nombre completo
+restaurant.form.section.loopeat: LoopEat
+restaurant.form.section.taxonomy: Taxonomía
+localBusiness.form.business_address.label: Dirección comercial
+localBusiness.form.use_different_business_address.label: Utilice una dirección comercial
+  diferente
+adminDashboard.users.last_order: Último pedido
+adminDashboard.users.registered_at: Registrad@
+adminDashboard.users.orders_count: Numero de pedidos
+adminDashboard.customize.title: Personalizar
+base.footer.RegisterMyRestaurant: Registrar mi restaurante
+base.footer.companyRegister: Conviértete en socio
+form.address.company.function.label: Puesto de la persona de contacto
+form.address.company.business_reference.label: Persona de contacto de la empresa
+form.address.company_name.label: Nombre de la empresa
+form.payment.refund_application_fee.help: "Si marca esta casilla, la comisión cobrada\
+  \ por la plataforma al socio se reembolsará proporcionalmente\n<br>\n<a href=\"\
+  https://stripe.com/docs/connect/direct-charges#issuing-refunds\">Más información</a>\n"
+form.payment.refund_comment.help: Por favor describa lo que ha sucedido
+form.payment.refund_comment.label: Comentarios
+form.payment.refund_liable.help: Cuál de las partes es responsable por el incidente?
+form.payment.refund_liable.label: Parte responsable
+form.store_type.packages_required.label: Pedir los paquetes
+loopeat.oauth_connect.success: Cuenta de LoopEat conectado con éxito!
+form.attach_to_org.modal.title: Adjuntar a la tienda
+form.time_slot.choices.error.empty: La lista de opciones no puede ser vacío
+refund.list.disclaimer.admin: Cuando la plataforma es el responsable de un incidente,
+  quiere decir que la plataforma debe al comerciante el importe del reembolso porque
+  el comerciante ha reembolsado al cliente.
+form:
+  restaurant:
+    b2b:
+      label: Te gustaría tener ofertas especiales para compañias/oficinas?
+    contact_referent:
+      label: Persona de contacto para el restaurante
+    name:
+      label: Nombre del restaurante
+order.reusable_packaging.pledge_return.disclaimer: El cilente a indicado que %count%
+  envases serán devueltos
+form.time_slot.same_day_cutoff.help: Por ejemplo, si selecionas 11.00, opciones del
+  mismo día no se mostrarán después de las 11.00
+form.time_slot.same_day_cutoff.label: Hora de límite diario
+form.package_with_quantity.package.placeholder: Elije un tipo de envase
+form.product_tax_category_choice.placeholder: Elije una categoria de IVA
+basics.kilos: Kilos
+basics.tax_excl: Sin IVA
+basics.tax_incl: IVA incl.
+nav.about_us: Acerca de nosotros
+spreadsheet.download_example: Descarga una hoja de cálculo de ejemplo
+order.refund.total_amount: Este pedido ha sido reembolsado por un importe de %amount%
+promotion_rule.is_customer: Cliente es %username%
+promotion_rule.is_restaurant: Restaurante es %restaurant%
+info.deposit_refund: Cada hueco en la lista abajo representa un tipo de envase (grande,
+  pequeña...). Ya creadas los envases, puedes configurarlas para cada producto.
+confirm.deposit_refund_enabled: El sistema de deposito-reembolso está habilitada,
+  ahora puedes <a href="%url%">configurar los envases</a>.
+profile.loopeat.disconnect: Desconectar LoopEat
+deliveries.section.past: Pasado
+deliveries.section.upcoming: Próximo
+search.orders: Buscar un pedido (número, correo electrónico...)
+delivery.table.heading.owner: Dueño
+authentication.choose_password: Elije una contraseña
+basics.configure: Configurar
+basics.description: Descripción
+form.customize.custom_banner.help: Asegurate que la bannar es un patrón repetetivo
+  de SVG
+form.customize.custom_banner.label: Bannar personalizada
+form.customize.custom_privacy.label: Contenido de la página de política de privacidad
+form.customize.custom_privacy_enabled.label: Habilitar política de privacidad personalizado
+form.customize.custom_terms.label: Contenido para la página de terminos y condiciones
+  personalizados
+form.customize.custom_terms_enabled.label: Habilitar terminos y condiciones
+form.customize.custom_legal.label: Contenido de la página de nota legal personalizado
+form.customize.custom_legal_enabled.label: Habilitar nota legal personalizado
+form.customize.motto.help: Esto no será mostrado en la página de inicio
+form.customize.motto.label: Lema
+form.customize.about_us.label: Contenido para la página "Acerca de nosotros"
+form.customize.about_us_enabled.label: Habilitar página de "Acerca de nosotros"
+form.deposit_refund_settings.deposit_refund_optin.help: Cuando el sistema de depositar-reembolso
+  es opcional, el cliente podrá elejir si quiere el envase o no. Cuando es obligatorio,
+  el envase será añadido al pedido automaticamente.
+form.credit_note.percentage.label: Porcentaje
+form.credit_note.type.label: Tipo de descuento
+form.credit_note.user_search.label: Usuario
+form.menu_editor.name.help: Esto solo es para que tu puedes identificar tus varios
+  menús. El cliente no lo puede ver.
+form.settings.sms_gateway_config.twilio.from.label: Twilio número móvil
+form.settings.sms_gateway_config.twilio.auth_token.label: Twilio Auth Token
+form.settings.sms_gateway_config.twilio.sid.label: Twilio SID
+form.settings.sms_gateway_config.mailjet.api_token.label: Mailjet API Token
+form.settings.sms_gateway.label: SMS Gateway
+form.settings.sms.title: SMS
+form.settings.sms_enabled.label: Habilitar el envio de SMS
+form.company.make_the_request.label: Enviar solicitud
+form.address.company.meal_estimate.label: Número de comidas estimados (por día)
+form.address.company.collaborator_number.label: Número de trabajadores

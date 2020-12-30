@@ -31,7 +31,8 @@ use Symfony\Component\Serializer\Annotation\Groups;
  *       "denormalization_context"={"groups"={"delivery_create"}},
  *       "swagger_context"={
  *         "parameters"=Delivery::SWAGGER_CONTEXT_POST_PARAMETERS
- *       }
+ *       },
+ *       "security_post_denormalize"="is_granted('create', object)"
  *     },
  *     "check"={
  *       "method"="POST",
@@ -40,6 +41,7 @@ use Symfony\Component\Serializer\Annotation\Groups;
  *       "status"=200,
  *       "validation_groups"={"Default", "delivery_check"},
  *       "denormalization_context"={"groups"={"delivery_create"}},
+ *       "security_post_denormalize"="is_granted('create', object)",
  *       "swagger_context"={
  *         "summary"="Asserts a Delivery is feasible",
  *         "parameters"=Delivery::SWAGGER_CONTEXT_POST_PARAMETERS
@@ -48,17 +50,18 @@ use Symfony\Component\Serializer\Annotation\Groups;
  *   },
  *   itemOperations={
  *     "get"={
- *       "method"="GET"
+ *       "method"="GET",
+ *       "security"="is_granted('view', object)"
  *     },
  *     "put"={
  *        "method"="PUT",
- *        "access_control"="is_granted('ROLE_ADMIN') or (is_granted('ROLE_OAUTH2_DELIVERIES') and oauth2_context.store == object.getStore())"
+ *        "security"="is_granted('edit', object)"
  *     },
  *     "pick"={
  *        "method"="PUT",
  *        "path"="/deliveries/{id}/pick",
  *        "controller"=PickDelivery::class,
- *        "access_control"="is_granted('ROLE_ADMIN') or (is_granted('ROLE_OAUTH2_DELIVERIES') and oauth2_context.store == object.getStore())",
+ *        "security"="is_granted('edit', object)",
  *        "swagger_context"={
  *          "summary"="Marks a Delivery as picked"
  *        }
@@ -67,7 +70,7 @@ use Symfony\Component\Serializer\Annotation\Groups;
  *        "method"="PUT",
  *        "path"="/deliveries/{id}/drop",
  *        "controller"=DropDelivery::class,
- *        "access_control"="is_granted('ROLE_ADMIN') or (is_granted('ROLE_OAUTH2_DELIVERIES') and oauth2_context.store == object.getStore())",
+ *        "security"="is_granted('edit', object)",
  *        "swagger_context"={
  *          "summary"="Marks a Delivery as dropped"
  *        }

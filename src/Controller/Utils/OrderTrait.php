@@ -4,6 +4,8 @@ namespace AppBundle\Controller\Utils;
 
 use AppBundle\Entity\Delivery;
 use AppBundle\Entity\Sylius\Order;
+use AppBundle\Entity\Sylius\OrderRepository;
+use AppBundle\Entity\Sylius\OrderView;
 use AppBundle\Form\OrderExportType;
 use AppBundle\Service\OrderManager;
 use AppBundle\Sylius\Order\ReceiptGenerator;
@@ -34,10 +36,8 @@ trait OrderTrait
         return new JsonResponse($orderNormalized, 200);
     }
 
-    public function orderListAction(Request $request, TranslatorInterface $translator, EntityManagerInterface $em)
+    public function orderListAction(Request $request, TranslatorInterface $translator, EntityManagerInterface $entityManager)
     {
-        $filter = $em->getFilters()->disable('enabled_filter');
-
         $response = new Response();
 
         $showCanceled = false;
@@ -52,57 +52,65 @@ trait OrderTrait
 
         [ $orders, $pages, $page ] = $this->getOrderList($request);
 
-        $orderExportForm = $this->createForm(OrderExportType::class);
-        $orderExportForm->handleRequest($request);
-
-        if ($orderExportForm->isSubmitted() && $orderExportForm->isValid()) {
-
-            $date = $orderExportForm->get('date')->getData();
-
-            $withMessenger = $orderExportForm->has('messenger') && $orderExportForm->get('messenger')->getData();
-
-            $start = clone $date;
-            $end = clone $date;
-
-            $start->setTime(0, 0, 1);
-            $end->setTime(23, 59, 59);
-
-            $ordersToExport = $this->getDoctrine()->getRepository(Order::class)
-                ->findFulfilledOrdersByDateRange(
-                    $start,
-                    $end
-                );
-
-            // TODO Manage empty list
-
-            $stats = new RestaurantStats(
-                $this->getParameter('kernel.default_locale'),
-                $ordersToExport,
-                $this->get('sylius.repository.tax_rate'),
-                $translator,
-                true,
-                $withMessenger
-            );
-
-            $filename = sprintf('coopcycle-orders-%s.csv', $date->format('Y-m-d'));
-
-            $response = new Response($stats->toCsv());
-            $response->headers->set('Content-Disposition', $response->headers->makeDisposition(
-                ResponseHeaderBag::DISPOSITION_ATTACHMENT,
-                $filename
-            ));
-
-            return $response;
-        }
-
-        return $this->render($request->attributes->get('template'), [
+        $parameters = [
             'orders' => $orders,
             'pages' => $pages,
             'page' => $page,
             'routes' => $request->attributes->get('routes'),
             'show_canceled' => $showCanceled,
-            'order_export_form' => $orderExportForm->createView(),
-        ], $response);
+        ];
+
+        if ($this->isGranted('ROLE_ADMIN')) {
+
+            $orderExportForm = $this->createForm(OrderExportType::class);
+            $orderExportForm->handleRequest($request);
+
+            if ($orderExportForm->isSubmitted() && $orderExportForm->isValid()) {
+
+                $start = $orderExportForm->get('start')->getData();
+                $end = $orderExportForm->get('end')->getData();
+
+                $withMessenger = $orderExportForm->has('messenger') && $orderExportForm->get('messenger')->getData();
+
+                $start->setTime(0, 0, 1);
+                $end->setTime(23, 59, 59);
+
+                $qb = $entityManager->getRepository(OrderView::class)
+                    ->createQueryBuilder('ov');
+
+                $qb = OrderRepository::addShippingTimeRangeClause($qb, 'ov', $start, $end);
+                $qb->addOrderBy('ov.shippingTimeRange', 'DESC');
+
+                $stats = new RestaurantStats(
+                    $this->getParameter('kernel.default_locale'),
+                    $qb,
+                    $this->get('sylius.repository.tax_rate'),
+                    $translator,
+                    $withVendorName = true,
+                    $withMessenger
+                );
+
+                if (count($stats) === 0) {
+                    $this->addFlash('error', $this->get('translator')->trans('order.export.empty'));
+
+                    return $this->redirectToRoute($request->attributes->get('_route'));
+                }
+
+                $filename = sprintf('coopcycle-orders-%s-%s.csv', $start->format('Y-m-d'), $end->format('Y-m-d'));
+
+                $response = new Response($stats->toCsv());
+                $response->headers->set('Content-Disposition', $response->headers->makeDisposition(
+                    ResponseHeaderBag::DISPOSITION_ATTACHMENT,
+                    $filename
+                ));
+
+                return $response;
+            }
+
+            $parameters['order_export_form'] = $orderExportForm->createView();
+        }
+
+        return $this->render($request->attributes->get('template'), $parameters, $response);
     }
 
     public function orderReceiptPreviewAction($id, Request $request, ReceiptGenerator $generator)
@@ -169,15 +177,15 @@ trait OrderTrait
         return $this->redirect($request->headers->get('referer'));
     }
 
-    public function acceptOrderAction($id, Request $request, OrderManager $orderManager)
+    public function acceptOrderAction($id, Request $request, OrderManager $orderManager, EntityManagerInterface $entityManager)
     {
-        $order = $this->get('sylius.repository.order')->find($id);
+        $order = $entityManager->getRepository(Order::class)->find($id);
 
         $this->denyAccessUnlessGranted('accept', $order);
 
         try {
             $orderManager->accept($order);
-            $this->get('sylius.manager.order')->flush();
+            $entityManager->flush();
         } catch (\Exception $e) {
             // TODO Add flash message
         }
@@ -188,9 +196,9 @@ trait OrderTrait
         }
     }
 
-    public function refuseOrderAction($id, Request $request, OrderManager $orderManager)
+    public function refuseOrderAction($id, Request $request, OrderManager $orderManager, EntityManagerInterface $entityManager)
     {
-        $order = $this->get('sylius.repository.order')->find($id);
+        $order = $entityManager->getRepository(Order::class)->find($id);
 
         $this->denyAccessUnlessGranted('refuse', $order);
 
@@ -198,7 +206,7 @@ trait OrderTrait
 
         try {
             $orderManager->refuse($order, $reason);
-            $this->get('sylius.manager.order')->flush();
+            $entityManager->flush();
         } catch (\Exception $e) {
             // TODO Add flash message
         }
@@ -209,15 +217,15 @@ trait OrderTrait
         }
     }
 
-    public function delayOrderAction($id, Request $request, OrderManager $orderManager)
+    public function delayOrderAction($id, Request $request, OrderManager $orderManager, EntityManagerInterface $entityManager)
     {
-        $order = $this->get('sylius.repository.order')->find($id);
+        $order = $entityManager->getRepository(Order::class)->find($id);
 
         $this->denyAccessUnlessGranted('delay', $order);
 
         try {
             $orderManager->delay($order);
-            $this->get('sylius.manager.order')->flush();
+            $entityManager->flush();
         } catch (\Exception $e) {
             // TODO Add flash message
         }
@@ -228,22 +236,22 @@ trait OrderTrait
         }
     }
 
-    private function cancelOrderById($id, OrderManager $orderManager, $reason = null)
+    private function cancelOrderById($id, OrderManager $orderManager, EntityManagerInterface $entityManager, $reason = null)
     {
-        $order = $this->get('sylius.repository.order')->find($id);
+        $order = $entityManager->getRepository(Order::class)->find($id);
         $this->denyAccessUnlessGranted('cancel', $order);
 
         $orderManager->cancel($order, $reason);
-        $this->get('sylius.manager.order')->flush();
+        $entityManager->flush();
 
         return $order;
     }
 
-    public function cancelOrderAction($id, Request $request, OrderManager $orderManager)
+    public function cancelOrderAction($id, Request $request, OrderManager $orderManager, EntityManagerInterface $entityManager)
     {
         $reason = $request->request->get('reason', null);
 
-        $order = $this->cancelOrderById($id, $orderManager, $reason);
+        $order = $this->cancelOrderById($id, $orderManager, $entityManager, $reason);
 
         if ($request->isXmlHttpRequest()) {
 
@@ -251,15 +259,15 @@ trait OrderTrait
         }
     }
 
-    public function fulfillOrderAction($id, Request $request, OrderManager $orderManager)
+    public function fulfillOrderAction($id, Request $request, OrderManager $orderManager, EntityManagerInterface $entityManager)
     {
-        $order = $this->get('sylius.repository.order')->find($id);
+        $order = $entityManager->getRepository(Order::class)->find($id);
         $this->denyAccessUnlessGranted('fulfill', $order);
 
         try {
 
             $orderManager->fulfill($order);
-            $this->get('sylius.manager.order')->flush();
+            $entityManager->flush();
 
         } catch (\Exception $e) {
             // TODO Add flash message

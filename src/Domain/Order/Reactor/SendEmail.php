@@ -9,24 +9,36 @@ use AppBundle\Domain\Order\Event\OrderCancelled;
 use AppBundle\Domain\Order\Event\OrderCreated;
 use AppBundle\Domain\Order\Event\OrderDelayed;
 use AppBundle\Domain\Order\Event\OrderRefused;
+use AppBundle\Domain\Order\Event\OrderFulfilled;
+use AppBundle\Entity\LocalBusiness;
+use AppBundle\Entity\LocalBusinessRepository;
+use AppBundle\Message\OrderReceiptEmail;
 use AppBundle\Service\EmailManager;
 use AppBundle\Service\SettingsManager;
+use AppBundle\Sylius\Order\OrderInterface;
+use Doctrine\Common\Collections\Collection;
 use SimpleBus\Message\Bus\MessageBus;
+use Symfony\Component\Messenger\MessageBusInterface;
 
 class SendEmail
 {
     private $emailManager;
     private $settingsManager;
     private $eventBus;
+    private $restaurantRepository;
 
     public function __construct(
         EmailManager $emailManager,
         SettingsManager $settingsManager,
-        MessageBus $eventBus)
+        MessageBus $eventBus,
+        MessageBusInterface $messageBus,
+        LocalBusinessRepository $restaurantRepository)
     {
         $this->emailManager = $emailManager;
         $this->settingsManager = $settingsManager;
         $this->eventBus = $eventBus;
+        $this->messageBus = $messageBus;
+        $this->restaurantRepository = $restaurantRepository;
     }
 
     public function __invoke(Event $event)
@@ -58,6 +70,13 @@ class SendEmail
                 $this->handleOnDemandOrderCreated($event);
             }
         }
+
+        if ($event instanceof OrderFulfilled && $order->hasVendor()) {
+            // This email is sent asynchronously
+            $this->messageBus->dispatch(
+                new OrderReceiptEmail($order->getNumber())
+            );
+        }
     }
 
     private function handleFoodtechOrderCreated(Event $event)
@@ -67,14 +86,14 @@ class SendEmail
         // Send email to customer
         $this->emailManager->sendTo(
             $this->emailManager->createOrderCreatedMessageForCustomer($order),
-            [$order->getCustomer()->getEmail() => $order->getCustomer()->getFullName()]
+            sprintf('%s <%s>', $order->getCustomer()->getFullName(), $order->getCustomer()->getEmail())
         );
         $this->eventBus->handle(new EmailSent($order, $order->getCustomer()->getEmail()));
 
         // Send email with instructions to customer
         $this->emailManager->sendTo(
             $this->emailManager->createCovid19Message(),
-            [$order->getCustomer()->getEmail() => $order->getCustomer()->getFullName()]
+            sprintf('%s <%s>', $order->getCustomer()->getFullName(), $order->getCustomer()->getEmail())
         );
         $this->eventBus->handle(new EmailSent($order, $order->getCustomer()->getEmail()));
 
@@ -86,21 +105,47 @@ class SendEmail
         $this->eventBus->handle(new EmailSent($order, $this->settingsManager->get('administrator_email')));
 
         // Send email to restaurant owners
-        $owners = $order->getRestaurant()->getOwners()->toArray();
-        if (count($owners) > 0) {
+        $vendor = $order->getVendor();
 
-            $ownerMails = [];
-            foreach ($owners as $owner) {
-                $ownerMails[$owner->getEmail()] = $owner->getFullName();
+        if ($vendor->isHub()) {
+
+            $restaurants = [];
+            foreach ($order->getItems() as $orderItem) {
+                $product = $orderItem->getVariant()->getProduct();
+                $restaurant = $this->restaurantRepository->findOneByProduct($product);
+                if (!in_array($restaurant, $restaurants, true)) {
+                    $restaurants[] = $restaurant;
+                }
             }
 
-            $this->emailManager->sendTo(
-                $this->emailManager->createOrderCreatedMessageForOwner($order),
-                $ownerMails
-            );
-            foreach ($ownerMails as $email => $alias) {
-                $this->eventBus->handle(new EmailSent($order, $email));
+            foreach ($restaurants as $restaurant) {
+                $this->sendEmailToOwners($order, $restaurant);
             }
+
+        } else {
+            $this->sendEmailToOwners($order, $vendor->getRestaurant());
+        }
+    }
+
+    private function sendEmailToOwners(OrderInterface $order, LocalBusiness $restaurant)
+    {
+        $owners = $restaurant->getOwners()->toArray();
+
+        if (count($owners) === 0) {
+            return;
+        }
+
+        $ownerMails = [];
+        foreach ($owners as $owner) {
+            $ownerMails[] = sprintf('%s <%s>', $owner->getFullName(), $owner->getEmail());
+        }
+
+        $this->emailManager->sendTo(
+            $this->emailManager->createOrderCreatedMessageForOwner($order, $restaurant),
+            ...$ownerMails
+        );
+        foreach ($ownerMails as $email => $alias) {
+            $this->eventBus->handle(new EmailSent($order, $email));
         }
     }
 

@@ -55,6 +55,13 @@ security:
             anonymous: ~
             bearer_token: true
 
+        api_task_events_get:
+            pattern:   ^/api/tasks/[0-9]+/events$
+            methods: [ GET ]
+            stateless: true
+            anonymous: ~
+            bearer_token: true
+
         api_task_get:
             pattern:   ^/api/tasks/[0-9]+$
             methods: [ GET ]
@@ -160,11 +167,30 @@ security:
                 authenticators:
                     - lexik_jwt_authentication.jwt_token_authenticator
 
+        # Disable session to improve performance
+        # TraceableFirewallListener will be skipped
+
+        # FIXME
+        # Causes a problem in AppBundle\Sylius\Cart\SessionSubscriber
+        # When an admin adds products to the cart of a *DISABLED* restaurant,
+        # an AJAX request invoking SessionSubscriber may clear the cart,
+        # because of the mechanism to cleanup carts with disabled restaurant.
+
         restaurant_fulfillment_timing:
             pattern: ^/restaurant/[0-9]+/timing$
             methods: [ GET ]
-            stateless: true
-            anonymous: ~
+            security: false
+
+        # search_restaurants:
+        #     pattern: ^/search/restaurants
+        #     methods: [ GET ]
+        #     stateless: true
+        #     anonymous: ~
+
+        search_geocode:
+            pattern: ^/search/geocode
+            methods: [ GET ]
+            security: false
 
         web:
             pattern:            ^/
@@ -192,6 +218,7 @@ security:
         - { path: ^/register, role: IS_AUTHENTICATED_ANONYMOUSLY }
         - { path: ^/resetting, role: IS_AUTHENTICATED_ANONYMOUSLY }
         - { path: ^/order/public, roles: IS_AUTHENTICATED_ANONYMOUSLY }
+        - { path: ^/dashboard, roles: [ ROLE_ADMIN, ROLE_RESTAURANT, ROLE_STORE ] }
         - { path: ^/profile/restaurants, roles: ROLE_RESTAURANT }
         - { path: ^/profile/jwt, roles: IS_AUTHENTICATED_REMEMBERED }
         - { path: ^/profile/notifications, roles: IS_AUTHENTICATED_REMEMBERED }

@@ -4,14 +4,14 @@ namespace AppBundle\Sylius\Taxation;
 
 use AppBundle\Sylius\Order\AdjustmentInterface;
 use AppBundle\Sylius\Order\OrderInterface;
-use Sylius\Component\Resource\Repository\RepositoryInterface;
+use Doctrine\Persistence\ObjectRepository;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 class TaxesHelper
 {
     private $translator;
 
-    public function __construct(RepositoryInterface $taxRateRepository, TranslatorInterface $translator)
+    public function __construct(ObjectRepository $taxRateRepository, TranslatorInterface $translator)
     {
         $this->taxRateRepository = $taxRateRepository;
         $this->translator = $translator;
@@ -62,5 +62,15 @@ class TaxesHelper
         }
 
         return $values;
+    }
+
+    public function translate($code): string
+    {
+        $taxRate = $this->taxRateRepository->findOneByCode($code);
+
+        return sprintf('%s %d%%',
+            $this->translator->trans($taxRate->getName(), [], 'taxation'),
+            ($taxRate->getAmount() * 100)
+        );
     }
 }

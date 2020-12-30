@@ -94,21 +94,30 @@ export default function(form, options) {
         event.complete && enableBtn(submitButton)
         document.getElementById('card-errors').textContent = ''
       }
-    }
+    },
+    cardholderNameElement: options.cardholderNameElement,
   })
 
   cc.init(form)
 
   form.addEventListener('submit', function(event) {
 
-    if (methods.length > 1 && form.querySelector('input[name="checkout_payment[method]"]:checked').value !== 'card') {
-      return
-    }
-
     event.preventDefault()
 
     $('.btn-payment').addClass('btn-payment__loading')
     disableBtn(submitButton)
+
+    if (methods.length > 1 && form.querySelector('input[name="checkout_payment[method]"]:checked').value === 'giropay') {
+
+      cc.confirmGiropayPayment()
+        .catch(e => {
+          $('.btn-payment').removeClass('btn-payment__loading')
+          enableBtn(submitButton)
+          document.getElementById('card-errors').textContent = e.message
+        })
+
+      return
+    }
 
     cc.createToken()
       .then(token => {

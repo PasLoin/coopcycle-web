@@ -108,7 +108,7 @@ restaurants.placeholder.text: Novos restaurantes chegarão em breve!
 localBusiness.form.orderingDelayMinutes: Tempo adicional antes do pedido
 localBusiness.form.orderingDelayMinutes.help: Utilize este campo para adicionar algum
   tempo antes do cliente poder fazer um pedido. Esta configuração não altera o tempo
-  necessário para cozinhar (20 minutos) e entregar (25 minutos).
+  necessário para cozinhar e entregar.
 localBusiness.form.enabled: Ativo
 localBusiness.form.orderingDelayDays: Dia(s)
 localBusiness.form.orderingDelayHours: Hora(s)
@@ -875,7 +875,6 @@ order.export.heading.stripe_fee: Taxa Stripe
 order.export.heading.platform_fee: Taxa da Plataforma
 order.export.heading.net_revenue: Receita líquida
 order.export.heading.completed_by: Finalizada por
-form.order_export.date.label: Data
 form.order_export.messenger.label: Adicionar coluna com entregador que finalizou o
   pedido
 basics.show: Exibir

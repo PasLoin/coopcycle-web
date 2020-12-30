@@ -169,4 +169,14 @@ interface OrderInterface extends
      * @return boolean
      */
     public function hasVendor(): bool;
+
+    /**
+     * @return array
+     */
+    public function getVendors(): array;
+
+    /**
+     * @return int
+     */
+    public function getTransferAmount(LocalBusiness $subVendor): int;
 }

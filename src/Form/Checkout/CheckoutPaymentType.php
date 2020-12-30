@@ -5,6 +5,7 @@ namespace AppBundle\Form\Checkout;
 use AppBundle\Form\StripePaymentType;
 use AppBundle\Payment\GatewayResolver;
 use AppBundle\Service\StripeManager;
+use AppBundle\Utils\OrderTimeHelper;
 use Sylius\Component\Payment\Model\PaymentInterface;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\Extension\Core\Type\HiddenType;
@@ -18,14 +19,18 @@ class CheckoutPaymentType extends AbstractType
     private $stripeManager;
     private $resolver;
 
-    public function __construct(StripeManager $stripeManager, GatewayResolver $resolver)
+    public function __construct(StripeManager $stripeManager, GatewayResolver $resolver, OrderTimeHelper $orderTimeHelper)
     {
         $this->stripeManager = $stripeManager;
         $this->resolver = $resolver;
+
+        parent::__construct($orderTimeHelper);
     }
 
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
+        parent::buildForm($builder, $options);
+
         $builder
             ->add('stripePayment', StripePaymentType::class, [
                 'mapped' => false,
@@ -74,35 +79,6 @@ class CheckoutPaymentType extends AbstractType
                     'expanded' => true,
                     'multiple' => false,
                 ]);
-        });
-
-        $builder->addEventListener(FormEvents::SUBMIT, function (FormEvent $event) {
-
-            $form = $event->getForm();
-            $order = $event->getData();
-
-            $payment = $order->getLastPayment(PaymentInterface::STATE_CART);
-
-            if (!$form->has('method')) {
-
-                // This is needed if customer has selected
-                // another method previously, but didn't
-                // complete the process
-                $payment->clearSource();
-
-                return;
-            }
-
-            if ('giropay' === $form->get('method')->getData()) {
-
-                $ownerName = $form->get('stripePayment')
-                    ->get('cardholderName')->getData();
-
-                // TODO Catch Exception (source not enabled)
-                $source = $this->stripeManager->createGiropaySource($payment, $ownerName);
-
-                $payment->setSource($source);
-            }
         });
     }
 }

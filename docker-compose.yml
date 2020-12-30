@@ -22,26 +22,33 @@ services:
     build:
       dockerfile: './docker/nodejs/Dockerfile'
       context: '.'
+    image: coopcycle/node
     depends_on:
       - postgres
       - redis
+      - tile38
     ports:
       - '8000:8000'
       - '8001:8001'
       - '8002:8002'
     volumes:
-      - 'node_modules:/srv/coopcycle/node_modules'
-      - './:/srv/coopcycle:cached'
+      # https://stackoverflow.com/questions/29181032/add-a-volume-to-docker-but-exclude-a-sub-folder
+      - '.:/srv/coopcycle'
+      - 'node_modules_node:/srv/coopcycle/node_modules/'
+    # environment:
+    #   - APP_ENV
 
   webpack:
     build:
       dockerfile: './docker/webpack/Dockerfile'
       context: '.'
+    image: coopcycle/webpack
     ports:
       - '8080:8080'
     volumes:
-      - 'node_modules:/srv/coopcycle/node_modules'
-      - './:/srv/coopcycle:cached'
+      # https://stackoverflow.com/questions/29181032/add-a-volume-to-docker-but-exclude-a-sub-folder
+      - '.:/srv/coopcycle'
+      - 'node_modules_webpack:/srv/coopcycle/node_modules/'
 
   osrm:
     build: './docker/osrm'
@@ -71,6 +78,9 @@ services:
       - GOOGLE_API_KEY
       - STRIPE_PUBLISHABLE_KEY
       - STRIPE_SECRET_KEY
+      - ALGOLIA_PLACES_APP_ID
+      - ALGOLIA_PLACES_API_KEY
+      - ALGOLIA_PLACES_ADDRESS_TEMPLATE
     volumes:
       - 'php_cache:/var/www/html/var/cache'
       - './:/var/www/html:cached'
@@ -185,8 +195,16 @@ services:
     depends_on:
       - osrm
 
+  sonic:
+    image: valeriansaliou/sonic:v1.3.0
+    ports:
+      - "1491:1491"
+    volumes:
+      - ./sonic.cfg:/etc/sonic.cfg
+
 volumes:
-  node_modules:
+  node_modules_node:
+  node_modules_webpack:
   pg_data:
   php_cache:
   minio_data:

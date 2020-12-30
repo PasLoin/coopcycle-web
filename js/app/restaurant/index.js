@@ -9,14 +9,13 @@ import engine  from 'store/src/store-engine'
 import session from 'store/storages/sessionStorage'
 import cookie  from 'store/storages/cookieStorage'
 
-import OpeningHoursParser from '../widgets/OpeningHoursParser'
 import i18n, { getCountry } from '../i18n'
 import { createStoreFromPreloadedState } from '../cart/redux/store'
 import { addItem, addItemWithOptions, queueAddItem } from '../cart/redux/actions'
 import Cart from '../cart/components/Cart'
 import { validateForm } from '../utils/address'
 import ProductOptionsModal from './components/ProductOptionsModal'
-import ProductDetailsModal from './components/ProductDetailsModal'
+import ProductImagesCarousel from './components/ProductImagesCarousel'
 
 require('gasparesganga-jquery-loading-overlay')
 
@@ -28,7 +27,7 @@ window._paq = window._paq || []
 
 let store
 
-window.initMap = function() {
+const init = function() {
 
   const container = document.getElementById('cart')
 
@@ -51,6 +50,8 @@ window.initMap = function() {
 
     const productOptions =
       JSON.parse(event.relatedTarget.dataset.productOptions)
+    const productImages =
+      JSON.parse(event.relatedTarget.dataset.productImages)
 
     render(
       <ProductOptionsModal
@@ -58,6 +59,7 @@ window.initMap = function() {
         code={ event.relatedTarget.dataset.productCode }
         options={ productOptions }
         formAction={ event.relatedTarget.dataset.formAction }
+        images={ productImages }
         onSubmit={ (e) => {
           e.preventDefault()
 
@@ -75,22 +77,20 @@ window.initMap = function() {
           $modal.modal('hide')
 
         } } />,
-      this.querySelector('.modal-body')
+      this.querySelector('.modal-body [data-options-container]')
     )
   })
 
   $('#product-options').on('shown.bs.modal', function() {
-    var $form = $(this).find('form[data-product-options]')
-    if ($form.length === 1) {
-      window._paq.push(['trackEvent', 'Checkout', 'showOptions'])
-      // $form.find('button[type="submit"]').prop('disabled', !isValid($form))
-    }
+    window._paq.push(['trackEvent', 'Checkout', 'showOptions'])
   })
 
   $('#product-options').on('hidden.bs.modal', function() {
-    unmountComponentAtNode(this.querySelector('.modal-body'))
+    unmountComponentAtNode(this.querySelector('.modal-body [data-options-container]'))
     window._paq.push(['trackEvent', 'Checkout', 'hideOptions'])
   })
+
+  // ---
 
   $('#product-details').on('show.bs.modal', function(event) {
 
@@ -102,27 +102,14 @@ window.initMap = function() {
     $modal.find('form').attr('action', event.relatedTarget.dataset.formAction)
     $modal.find('button[type="submit"]').text((productPrice / 100).formatMoney())
 
-    const $placeholder = $('<div>')
-    $placeholder.addClass('d-flex')
-    $placeholder.addClass('overflow-hidden')
-    images.forEach(image => {
-      const $img = $('<img>')
-      $img.attr('src', image)
-      $placeholder.append($img)
-    })
-    $('.modal-body [data-swiper]').append($placeholder)
-  })
-
-  $('#product-details').on('shown.bs.modal', function(event) {
-    const images = JSON.parse(event.relatedTarget.dataset.productImages)
     render(
-      <ProductDetailsModal images={ images } />,
-      this.querySelector('.modal-body [data-swiper]')
+      <ProductImagesCarousel images={ images } />,
+      this.querySelector('.modal-body [data-carousel-container]')
     )
   })
 
   $('#product-details').on('hidden.bs.modal', function() {
-    unmountComponentAtNode(this.querySelector('.modal-body [data-swiper]'))
+    unmountComponentAtNode(this.querySelector('.modal-body [data-carousel-container]'))
   })
 
   const restaurantDataElement = document.querySelector('#js-restaurant-data')
@@ -156,6 +143,13 @@ window.initMap = function() {
   }
 
   $(container).closest('form').on('submit', function (e) {
+
+    const { cart } = store.getState()
+
+    // Don't try to validate address for collection
+    if (cart.takeaway) {
+      return
+    }
 
     const searchInput = document.querySelector('#cart input[type="search"]')
     const latInput = document.querySelector('#cart_shippingAddress_latitude')
@@ -197,15 +191,8 @@ window.initMap = function() {
 
 }
 
-document.querySelectorAll('[data-opening-hours]').forEach(el => {
-  // FIXME Check parse errors
-  new OpeningHoursParser(el, {
-    openingHours: JSON.parse(el.dataset.openingHours),
-    locale: $('html').attr('lang'),
-    behavior: el.dataset.openingHoursBehavior,
-  })
-})
-
 $('#menu').LoadingOverlay('show', {
   image: false,
 })
+
+init()

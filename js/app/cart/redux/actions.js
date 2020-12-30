@@ -2,7 +2,7 @@ import { createAction } from 'redux-actions'
 import _ from 'lodash'
 
 import i18n, { getCountry } from '../../i18n'
-import { placeToAddress } from '../../utils/GoogleMaps'
+import { geocode } from '../../components/AddressAutosuggest'
 
 export const FETCH_REQUEST = 'FETCH_REQUEST'
 export const FETCH_SUCCESS = 'FETCH_SUCCESS'
@@ -184,9 +184,6 @@ export function removeItem(itemID) {
 
 function geocodeAndSync() {
 
-  const geocoder = new window.google.maps.Geocoder()
-  const geocoderOK = window.google.maps.GeocoderStatus.OK
-
   return (dispatch, getState) => {
 
     const { cart } = getState()
@@ -202,13 +199,11 @@ function geocodeAndSync() {
       return
     }
 
-    geocoder.geocode({ address: cart.shippingAddress.streetAddress }, (results, status) => {
+    geocode(cart.shippingAddress.streetAddress).then(address => {
 
       $('#menu').LoadingOverlay('hide')
 
-      if (status === geocoderOK && results.length > 0) {
-        const place = results[0]
-        const address = placeToAddress(place, cart.shippingAddress.streetAddress)
+      if (address) {
         dispatch(changeAddress({
           ...cart.shippingAddress,
           ...address,

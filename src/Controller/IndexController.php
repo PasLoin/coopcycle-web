@@ -13,12 +13,14 @@ use AppBundle\Enum\Store;
 use AppBundle\Form\DeliveryEmbedType;
 use Hashids\Hashids;
 use MyCLabs\Enum\Enum;
+use Symfony\Contracts\Cache\CacheInterface;
 use Sylius\Component\Order\Context\CartContextInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\Routing\Annotation\Route;
-use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 
 class IndexController extends AbstractController
@@ -61,7 +63,7 @@ class IndexController extends AbstractController
     /**
      * @HideSoftDeleted
      */
-    public function indexAction(LocalBusinessRepository $repository, CacheInterface $appCache)
+    public function indexAction(LocalBusinessRepository $repository, CacheInterface $projectCache)
     {
         $user = $this->getUser();
 
@@ -72,9 +74,9 @@ class IndexController extends AbstractController
         }
 
         [ $restaurants, $restaurantsCount ] =
-            $this->getItems($repository, FoodEstablishment::class, $appCache, sprintf('homepage.restaurants.%s', $cacheKeySuffix));
+            $this->getItems($repository, FoodEstablishment::class, $projectCache, sprintf('homepage.restaurants.%s', $cacheKeySuffix));
         [ $stores, $storesCount ] =
-            $this->getItems($repository, Store::class, $appCache, sprintf('homepage.stores.%s', $cacheKeySuffix));
+            $this->getItems($repository, Store::class, $projectCache, sprintf('homepage.stores.%s', $cacheKeySuffix));
 
 
         $qb = $this->getDoctrine()
@@ -124,5 +126,22 @@ class IndexController extends AbstractController
         ];
 
         return new JsonResponse($data);
+    }
+
+    /**
+     * @Route("/CHANGELOG.md", name="changelog")
+     */
+    public function changelogAction(Request $request)
+    {
+        $response = new Response(file_get_contents($this->getParameter('kernel.project_dir') . '/CHANGELOG.md'));
+
+        $response->headers->add(['Content-Type' => 'text/markdown']);
+
+        return $response;
+    }
+
+    public function redirectToLocaleAction(Request $request)
+    {
+        return new RedirectResponse(sprintf('/%s/', $this->getParameter('locale')), 302);
     }
 }

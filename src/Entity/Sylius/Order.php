@@ -15,6 +15,7 @@ use AppBundle\Action\Order\Cancel as OrderCancel;
 use AppBundle\Action\Order\Delay as OrderDelay;
 use AppBundle\Action\Order\Fulfill as OrderFulfill;
 use AppBundle\Action\Order\Pay as OrderPay;
+use AppBundle\Action\Order\PaymentDetails as PaymentDetailsController;
 use AppBundle\Action\Order\Refuse as OrderRefuse;
 use AppBundle\Action\MyOrders;
 use AppBundle\Api\Dto\CartItemInput;
@@ -54,7 +55,7 @@ use Sylius\Component\Taxation\Model\TaxRateInterface;
  *   collectionOperations={
  *     "get"={
  *       "method"="GET",
- *       "access_control"="is_granted('ROLE_ADMIN')"
+ *       "security"="is_granted('ROLE_ADMIN')"
  *     },
  *     "post"={
  *       "method"="POST",
@@ -86,13 +87,22 @@ use Sylius\Component\Taxation\Model\TaxRateInterface;
  *   itemOperations={
  *     "get"={
  *       "method"="GET",
- *       "access_control"="is_granted('view', object)"
+ *       "security"="is_granted('view', object)"
+ *     },
+ *     "payment_details"={
+ *       "method"="GET",
+ *       "path"="/orders/{id}/payment",
+ *       "controller"=PaymentDetailsController::class,
+ *       "security"="object.getCustomer().hasUser() and object.getCustomer().getUser() == user",
+ *       "swagger_context"={
+ *         "summary"="Get payment details for a Order resource."
+ *       }
  *     },
  *     "pay"={
  *       "method"="PUT",
  *       "path"="/orders/{id}/pay",
  *       "controller"=OrderPay::class,
- *       "access_control"="object.getCustomer().hasUser() and object.getCustomer().getUser() == user",
+ *       "security"="object.getCustomer().hasUser() and object.getCustomer().getUser() == user",
  *       "swagger_context"={
  *         "summary"="Pays a Order resource."
  *       }
@@ -156,7 +166,7 @@ use Sylius\Component\Taxation\Model\TaxRateInterface;
  *     "get_cart_timing"={
  *       "method"="GET",
  *       "path"="/orders/{id}/timing",
- *       "access_control"="(object.getCustomer() != null and object.getCustomer().hasUser() and object.getCustomer().getUser() == user) or (cart_session.cart != null and cart_session.cart.getId() == object.getId())",
+ *       "security"="is_granted('session', object)",
  *       "swagger_context"={
  *         "summary"="Retrieves timing information about a Order resource.",
  *         "responses"={
@@ -171,7 +181,7 @@ use Sylius\Component\Taxation\Model\TaxRateInterface;
  *       "method"="GET",
  *       "path"="/orders/{id}/validate",
  *       "normalization_context"={"groups"={"cart"}},
- *       "access_control"="(object.getCustomer() != null and object.getCustomer().hasUser() and object.getCustomer().getUser() == user) or (cart_session.cart != null and cart_session.cart.getId() == object.getId())"
+ *       "security"="is_granted('session', object)"
  *     },
  *     "put_cart"={
  *       "method"="PUT",
@@ -179,7 +189,7 @@ use Sylius\Component\Taxation\Model\TaxRateInterface;
  *       "validation_groups"={"cart"},
  *       "normalization_context"={"groups"={"cart"}},
  *       "denormalization_context"={"groups"={"order_update"}},
- *       "security"="(object.getCustomer() != null and object.getCustomer().hasUser() and object.getCustomer().getUser() == user) or (cart_session.cart != null and cart_session.cart.getId() == object.getId())"
+ *       "security"="is_granted('session', object)"
  *     },
  *     "post_cart_items"={
  *       "method"="POST",
@@ -189,7 +199,7 @@ use Sylius\Component\Taxation\Model\TaxRateInterface;
  *       "validation_groups"={"cart"},
  *       "denormalization_context"={"groups"={"cart"}},
  *       "normalization_context"={"groups"={"cart"}},
- *       "security"="(object.getCustomer() != null and object.getCustomer().hasUser() and object.getCustomer().getUser() == user) or (cart_session.cart != null and cart_session.cart.getId() == object.getId())",
+ *       "security"="is_granted('session', object)",
  *       "swagger_context"={
  *         "summary"="Adds items to a Order resource."
  *       }
@@ -201,7 +211,7 @@ use Sylius\Component\Taxation\Model\TaxRateInterface;
  *       "validation_groups"={"cart"},
  *       "denormalization_context"={"groups"={"cart"}},
  *       "normalization_context"={"groups"={"cart"}},
- *       "security"="(object.getCustomer() != null and object.getCustomer().hasUser() and object.getCustomer().getUser() == user) or (cart_session.cart != null and cart_session.cart.getId() == object.getId())"
+ *       "security"="is_granted('session', object)"
  *     },
  *     "delete_item"={
  *       "method"="DELETE",
@@ -212,7 +222,7 @@ use Sylius\Component\Taxation\Model\TaxRateInterface;
  *       "validate"=false,
  *       "write"=false,
  *       "status"=200,
- *       "security"="(object.getCustomer() != null and object.getCustomer().hasUser() and object.getCustomer().getUser() == user) or (cart_session.cart != null and cart_session.cart.getId() == object.getId())",
+ *       "security"="is_granted('session', object)",
  *       "swagger_context"={
  *         "summary"="Deletes items from a Order resource."
  *       }
@@ -241,8 +251,6 @@ class Order extends BaseOrder implements OrderInterface
     protected $shippingAddress;
 
     protected $billingAddress;
-
-    protected $shippedAt;
 
     protected $payments;
 
@@ -425,6 +433,17 @@ class Order extends BaseOrder implements OrderInterface
         return $this->getTotal() - $this->getFeeTotal() - $this->getStripeFeeTotal();
     }
 
+    public function getTransferAmount(LocalBusiness $subVendor): int
+    {
+        foreach ($this->getAdjustments(AdjustmentInterface::TRANSFER_AMOUNT_ADJUSTMENT) as $adjustment) {
+            if ($adjustment->getOriginCode() === $subVendor->asOriginCode()) {
+                return $adjustment->getAmount();
+            }
+        }
+
+        return 0;
+    }
+
     /**
      * {@inheritdoc}
      */
@@ -492,15 +511,20 @@ class Order extends BaseOrder implements OrderInterface
 
     /**
      * {@inheritdoc}
+     * @deprecated
+     * @SerializedName("shippedAt")
      */
     public function getShippedAt(): ?\DateTime
     {
-        return $this->shippedAt;
-    }
+        if (null !== $this->shippingTimeRange) {
 
-    public function setShippedAt(?\DateTime $shippedAt): void
-    {
-        $this->shippedAt = $shippedAt;
+            $lower = Carbon::make($this->shippingTimeRange->getLower());
+            $upper = Carbon::make($this->shippingTimeRange->getUpper());
+
+            return $lower->average($upper)->toDateTime();
+        }
+
+        return null;
     }
 
     /**
@@ -850,14 +874,6 @@ class Order extends BaseOrder implements OrderInterface
     public function setShippingTimeRange(?TsRange $shippingTimeRange)
     {
         $this->shippingTimeRange = $shippingTimeRange;
-
-        // Legacy
-        if (null !== $shippingTimeRange) {
-            $this->shippedAt =
-                Carbon::instance($shippingTimeRange->getLower())->average($shippingTimeRange->getUpper());
-        } else {
-            $this->shippedAt = null;
-        }
     }
 
     /**
@@ -985,5 +1001,64 @@ class Order extends BaseOrder implements OrderInterface
     public function setVendor(?Vendor $vendor): void
     {
         $this->vendor = $vendor;
+    }
+
+    public function getItemsGroupedByVendor(): \SplObjectStorage
+    {
+        $hash = new \SplObjectStorage();
+
+        foreach ($this->getItems() as $item) {
+
+            $product = $item->getVariant()->getProduct();
+
+            if ($this->getVendor()->isHub()) {
+                $hub = $this->getVendor()->getHub();
+                $vendor = null;
+                foreach ($hub->getRestaurants() as $restaurant) {
+                    if ($restaurant->hasProduct($product)) {
+                        $vendor = $restaurant;
+                        break;
+                    }
+                }
+            } else {
+                $vendor = $this->getVendor()->getRestaurant();
+            }
+
+            if ($vendor) {
+                $items = isset($hash[$vendor]) ? $hash[$vendor] : [];
+                $hash[$vendor] = array_merge($items, [ $item ]);
+            }
+        }
+
+        return $hash;
+    }
+
+    public function getVendors(): array
+    {
+        $vendors = [];
+
+        foreach ($this->getItems() as $item) {
+
+            $product = $item->getVariant()->getProduct();
+
+            if ($this->getVendor()->isHub()) {
+                $hub = $this->getVendor()->getHub();
+                $vendor = null;
+                foreach ($hub->getRestaurants() as $restaurant) {
+                    if ($restaurant->hasProduct($product)) {
+                        $vendor = $restaurant;
+                        break;
+                    }
+                }
+            } else {
+                $vendor = $this->getVendor()->getRestaurant();
+            }
+
+            if ($vendor && !in_array($vendor, $vendors, true)) {
+                $vendors[] = $vendor;
+            }
+        }
+
+        return $vendors;
     }
 }

@@ -39,102 +39,26 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Component\Routing\Exception\ExceptionInterface as RoutingException;
+use Symfony\Component\Routing\RouterInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 class ProfileController extends Controller
 {
     const ITEMS_PER_PAGE = 20;
 
-    use AccessControlTrait;
-    use DeliveryTrait;
     use OrderTrait;
-    use RestaurantTrait;
-    use StoreTrait;
     use UserTrait;
-
-    protected function getRestaurantRoutes()
-    {
-        return [
-            'restaurants' => 'profile_restaurants',
-            'restaurant' => 'profile_restaurant',
-            'menu_taxons' => 'profile_restaurant_menu_taxons',
-            'menu_taxon' => 'profile_restaurant_menu_taxon',
-            'products' => 'profile_restaurant_products',
-            'product_options' => 'profile_restaurant_product_options',
-            'product_new' => 'profile_restaurant_product_new',
-            'dashboard' => 'profile_restaurant_dashboard',
-            'planning' => 'profile_restaurant_planning',
-            'stripe_oauth_redirect' => 'profile_restaurant_stripe_oauth_redirect',
-            'preparation_time' => 'profile_restaurant_preparation_time',
-            'stats' => 'profile_restaurant_stats',
-            'deposit_refund' => 'profile_restaurant_deposit_refund',
-            'promotions' => 'profile_restaurant_promotions',
-            'promotion_new' => 'profile_restaurant_new_promotion',
-            'promotion' => 'profile_restaurant_promotion',
-            'product_option_preview' => 'profile_restaurant_product_option_preview',
-            'reusable_packaging_new' => 'profile_restaurant_new_reusable_packaging',
-        ];
-    }
-
-    private function handleSwitchRequest(Request $request, Collection $items, $queryKey, $sessionKey)
-    {
-        if ($request->query->has($queryKey)) {
-            foreach ($items as $item) {
-                if ($item->getId() === $request->query->getInt($queryKey)) {
-                    $request->getSession()->set($sessionKey, $item->getId());
-
-                    return $this->redirectToRoute('fos_user_profile_show');
-                }
-            }
-
-            throw $this->createAccessDeniedException();
-        }
-    }
 
     public function indexAction(Request $request,
         SlugifyInterface $slugify,
         TranslatorInterface $translator,
         JWTEncoderInterface $jwtEncoder,
         IriConverterInterface $iriConverter,
-        PaginatorInterface $paginator)
+        PaginatorInterface $paginator,
+        EntityManagerInterface $entityManager)
     {
         $user = $this->getUser();
-
-        if ($user->hasRole('ROLE_STORE') && $request->attributes->has('_store')) {
-
-            if ($response = $this->handleSwitchRequest($request, $user->getStores(), 'store', '_store')) {
-
-                return $response;
-            }
-
-            $store = $request->attributes->get('_store');
-
-            $routes = $request->attributes->has('routes') ? $request->attributes->get('routes') : [];
-            $routes['import_success'] = 'fos_user_profile_show';
-            $routes['stores'] = 'fos_user_profile_show';
-            $routes['store'] = 'profile_store';
-
-            $request->attributes->set('routes', $routes);
-
-            return $this->storeDeliveriesAction($store->getId(), $request, $translator, $paginator);
-
-            // FIXME Forward doesn't copy request attributes
-            // return $this->forward('AppBundle\Controller\ProfileController::storeDeliveriesAction', [
-            //     'id'  => $store->getId(),
-            // ]);
-        }
-
-        if ($user->hasRole('ROLE_RESTAURANT') && $request->attributes->has('_restaurant')) {
-
-            if ($response = $this->handleSwitchRequest($request, $user->getRestaurants(), 'restaurant', '_restaurant')) {
-
-                return $response;
-            }
-
-            $restaurant = $request->attributes->get('_restaurant');
-
-            return $this->statsAction($restaurant->getId(), $request, $slugify, $translator);
-        }
 
         if ($user->hasRole('ROLE_COURIER')) {
 
@@ -193,7 +117,7 @@ class ProfileController extends Controller
 
         if ($editForm->isSubmitted() && $editForm->isValid()) {
             if ($editForm->getClickedButton() && 'loopeatDisconnect' === $editForm->getClickedButton()->getName()) {
-                $user->clearLoopEatCredentials();
+                $user->getCustomer()->clearLoopEatCredentials();
             }
 
             $userManager->updateUser($user);
@@ -239,11 +163,8 @@ class ProfileController extends Controller
         DeliveryManager $deliveryManager,
         JWTManagerInterface $jwtManager,
         JWSProviderInterface $jwsProvider,
-        IriConverterInterface $iriConverter,
-        EntityManagerInterface $em)
+        IriConverterInterface $iriConverter)
     {
-        $filter = $em->getFilters()->disable('enabled_filter');
-
         $order = $this->container->get('sylius.repository.order')->find($id);
 
         if ($order->getCustomer()->hasUser() && $order->getCustomer()->getUser() !== $this->getUser()) {
@@ -334,27 +255,6 @@ class ProfileController extends Controller
         return $this->render('profile/new_address.html.twig', array(
             'form' => $form->createView(),
         ));
-    }
-
-    protected function getRestaurantList(Request $request)
-    {
-        return [ $this->getUser()->getRestaurants(), 1, 1 ];
-    }
-
-    protected function getStoreList(Request $request)
-    {
-        return [ $this->getUser()->getStores(), 1, 1 ];
-    }
-
-    protected function getDeliveryRoutes()
-    {
-        return [
-            'list'      => 'profile_tasks',
-            'pick'      => 'profile_delivery_pick',
-            'deliver'   => 'profile_delivery_deliver',
-            'view'      => 'profile_delivery',
-            'store_new' => 'profile_store_delivery_new'
-        ];
     }
 
     /**
@@ -506,5 +406,22 @@ class ProfileController extends Controller
         $socketIoManager->markAsRead($this->getUser(), $ids);
 
         return new Response('', 204);
+    }
+
+    public function redirectToDashboardAction($path, Request $request, RouterInterface $router)
+    {
+        $dashboardPath = sprintf('/dashboard/%s', $path);
+
+        try {
+
+            $router->match($dashboardPath);
+
+            $queryString = $request->getQueryString();
+
+            return $this->redirect($dashboardPath . (!empty($queryString) ? sprintf('?%s', $queryString) : ''), 301);
+
+        } catch (RoutingException $e) {}
+
+        throw $this->createNotFoundException();
     }
 }

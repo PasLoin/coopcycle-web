@@ -140,6 +140,14 @@ h1, h2, h3, h4, h5, h6 {
   vertical-align: middle;
 }
 
+.modal {
+  @media (max-width: $screen-xs-max) {
+    .modal-dialog {
+      width: calc(100% - 20px);
+    }
+  }
+}
+
 // ------------------ Admin ------------------
 
 .store-opening-hours {
@@ -307,6 +315,21 @@ h1, h2, h3, h4, h5, h6 {
   color: #fff;
 }
 
+.dashboard-subnav {
+  background-color: #ECFFFD;
+  border-bottom: 1px solid #BDFFF6;
+  margin-top: -20px;
+  .navbar {
+    .navbar-toggle {
+      background-color: darken(#ECFFFD, 50%);
+      border-color: white;
+      .icon-bar {
+        background-color: white;
+      }
+    }
+  }
+}
+
 // ------------------ Cart ------------------
 
 .restaurant-menu-wrapper {
@@ -417,14 +440,32 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   &-body {
-    flex: 8;
+    flex: 1;
   }
   &-right {
-    flex: 4;
-    @extend .text-muted;
+    flex: 1;
     text-align: right;
     @media (max-width: $screen-xs-max) {
       display: none;
+    }
+  }
+
+  .table-opening-hours {
+    width: auto;
+    font-size: $font-size-small;
+    thead > tr > th {
+      text-align: right;
+    }
+    tbody > tr > td,
+    tbody > tr > th {
+      border-top: none;
+    }
+    tbody > tr:not(.active) {
+      @extend .text-muted;
+    }
+    tbody > tr.active > td,
+    tbody > tr.active > th {
+      background-color: transparent;
     }
   }
 
@@ -625,10 +666,6 @@ form[name="store"] #store_imageFile_file {
   overflow: hidden;
   position: absolute;
   z-index: -1;
-}
-
-.form-group-delete {
-  padding-top: ($line-height-computed + 5px);
 }
 
 // ------------------ Autosuggest ------------------

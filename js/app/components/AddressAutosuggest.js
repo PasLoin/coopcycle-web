@@ -3,15 +3,14 @@ import Autosuggest from 'react-autosuggest'
 import PropTypes from 'prop-types'
 import ngeohash from 'ngeohash'
 import Fuse from 'fuse.js'
-import { includes, filter, debounce } from 'lodash'
+import { filter, debounce, throttle } from 'lodash'
 import { withTranslation } from 'react-i18next'
 import _ from 'lodash'
+import axios from 'axios'
 
 import '../i18n'
-import { getCountry } from '../i18n'
+import { getCountry, localeDetector } from '../i18n'
 
-import { placeToAddress } from '../utils/GoogleMaps'
-import PoweredByGoogle from './powered_by_google_on_white.png'
 import {
   placeholder as placeholderGB,
   getInitialState as getInitialStateGB,
@@ -20,6 +19,27 @@ import {
   theme as themeGB,
   poweredBy as poweredByGB,
   highlightFirstSuggestion as highlightFirstSuggestionGB } from './AddressAutosuggest/gb'
+
+import {
+  onSuggestionsFetchRequested as onSuggestionsFetchRequestedAlgolia,
+  poweredBy as poweredByAlgolia,
+  transformSuggestion as transformSuggestionAlgolia,
+  geocode as geocodeAlgolia,
+  } from './AddressAutosuggest/algolia'
+
+import {
+  onSuggestionsFetchRequested as onSuggestionsFetchRequestedLocationIQ,
+  poweredBy as poweredByLocationIQ,
+  transformSuggestion as transformSuggestionLocationIQ,
+  geocode as geocodeLocationIQ,
+  } from './AddressAutosuggest/locationiq'
+
+import {
+  onSuggestionsFetchRequested as onSuggestionsFetchRequestedGE,
+  poweredBy as poweredByGE,
+  transformSuggestion as transformSuggestionGE,
+  geocode as geocodeGE,
+  } from './AddressAutosuggest/geocode-earth'
 
 const theme = {
   container:                'react-autosuggest__container address-autosuggest__container',
@@ -36,13 +56,6 @@ const theme = {
   sectionContainer:         'react-autosuggest__section-container',
   sectionContainerFirst:    'react-autosuggest__section-container--first',
   sectionTitle:             'react-autosuggest__section-title address-autosuggest__section-title'
-}
-
-const autocompleteOptions = {
-  types: ['address'],
-  componentRestrictions: {
-    country: getCountry() || 'fr'
-  }
 }
 
 const defaultFuseOptions = {
@@ -74,16 +87,26 @@ const localized = {
   }
 }
 
-// https://developers.google.com/maps/documentation/javascript/places#place_search_fields
-// https://developers.google.com/places/web-service/details#fields
-// Fields correspond to Place Search results, and are divided into three billing categories: Basic, Contact, and Atmosphere.
-// Basic fields are billed at base rate, and incur no additional charges.
-// Contact and Atmosphere fields are billed at a higher rate.
-const placeDetailsFields = [
-  'address_components',
-  'geometry',
-  'types',
-]
+const adapters = {
+  algolia: {
+    onSuggestionsFetchRequested: onSuggestionsFetchRequestedAlgolia,
+    poweredBy: poweredByAlgolia,
+    transformSuggestion: transformSuggestionAlgolia,
+    geocode: geocodeAlgolia,
+  },
+  locationiq: {
+    onSuggestionsFetchRequested: onSuggestionsFetchRequestedLocationIQ,
+    poweredBy: poweredByLocationIQ,
+    transformSuggestion: transformSuggestionLocationIQ,
+    geocode: geocodeLocationIQ,
+  },
+  'geocode-earth': {
+    onSuggestionsFetchRequested: onSuggestionsFetchRequestedGE,
+    poweredBy: poweredByGE,
+    transformSuggestion: transformSuggestionGE,
+    geocode: geocodeGE,
+  },
+}
 
 // WARNING
 // Do *NOT* use arrow functions, to allow binding
@@ -98,78 +121,90 @@ const generic = {
       console.warn('Using a string for the "address" prop is deprecated, use an object instead.')
     }
 
+    let multiSection = false
+    const suggestions = []
+
+    if (this.props.addresses.length > 0) {
+
+      multiSection = true
+
+      const addressesAsSuggestions = this.props.addresses.map((address, idx) => ({
+        type: 'address',
+        value: address.streetAddress,
+        address: {
+          ...address,
+          // Let's suppose saved addresses are precise
+          isPrecise: true,
+          needsGeocoding: false,
+        },
+        index: idx,
+      }))
+
+      suggestions.push({
+        title: this.props.t('SAVED_ADDRESSES'),
+        suggestions: addressesAsSuggestions.slice(0, 5),
+      })
+    }
+
     return {
       value: _.isObject(this.props.address) ?
         (this.props.address.streetAddress || '') : (_.isString(this.props.address) ? this.props.address : ''),
-      suggestions: [],
-      multiSection: false,
-      sessionToken: null,
+      suggestions,
+      multiSection,
+      lastValueWithResults: '',
+      loading: false,
     }
   },
-  onSuggestionsFetchRequested: function({ value }) {
-
-    // https://developers.google.com/places/web-service/session-tokens
-    // https://developers.google.com/maps/documentation/javascript/places-autocomplete#session_tokens
-    // Place Autocomplete uses session tokens to group the query and selection phases of a user autocomplete search
-    // into a discrete session for billing purposes.
-    // The session begins when the user starts typing a query,
-    // and concludes when they select a place and a call to Place Details is made.
-    // Each session can have multiple autocomplete queries, followed by one place selection.
-    let sessionToken = ''
-    if (!this.state.sessionToken) {
-      sessionToken = new google.maps.places.AutocompleteSessionToken()
-      this.setState({ sessionToken })
-    } else {
-      sessionToken = this.state.sessionToken
-    }
-
-    // @see https://developers.google.com/maps/documentation/javascript/places-autocomplete#place_autocomplete_service
-    // @see https://developers.google.com/maps/documentation/javascript/reference/#AutocompleteService
-    this.autocompleteService.getPlacePredictions({
-      ...autocompleteOptions,
-      input: value,
-      sessionToken,
-    }, this._autocompleteCallback.bind(this))
+  onSuggestionsFetchRequested: function() {
+    this.setState({
+      suggestions: [],
+    })
   },
   onSuggestionSelected: function (event, { suggestion }) {
 
     if (suggestion.type === 'prediction') {
 
-      const { sessionToken } = this.state
+      let address = this.transformSuggestion(suggestion)
 
-      // https://developers.google.com/places/web-service/session-tokens
-      // The session begins when the user starts typing a query,
-      // and concludes when they select a place and a call to Place Details is made.
-      this.setState({ sessionToken: null })
-
-      const { placeId } = suggestion
-
-      // https://developers.google.com/maps/documentation/javascript/reference/places-service
-      this.placesService.getDetails({ placeId, fields: placeDetailsFields, sessionToken }, (place, status) => {
-
-        if (status === this.placesServiceOK && place) {
-
-          const lat = place.geometry.location.lat()
-          const lng = place.geometry.location.lng()
-          const geohash = ngeohash.encode(lat, lng, 11)
-
-          const address = {
-            ...placeToAddress(place, this.state.value),
-            geohash,
-          }
-
-          // If the component was configured for,
-          // report validity if the address is not precise enough
-          if (this.props.reportValidity && this.props.preciseOnly && !address.isPrecise) {
-            this.autosuggest.input.setCustomValidity(this.props.t('CART_ADDRESS_NOT_ENOUGH_PRECISION'))
-            if (HTMLInputElement.prototype.reportValidity) {
-              this.autosuggest.input.reportValidity()
-            }
-          }
-
-          this.props.onAddressSelected(this.state.value, address, suggestion.type)
+      // If the component was configured for,
+      // report validity if the address is not precise enough
+      if (this.props.reportValidity && this.props.preciseOnly && (!address.isPrecise && !address.needsGeocoding)) {
+        this.autosuggest.input.setCustomValidity(this.props.t('CART_ADDRESS_NOT_ENOUGH_PRECISION'))
+        if (HTMLInputElement.prototype.reportValidity) {
+          this.autosuggest.input.reportValidity()
         }
-      })
+      }
+
+      if (address.isPrecise && address.needsGeocoding) {
+
+        this.setState({ loading: true })
+
+        axios
+          .get(`/search/geocode?address=${encodeURIComponent(address.streetAddress)}`)
+          .then(geocoded => {
+            this.setState({ loading: false })
+            address = {
+              ...address,
+              ...geocoded.data,
+              geo: geocoded.data,
+              geohash: ngeohash.encode(geocoded.data.latitude, geocoded.data.longitude, 11),
+              isPrecise: true,
+              needsGeocoding: false,
+            }
+            this.props.onAddressSelected(this.state.value, address, suggestion.type)
+          })
+          .catch(() => {
+            this.setState({ loading: false })
+            this.props.onAddressSelected(this.state.value, address, suggestion.type)
+          })
+
+      } else {
+        address = {
+          ...address,
+          geohash: ngeohash.encode(address.geo.latitude, address.geo.longitude, 11),
+        }
+        this.props.onAddressSelected(this.state.value, address, suggestion.type)
+      }
     }
 
     if (suggestion.type === 'address') {
@@ -187,13 +222,22 @@ const generic = {
 
       this.props.onAddressSelected(suggestion.value, address, suggestion.type)
     }
+
+    if (suggestion.type === 'restaurant') {
+      window.location.href = window.Routing.generate('restaurant', {
+        id: suggestion.restaurant.id
+      })
+    }
+  },
+  transformSuggestion: function(suggestion) {
+    return suggestion
   },
   theme: function(theme) {
     return theme
   },
   poweredBy: function() {
     return (
-      <img src={ PoweredByGoogle } />
+      <span></span>
     )
   },
   highlightFirstSuggestion: function() {
@@ -201,10 +245,15 @@ const generic = {
   }
 }
 
-const localize = (func, thisArg) => {
+const localize = (func, adapter, thisArg) => {
   if (Object.prototype.hasOwnProperty.call(localized, getCountry())
   &&  Object.prototype.hasOwnProperty.call(localized[getCountry()], func)) {
     return localized[getCountry()][func].bind(thisArg)
+  }
+
+  if (Object.prototype.hasOwnProperty.call(adapters, adapter)
+  &&  Object.prototype.hasOwnProperty.call(adapters[adapter], func)) {
+    return adapters[adapter][func].bind(thisArg)
   }
 
   return generic[func].bind(thisArg)
@@ -218,7 +267,17 @@ const renderSuggestion = suggestion => (
   </div>
 )
 
-const shouldRenderSuggestions = value => value.trim().length > 3
+// https://github.com/moroshko/react-autosuggest#should-render-suggestions-prop
+function shouldRenderSuggestions(value) {
+
+  // This allows rendering suggestions for saved adresses
+  // when the user just focuses the input without typing anything
+  if (value.trimStart().length === 0 && this.state.multiSection) {
+    return true
+  }
+
+  return value.trimStart().length > 3 || value.trimStart().endsWith(' ')
+}
 
 const renderSectionTitle = section => (
   <strong>{ section.title }</strong>
@@ -231,48 +290,57 @@ class AddressAutosuggest extends Component {
   constructor(props) {
     super(props)
 
-    // Localized methods
-    this.onSuggestionsFetchRequested = debounce(
-      localize('onSuggestionsFetchRequested', this),
-      350
+    const el = document.getElementById('autocomplete-adapter')
+    const adapter = (el && el.dataset.value) || 'algolia'
+
+    this.country = getCountry() || 'en'
+    this.language = localeDetector()
+
+    // https://www.peterbe.com/plog/how-to-throttle-and-debounce-an-autocomplete-input-in-react
+    this.onSuggestionsFetchRequestedThrottled = throttle(
+      localize('onSuggestionsFetchRequested', adapter, this),
+      400
     )
-    this.getInitialState = localize('getInitialState', this)
-    this.onSuggestionSelected = localize('onSuggestionSelected', this)
-    this.placeholder = localize('placeholder', this)
-    this.poweredBy = localize('poweredBy', this)
-    this.theme = localize('theme', this)
-    this.highlightFirstSuggestion = localize('highlightFirstSuggestion', this)
+    this.onSuggestionsFetchRequestedDebounced = debounce(
+      localize('onSuggestionsFetchRequested', adapter, this),
+      400
+    )
+
+    this.onSuggestionsFetchRequested = ({ value }) => {
+
+      // We still need to check if text is not empty here,
+      // because shouldRenderSuggestions() may return true even when nothing was typed
+      // This happens when there are saved adresses
+      if (value.trimStart().length === 0) {
+        return
+      }
+
+      if (value.trimStart().length < 5) {
+        this.onSuggestionsFetchRequestedThrottled({ value })
+      } else {
+        this.onSuggestionsFetchRequestedDebounced({ value })
+      }
+    }
+
+    // Localized methods
+    this.getInitialState = localize('getInitialState', adapter, this)
+    this.onSuggestionSelected = localize('onSuggestionSelected', adapter, this)
+    this.transformSuggestion = localize('transformSuggestion', adapter, this)
+    this.placeholder = localize('placeholder', adapter, this)
+    this.poweredBy = localize('poweredBy', adapter, this)
+    this.theme = localize('theme', adapter, this)
+    this.highlightFirstSuggestion = localize('highlightFirstSuggestion', adapter, this)
 
     this.state = this.getInitialState()
   }
 
   componentDidMount() {
 
-    if (!window.google) {
-      throw new Error(
-        'Google Maps JavaScript API library must be loaded.'
-      )
-    }
-
-    if (!window.google.maps.places) {
-      throw new Error(
-        'Google Maps Places library must be loaded. Please add `libraries=places` to the src URL.'
-      )
-    }
-
-    this.autocompleteService = new window.google.maps.places.AutocompleteService()
-    this.autocompleteOK = window.google.maps.places.PlacesServiceStatus.OK
-    this.autocompleteZeroResults = window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS
-
-    // https://developers.google.com/maps/documentation/javascript/reference/places-service
-    // PlacesService(HTMLDivElement|Map)
-    // Creates a new instance of the PlacesService that renders attributions in the specified container.
-    this.placesService = new google.maps.places.PlacesService(document.createElement('div'))
-    this.placesServiceOK = window.google.maps.places.PlacesServiceStatus.OK
-
     const addresses = this.props.addresses.map(address => ({
       ...address,
-      isPrecise: true, // Let's suppose saved addresses are precise
+      // Let's suppose saved addresses are precise
+      isPrecise: true,
+      needsGeocoding: false,
     }))
 
     let fuseOptions = { ...defaultFuseOptions }
@@ -284,6 +352,11 @@ class AddressAutosuggest extends Component {
     }
 
     this.fuse = new Fuse(addresses, fuseOptions)
+    this.fuseForRestaurants = new Fuse(this.props.restaurants, {
+      ...fuseOptions,
+      threshold: 0.2,
+      keys: ['name']
+    })
 
     if (this.props.autofocus) {
       this.autosuggest.input.focus()
@@ -308,30 +381,38 @@ class AddressAutosuggest extends Component {
     }
   }
 
-  _autocompleteCallback(predictions, status) {
+  _autocompleteCallback(predictionsAsSuggestions, value) {
 
     let suggestions = []
-
-    let predictionsAsSuggestions = []
-    if (status === this.autocompleteOK && Array.isArray(predictions)) {
-      predictionsAsSuggestions = predictions.map((p, idx) => ({
-        type: 'prediction',
-        value: p.description,
-        id: p.id,
-        description: p.description,
-        placeId: p.place_id,
-        index: idx,
-        matchedSubstrings: p.matched_substrings,
-        terms: p.terms,
-        types: p.types,
-      }))
-    }
-
     let multiSection = false
 
-    if (this.props.addresses.length > 0) {
+    const { lastValueWithResults } = this.state
 
-      const { value } = this.state
+    if (this.props.restaurants.length > 0) {
+
+      const restoResults = this.fuseForRestaurants.search(value, {
+        ...defaultFuseSearchOptions,
+        ...this.props.fuseSearchOptions,
+      })
+
+      if (restoResults.length > 0) {
+
+        const restaurantsAsSuggestions = restoResults.map((fuseResult, idx) => ({
+          type: 'restaurant',
+          value: fuseResult.item.name,
+          restaurant: fuseResult.item,
+          index: idx,
+        }))
+
+        suggestions.push({
+          title: this.props.t('RESTAURANTS_AND_STORES'),
+          suggestions: restaurantsAsSuggestions
+        })
+        multiSection = true
+      }
+    }
+
+    if (this.props.addresses.length > 0) {
 
       const fuseResults = this.fuse.search(value, {
         ...defaultFuseSearchOptions,
@@ -340,8 +421,6 @@ class AddressAutosuggest extends Component {
 
       if (fuseResults.length > 0) {
 
-        multiSection = true
-
         const addressesAsSuggestions = fuseResults.map((fuseResult, idx) => ({
           type: 'address',
           value: fuseResult.item.streetAddress,
@@ -349,38 +428,56 @@ class AddressAutosuggest extends Component {
           index: idx,
         }))
 
-        const addressesValues = addressesAsSuggestions.map(suggestion => suggestion.value)
-
         suggestions.push({
           title: this.props.t('SAVED_ADDRESSES'),
           suggestions: addressesAsSuggestions
         })
+        multiSection = true
+      }
+    }
 
-        predictionsAsSuggestions =
-          filter(predictionsAsSuggestions, suggestion => !includes(addressesValues, suggestion.value))
-
-        if (predictionsAsSuggestions.length > 0) {
-          suggestions.push({
-            title: this.props.t('ADDRESS_SUGGESTIONS'),
-            suggestions: filter(predictionsAsSuggestions, suggestion => !includes(addressesValues, suggestion.value))
-          })
-        }
-      } else {
-        suggestions = predictionsAsSuggestions
+    if (multiSection) {
+      if (predictionsAsSuggestions.length > 0) {
+        suggestions.push({
+          title: this.props.t('ADDRESS_SUGGESTIONS'),
+          suggestions: predictionsAsSuggestions,
+        })
       }
     } else {
       suggestions = predictionsAsSuggestions
     }
 
+    // UX optimization
+    // When there are no suggestions returned by the autocomplete service,
+    // we keep showing the previously returned suggestions.
+    // This is useful because some users think they have to type their apartment number
+    //
+    // Ex:
+    // The user types "4 av victoria paris 4" -> 2 suggestions
+    // The user types "4 av victoria paris 4 bâtiment B" -> 0 suggestions
+    if (predictionsAsSuggestions.length === 0 &&
+      lastValueWithResults.length > 0 &&
+      value.length > lastValueWithResults.length &&
+      value.includes(lastValueWithResults)) {
+      return
+    }
+
     this.setState({
       suggestions,
       multiSection,
+      lastValueWithResults: predictionsAsSuggestions.length > 0 ? value : ''
     })
   }
 
   onSuggestionsClearRequested() {
+
+    let suggestions = []
+    if (this.props.addresses.length > 0 && this.state.multiSection) {
+      suggestions = filter(this.state.suggestions, section => section.title === this.props.t('SAVED_ADDRESSES'))
+    }
+
     this.setState({
-      suggestions: []
+      suggestions
     })
   }
 
@@ -432,7 +529,7 @@ class AddressAutosuggest extends Component {
       onChange: this.onChange.bind(this),
       type: "search",
       required: this.props.required,
-      disabled: this.props.disabled,
+      disabled: this.props.disabled || this.state.loading,
     }
 
     if (this.props.inputName) {
@@ -463,7 +560,7 @@ class AddressAutosuggest extends Component {
         renderInputComponent={ this.renderInputComponent.bind(this) }
         renderSuggestionsContainer={ this.renderSuggestionsContainer.bind(this) }
         renderSuggestion={ renderSuggestion }
-        shouldRenderSuggestions={ shouldRenderSuggestions }
+        shouldRenderSuggestions={ shouldRenderSuggestions.bind(this) }
         renderSectionTitle={ renderSectionTitle }
         highlightFirstSuggestion={ highlightFirstSuggestion }
         getSectionSuggestions={ getSectionSuggestions }
@@ -476,6 +573,7 @@ class AddressAutosuggest extends Component {
 AddressAutosuggest.defaultProps = {
   address: '',
   addresses: [],
+  restaurants: [],
   required: false,
   reportValidity: false,
   preciseOnly: false,
@@ -488,6 +586,7 @@ AddressAutosuggest.defaultProps = {
 AddressAutosuggest.propTypes = {
   address: PropTypes.oneOfType([ PropTypes.object, PropTypes.string ]).isRequired,
   addresses: PropTypes.array.isRequired,
+  restaurants: PropTypes.array,
   geohash: PropTypes.string.isRequired,
   onAddressSelected: PropTypes.func.isRequired,
   required: PropTypes.bool,
@@ -502,3 +601,35 @@ AddressAutosuggest.propTypes = {
 }
 
 export default withTranslation()(AddressAutosuggest)
+
+export const geocode = (text) => {
+
+  const el = document.getElementById('autocomplete-adapter')
+  const adapter = (el && el.dataset.value) || 'algolia'
+
+  return new Promise((resolve) => {
+    localize('geocode', adapter, null)(text, (getCountry() || 'en'), localeDetector())
+      .then(address => {
+
+        if (!address || (address.isPrecise && !address.needsGeocoding)) {
+          return resolve(address)
+        }
+
+        axios
+          .get(`/search/geocode?address=${encodeURIComponent(address.streetAddress)}`)
+          .then(geocoded => {
+            resolve({
+              ...address,
+              ...geocoded.data,
+              geo: geocoded.data,
+              geohash: ngeohash.encode(geocoded.data.latitude, geocoded.data.longitude, 11),
+              isPrecise: true,
+              needsGeocoding: false,
+            })
+          })
+          .catch(() => {
+            resolve(address)
+          })
+      })
+  })
+}

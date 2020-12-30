@@ -136,7 +136,17 @@ Feature: Manage restaurants
         }
       ],
       "specialOpeningHoursSpecification":[],
-      "fulfillmentMethods":@array@
+      "fulfillmentMethods":@array@,
+      "potentialAction":{
+        "@type":"OrderAction",
+        "target":{
+          "@type":"EntryPoint",
+          "urlTemplate":@string@,
+          "inLanguage":"fr",
+          "actionPlatform":["http://schema.org/DesktopWebPlatform"]
+        },
+        "deliveryMethod":["http://purl.org/goodrelations/v1#DeliveryModeOwnFleet"]
+      }
     }
     """
 
@@ -170,12 +180,12 @@ Feature: Manage restaurants
         "@type":"TimeInfo",
         "@id":@string@,
         "range":[
-          "2020-09-18T11:55:00+02:00",
-          "2020-09-18T12:05:00+02:00"
+          "2020-09-18T11:40:00+02:00",
+          "2020-09-18T11:50:00+02:00"
         ],
         "today":false,
         "fast": false,
-        "diff":"1255 - 1265"
+        "diff":"1240 - 1250"
       },
       "collection":null
     }
@@ -200,7 +210,6 @@ Feature: Manage restaurants
     And I send a "GET" request to "/api/restaurants/1/timing"
     Then the response status code should be 200
     And the response should be in JSON
-    And print last response
     And the JSON should match:
     """
     {
@@ -212,12 +221,12 @@ Feature: Manage restaurants
         "@type":"TimeInfo",
         "@id":@string@,
         "range":[
-          "2020-09-17T12:25:00+02:00",
-          "2020-09-17T12:35:00+02:00"
+          "2020-09-17T12:20:00+02:00",
+          "2020-09-17T12:30:00+02:00"
         ],
         "today":true,
         "fast":true,
-        "diff":"25 - 35"
+        "diff":"20 - 30"
       },
       "collection":null
     }
@@ -247,7 +256,7 @@ Feature: Manage restaurants
     And the user "bob" is authenticated
     When I add "Accept" header equal to "application/ld+json"
     And the user "bob" sends a "GET" request to "/api/restaurants/6"
-    Then the response status code should be 404
+    Then the response status code should be 403
 
   Scenario: Retrieve a restaurant's menu
     Given the fixtures files are loaded:
