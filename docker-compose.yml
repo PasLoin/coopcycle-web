@@ -29,8 +29,6 @@ services:
       - tile38
     ports:
       - '8000:8000'
-      - '8001:8001'
-      - '8002:8002'
     volumes:
       # https://stackoverflow.com/questions/29181032/add-a-volume-to-docker-but-exclude-a-sub-folder
       - '.:/srv/coopcycle'
@@ -107,6 +105,7 @@ services:
     depends_on:
       - php
       - nodejs
+      - centrifugo
     ports:
       - '80:80'
     volumes:
@@ -201,6 +200,22 @@ services:
       - "1491:1491"
     volumes:
       - ./sonic.cfg:/etc/sonic.cfg
+
+  centrifugo:
+    image: centrifugo/centrifugo
+    ports:
+      - "8100:8000"
+    depends_on:
+      - redis
+    environment:
+      - CENTRIFUGO_TOKEN_HMAC_SECRET_KEY
+      - CENTRIFUGO_API_KEY
+      - CENTRIFUGO_V3_USE_OFFSET=true
+      - CENTRIFUGO_ENGINE=redis
+      - CENTRIFUGO_REDIS_URL=redis://redis:6379
+      - CENTRIFUGO_ADMIN=true
+      - CENTRIFUGO_ADMIN_PASSWORD=centrifugo
+      - CENTRIFUGO_ADMIN_SECRET=centrifugo
 
 volumes:
   node_modules_node:

@@ -101,6 +101,7 @@ services:
   Sylius\Component\Resource\Factory\FactoryInterface $productFactory: '@sylius.factory.product'
   Sylius\Component\Resource\Factory\FactoryInterface $productOptionFactory: '@sylius.factory.product_option'
   League\Flysystem\Filesystem $assetsFilesystem: '@assets_filesystem'
+  Redis $tile38: '@snc_redis.tile38'
 
   AppBundle\Routing\FoodtechEnabledAwareLoader:
     arguments:
@@ -639,6 +640,8 @@ services:
     arguments:
       $tile38: '@snc_redis.tile38'
       $fleetKey: '%tile38_fleet_key%'
+      $trackingChannel: '%centrifugo_tracking_channel%'
+      $centrifugoNamespace: '%centrifugo_namespace%'
 
   AppBundle\Action\Order\Pay:
     public: true
@@ -900,12 +903,18 @@ services:
   AppBundle\MessageHandler\CalculateRouteHandler:
     arguments:
       $eventBus: '@simple_bus.event_bus'
+    tags:
+      - { name: monolog.logger, channel: messenger }
 
   AppBundle\MessageHandler\RetrieveStripeFeeHandler:
     arguments:
       $adjustmentFactory: '@sylius.factory.adjustment'
     tags:
       - { name: monolog.logger, channel: stripe }
+
+  AppBundle\MessageHandler\TopBarNotificationHandler:
+    arguments:
+      $namespace: '%centrifugo_namespace%'
 
   AppBundle\Service\MaintenanceManager: ~
 
@@ -1045,3 +1054,13 @@ services:
   AppBundle\Service\RouteOptimizer:
     arguments:
       $client: '@csa_guzzle.client.vroom'
+
+  phpcent\Client:
+    arguments:
+      - '%env(CENTRIFUGO_API_URL)%'
+      - '%env(CENTRIFUGO_API_KEY)%'
+      - '%env(CENTRIFUGO_TOKEN_HMAC_SECRET_KEY)%'
+
+  AppBundle\Service\SocketIoManager:
+    arguments:
+      $namespace: '%centrifugo_namespace%'

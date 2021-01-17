@@ -28,6 +28,13 @@ function start() {
   const date = moment(dashboardEl.dataset.date)
   const tasks = JSON.parse(dashboardEl.dataset.tasks)
 
+  const preloadedPositions = JSON.parse(dashboardEl.dataset.positions)
+  const positions = preloadedPositions.map(pos => ({
+    username: pos.username,
+    coords: { lat: pos.latitude, lng: pos.longitude },
+    lastSeen: moment(pos.timestamp, 'X'),
+  }))
+
   let preloadedState = {
     dispatch: {
       unassignedTasks: _.filter(tasks, task => !task.isAssigned),
@@ -39,7 +46,11 @@ function start() {
     uploaderEndpoint: dashboardEl.dataset.uploaderEndpoint,
     exampleSpreadsheetUrl: dashboardEl.dataset.exampleSpreadsheetUrl,
     jwt: dashboardEl.dataset.jwt,
+    centrifugoToken: dashboardEl.dataset.centrifugoToken,
+    centrifugoTrackingChannel: dashboardEl.dataset.centrifugoTrackingChannel,
+    centrifugoEventsChannel: dashboardEl.dataset.centrifugoEventsChannel,
     nav: dashboardEl.dataset.nav,
+    positions,
   }
 
   const key = date.format('YYYY-MM-DD')

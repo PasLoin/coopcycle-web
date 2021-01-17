@@ -15,6 +15,7 @@ parameters:
     env(COOPCYCLE_PRIVATE_KEY_FILE): "%kernel.project_dir%/var/jwt/private.pem"
     env(APP_PUBLIC_DIR): "%kernel.project_dir%/web"
     env(APP_LOG_DIR): "%kernel.logs_dir%"
+    env(APP_VERSION): dev-master
     secret: "%env(APP_SECRET)%"
     country_iso: "%env(COOPCYCLE_COUNTRY)%"
     region_iso: "%env(COOPCYCLE_REGION)%"
@@ -36,6 +37,7 @@ parameters:
     loopeat_partner_secret: '%env(LOOPEAT_PARTNER_SECRET)%'
     tile38_fleet_key: '%database_name%:fleet'
     tile38_doorstep_chan_namespace: '%database_name%'
+    centrifugo_namespace: '%database_name%'
     cors_allow_origin: http://localhost
     jwt_public_key_path: "%env(COOPCYCLE_PUBLIC_KEY_FILE)%"
     jwt_private_key_path: "%env(COOPCYCLE_PRIVATE_KEY_FILE)%"
@@ -51,14 +53,17 @@ parameters:
     restaurant_menu_cache_annotation: 'restaurant_menu_v0.5'
     restaurant_caption_cache_annotation: 'restaurant_caption_v0.1'
     avatar_dir: '%env(APP_PUBLIC_DIR)%/images/avatars/'
+    centrifugo_tracking_channel: '$%centrifugo_namespace%_tracking'
 
 services:
-    tag_manager.cache:
+    # It is important to set a namespace,
+    # so that Symfony doesn't use "framework.cache.prefix_seed"
+    restart_workers_signal.cache:
         parent: cache.adapter.redis
         tags:
           - name: cache.pool
             provider: snc_redis.default
-            namespace: tag_manager
+            namespace: messenger
     cache.messenger.restart_workers_signal: '@restart_workers_signal.cache'
 
 framework:
@@ -84,19 +89,17 @@ framework:
     http_method_override: true
     assets: ~
     cache:
-        prefix_seed: "%database_name%"
+        prefix_seed: "%env(APP_VERSION)%"
         app: cache.adapter.redis
         default_redis_provider: "snc_redis.default"
         pools:
-            enabled_filter_configurator.cache:
-                adapter: cache.adapter.filesystem
-            restart_workers_signal.cache:
-                adapter: cache.adapter.redis
             twig.cache:
                 adapter: cache.app
             s3_flysystem.cache:
                 adapter: cache.app
             project.cache:
+                adapter: cache.app
+            tag_manager.cache:
                 adapter: cache.app
     messenger:
         buses:
@@ -129,6 +132,7 @@ framework:
             'AppBundle\Message\RetrieveStripeFee': async
             'AppBundle\Message\Sms': async
             'AppBundle\Message\UpdateLocation': async
+            'AppBundle\Message\TopBarNotification': async
     workflows:
         enabled: true
     mailer:

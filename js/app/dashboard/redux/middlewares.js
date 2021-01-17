@@ -4,12 +4,13 @@ import {
   setOffline,
   importSuccess,
   importError,
-  taskListUpdated,
+  taskListsUpdated,
   SET_FILTER_VALUE,
   RESET_FILTERS,
 } from './actions'
 import moment from 'moment'
 import _ from 'lodash'
+import Centrifuge from 'centrifuge'
 
 // If the user has not been seen for 5min, it is considered offline
 const OFFLINE_TIMEOUT = (5 * 60 * 1000)
@@ -17,7 +18,7 @@ const OFFLINE_TIMEOUT = (5 * 60 * 1000)
 // Check every 30s
 const OFFLINE_TIMEOUT_INTERVAL = (30 * 1000)
 
-let socket
+let centrifuge
 
 function checkLastSeen(dispatch, getState) {
 
@@ -44,34 +45,44 @@ const pulse = _.debounce(() => {
 
 export const socketIO = ({ dispatch, getState }) => {
 
-  if (!socket) {
+  if (!centrifuge) {
 
-    socket = io(`//${window.location.hostname}`, {
-      path: '/tracking/socket.io',
-      transports: [ 'websocket' ],
-      query: {
-        token: getState().jwt,
-      },
+    const protocol = window.location.protocol === 'https:' ? 'wss': 'ws'
+
+    centrifuge = new Centrifuge(`${protocol}://${window.location.hostname}/centrifugo/connection/websocket`)
+    centrifuge.setToken(getState().centrifugoToken)
+
+    centrifuge.subscribe(getState().centrifugoEventsChannel, function(message) {
+      const { event } = message.data
+
+      switch (event.name) {
+        case 'task:started':
+        case 'task:done':
+        case 'task:failed':
+        case 'task:cancelled':
+        case 'task:created':
+        case 'task:assigned':
+        case 'task:unassigned':
+          dispatch(updateTask(event.data.task))
+          break
+        case 'task_import:success':
+          dispatch(importSuccess(event.data.token))
+          break
+        case 'task_import:failure':
+          dispatch(importError(event.data.token, event.data.message))
+          break
+        case 'task_collections:updated':
+          dispatch(taskListsUpdated(event.data.task_collections))
+          break
+      }
     })
 
-    socket.on('task:started', data => dispatch(updateTask(data.task)))
-    socket.on('task:done', data => dispatch(updateTask(data.task)))
-    socket.on('task:failed', data => dispatch(updateTask(data.task)))
-    socket.on('task:cancelled', data => dispatch(updateTask(data.task)))
-    socket.on('task:created', data => dispatch(updateTask(data.task)))
-
-    socket.on('task:assigned', data => dispatch(updateTask(data.task)))
-    socket.on('task:unassigned', data => dispatch(updateTask(data.task)))
-
-    socket.on('task_import:success', data => dispatch(importSuccess(data.token)))
-    socket.on('task_import:failure', data => dispatch(importError(data.token, data.message)))
-
-    socket.on('task_collection:updated', data => dispatch(taskListUpdated(data.task_collection)))
-
-    socket.on('tracking', data => {
+    centrifuge.subscribe(getState().centrifugoTrackingChannel, function(message) {
       pulse()
-      dispatch(setGeolocation(data.user, data.coords, data.ts))
+      dispatch(setGeolocation(message.data.user, message.data.coords, message.data.ts))
     })
+
+    centrifuge.connect()
 
     setTimeout(() => {
       checkLastSeen(dispatch, getState)
