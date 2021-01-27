@@ -2,12 +2,14 @@
 
 namespace Tests\AppBundle\Utils;
 
+use AppBundle\DataType\TsRange;
 use AppBundle\Sylius\Order\OrderInterface;
 use AppBundle\Entity\ClosingRule;
 use AppBundle\Entity\LocalBusiness;
+use AppBundle\Entity\Sylius\Order;
+use AppBundle\Entity\Sylius\OrderTimeline;
 use AppBundle\Entity\Vendor;
-use AppBundle\Utils\DateUtils;
-use AppBundle\Utils\PreparationTimeResolver;
+use AppBundle\Utils\OrderTimelineCalculator;
 use AppBundle\Utils\ShippingDateFilter;
 use Doctrine\Common\Collections\ArrayCollection;
 use PHPUnit\Framework\TestCase;
@@ -19,16 +21,16 @@ class ShippingDateFilterTest extends TestCase
     use ProphecyTrait;
 
     private $restaurant;
-    private $preparationTimeResolver;
+    private $orderTimelineCalculator;
     private $filter;
 
     public function setUp(): void
     {
         $this->restaurant = $this->prophesize(LocalBusiness::class);
-        $this->preparationTimeResolver = $this->prophesize(PreparationTimeResolver::class);
+        $this->orderTimelineCalculator = $this->prophesize(OrderTimelineCalculator::class);
 
         $this->filter = new ShippingDateFilter(
-            $this->preparationTimeResolver->reveal()
+            $this->orderTimelineCalculator->reveal()
         );
     }
 
@@ -38,8 +40,13 @@ class ShippingDateFilterTest extends TestCase
             [
                 // $preparation = 11:15, restaurant is closed
                 $now = new \DateTime('2018-10-12 11:00:00'),
-                $dropoff = new \DateTime('2018-10-12 11:30:00'),
+                $dropoff = TsRange::create(
+                    new \DateTime('2018-10-12 11:25:00'),
+                    new \DateTime('2018-10-12 11:35:00')
+                ),
                 $preparation = new \DateTime('2018-10-12 11:15:00'),
+                $preparationTime = '10 minutes',
+                $shippingTime = '10 minutes',
                 $openingHours = ['Mo-Su 11:30-14:30'],
                 $closingRules = [],
                 false,
@@ -47,8 +54,13 @@ class ShippingDateFilterTest extends TestCase
             [
                 // $dropoff < $now
                 $now = new \DateTime('2018-10-12 12:00:00'),
-                $dropoff = new \DateTime('2018-10-12 11:55:00'),
+                $dropoff = TsRange::create(
+                    new \DateTime('2018-10-12 11:50:00'),
+                    new \DateTime('2018-10-12 12:00:00')
+                ),
                 $preparation = new \DateTime('2018-10-12 11:45:00'),
+                $preparationTime = '10 minutes',
+                $shippingTime = '10 minutes',
                 $openingHours = ['Mo-Su 11:30-14:30'],
                 $closingRules = [],
                 false,
@@ -56,8 +68,13 @@ class ShippingDateFilterTest extends TestCase
             [
                 // $preparation < $now
                 $now = new \DateTime('2018-10-12 12:00:00'),
-                $dropoff = new \DateTime('2018-10-12 12:05:00'),
+                $dropoff = TsRange::create(
+                    new \DateTime('2018-10-12 12:00:00'),
+                    new \DateTime('2018-10-12 12:10:00')
+                ),
                 $preparation = new \DateTime('2018-10-12 11:50:00'),
+                $preparationTime = '10 minutes',
+                $shippingTime = '10 minutes',
                 $openingHours = ['Mo-Su 11:30-14:30'],
                 $closingRules = [],
                 false,
@@ -65,8 +82,13 @@ class ShippingDateFilterTest extends TestCase
             [
                 // closing rule
                 $now = new \DateTime('2018-10-12 11:00:00'),
-                $dropoff = new \DateTime('2018-10-12 12:45:00'),
+                $dropoff = TsRange::create(
+                    new \DateTime('2018-10-12 12:40:00'),
+                    new \DateTime('2018-10-12 12:50:00')
+                ),
                 $preparation = new \DateTime('2018-10-12 12:30:00'),
+                $preparationTime = '10 minutes',
+                $shippingTime = '10 minutes',
                 $openingHours = ['Mo-Su 11:30-14:30'],
                 $closingRules = [
                     ['2018-10-12 12:00:00', '2018-10-12 13:00:00']
@@ -76,8 +98,13 @@ class ShippingDateFilterTest extends TestCase
             [
                 // More than 7 days
                 $now = new \DateTime('2018-10-12 11:00:00'),
-                $dropoff = new \DateTime('2018-10-19 11:30:00'),
-                $preparation = new \DateTime('2018-10-12 12:30:00'),
+                $dropoff = TsRange::create(
+                    new \DateTime('2018-10-19 11:25:00'),
+                    new \DateTime('2018-10-19 11:35:00')
+                ),
+                $preparation = new \DateTime('2018-10-12 11:15:00'),
+                $preparationTime = '10 minutes',
+                $shippingTime = '10 minutes',
                 $openingHours = ['Mo-Su 11:30-14:30'],
                 $closingRules = [],
                 false,
@@ -85,8 +112,13 @@ class ShippingDateFilterTest extends TestCase
             [
                 // No problem
                 $now = new \DateTime('2018-10-12 11:00:00'),
-                $dropoff = new \DateTime('2018-10-12 12:45:00'),
+                $dropoff = TsRange::create(
+                    new \DateTime('2018-10-12 11:40:00'),
+                    new \DateTime('2018-10-12 12:50:00')
+                ),
                 $preparation = new \DateTime('2018-10-12 12:30:00'),
+                $preparationTime = '10 minutes',
+                $shippingTime = '10 minutes',
                 $openingHours = ['Mo-Su 11:30-14:30'],
                 $closingRules = [],
                 true,
@@ -99,8 +131,10 @@ class ShippingDateFilterTest extends TestCase
      */
     public function testAccept(
         \DateTime $now,
-        \DateTime $dropoff,
+        TsRange $tsRange,
         \DateTime $preparation,
+        string $preparationTime,
+        string $shippingTime,
         array $openingHours,
         array $closingRules,
         $expected)
@@ -121,7 +155,7 @@ class ShippingDateFilterTest extends TestCase
             ->getOpeningHours('delivery')
             ->willReturn($openingHours);
 
-        $order = $this->prophesize(OrderInterface::class);
+        $order = $this->prophesize(Order::class);
         $order
             ->getVendor()
             ->willReturn(
@@ -131,11 +165,14 @@ class ShippingDateFilterTest extends TestCase
             ->getFulfillmentMethod()
             ->willReturn('delivery');
 
-        $tsRange = DateUtils::dateTimeToTsRange($dropoff, 5);
+        $timeline = new OrderTimeline();
+        $timeline->setPreparationTime($preparationTime);
+        $timeline->setShippingTime($shippingTime);
+        $timeline->setPreparationExpectedAt($preparation);
 
-        $this->preparationTimeResolver
-            ->resolve($order->reveal(), $tsRange->getUpper())
-            ->willReturn($preparation);
+        $this->orderTimelineCalculator
+            ->calculate($order->reveal(), $tsRange)
+            ->willReturn($timeline);
 
         $this->assertEquals($expected, $this->filter->accept($order->reveal(), $tsRange, $now));
     }

@@ -357,7 +357,7 @@ trait RestaurantTrait
                 'resource_class' => Order::class,
                 'operation_type' => 'item',
                 'item_operation_name' => 'get',
-                'groups' => ['order_minimal', 'dispatch']
+                'groups' => ['order_minimal']
             ]),
             'initial_order' => $request->query->get('order'),
             'routes' => $routes,
@@ -712,7 +712,7 @@ trait RestaurantTrait
             [
                 PaginatorInterface::DEFAULT_SORT_FIELD_NAME => 't.name',
                 PaginatorInterface::DEFAULT_SORT_DIRECTION => 'asc',
-                PaginatorInterface::SORT_FIELD_WHITELIST => ['t.name'],
+                PaginatorInterface::SORT_FIELD_ALLOW_LIST => ['t.name'],
             ]
         );
 

@@ -298,6 +298,122 @@ Feature: Carts
       }
       """
 
+  Scenario: Update cart shipping time
+    And the fixtures files are loaded:
+      | sylius_channels.yml |
+      | products.yml        |
+      | restaurants.yml     |
+    And the user "bob" is loaded:
+      | email      | bob@coopcycle.org |
+      | password   | 123456            |
+      | telephone  | 0033612345678     |
+    Given the user "bob" has created a cart at restaurant with id "1"
+    And the user "bob" is authenticated
+    When I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And the user "bob" sends a "PUT" request to "/api/orders/1" with body:
+      """
+      {
+        "shippingTimeRange":[
+          "2020-04-09T20:00:00+02:00",
+          "2020-04-09T20:10:00+02:00"
+        ]
+      }
+      """
+    Then the response status code should be 200
+    And the response should be in JSON
+    And the JSON should match:
+      """
+      {
+        "@context":"/api/contexts/Order",
+        "@id":"/api/orders/1",
+        "@type":"http://schema.org/Order",
+        "customer":"/api/customers/1",
+        "restaurant":"/api/restaurants/1",
+        "shippingAddress":null,
+        "shippedAt":"2020-04-09T20:05:00+02:00",
+        "shippingTimeRange":[
+          "2020-04-09T20:00:00+02:00",
+          "2020-04-09T20:10:00+02:00"
+        ],
+        "reusablePackagingEnabled":false,
+        "reusablePackagingPledgeReturn": 0,
+        "notes":null,
+        "items":[],
+        "itemsTotal":0,
+        "total":350,
+        "adjustments":{
+          "delivery":[
+            {
+              "id":@integer@,
+              "label":@string@,
+              "amount":@integer@
+            }
+          ],
+          "delivery_promotion":[],
+          "order_promotion":[],
+          "reusable_packaging":[],
+          "tax":[]
+        },
+        "fulfillmentMethod":"delivery"
+      }
+      """
+
+  Scenario: Clear cart shipping time
+    And the fixtures files are loaded:
+      | sylius_channels.yml |
+      | products.yml        |
+      | restaurants.yml     |
+    And the user "bob" is loaded:
+      | email      | bob@coopcycle.org |
+      | password   | 123456            |
+      | telephone  | 0033612345678     |
+    Given the user "bob" has created a cart at restaurant with id "1"
+    And the user "bob" is authenticated
+    When I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And the user "bob" sends a "PUT" request to "/api/orders/1" with body:
+      """
+      {
+        "shippingTimeRange":null
+      }
+      """
+    Then the response status code should be 200
+    And the response should be in JSON
+    And the JSON should match:
+      """
+      {
+        "@context":"/api/contexts/Order",
+        "@id":"/api/orders/1",
+        "@type":"http://schema.org/Order",
+        "customer":"/api/customers/1",
+        "restaurant":"/api/restaurants/1",
+        "shippingAddress":null,
+        "shippedAt":null,
+        "shippingTimeRange":null,
+        "reusablePackagingEnabled":false,
+        "reusablePackagingPledgeReturn": 0,
+        "notes":null,
+        "items":[],
+        "itemsTotal":0,
+        "total":350,
+        "adjustments":{
+          "delivery":[
+            {
+              "id":@integer@,
+              "label":@string@,
+              "amount":@integer@
+            }
+          ],
+          "delivery_promotion":[],
+          "order_promotion":[],
+          "reusable_packaging":[],
+          "tax":[]
+        },
+        "fulfillmentMethod":"delivery"
+      }
+      """
+
   Scenario: Add promotion coupon (with session)
     Given the fixtures files are loaded:
       | sylius_channels.yml |
@@ -847,7 +963,6 @@ Feature: Carts
         "fulfillmentMethod":"delivery"
       }
       """
-    And the payment amount of order with IRI "/api/orders/1" should be "3050"
 
   Scenario: Update cart items quantity (with session)
     Given the fixtures files are loaded:
@@ -1545,14 +1660,14 @@ Feature: Carts
         "behavior":"asap",
         "preparation":"10 minutes",
         "shipping":"10 minutes",
-        "asap":"2020-10-02T11:45:00+02:00",
+        "asap":"2020-10-02T12:05:00+02:00",
         "range":[
-          "2020-10-02T11:40:00+02:00",
-          "2020-10-02T11:50:00+02:00"
+          "2020-10-02T12:00:00+02:00",
+          "2020-10-02T12:10:00+02:00"
         ],
         "today":true,
         "fast":false,
-        "diff":"40 - 50",
+        "diff":"60 - 70",
         "ranges":@array@,
         "choices":@array@
       }

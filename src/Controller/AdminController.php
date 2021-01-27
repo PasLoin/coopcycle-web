@@ -70,6 +70,7 @@ use AppBundle\Sylius\Promotion\Checker\Rule\IsRestaurantRuleChecker;
 use AppBundle\Utils\MessageLoggingTwigSwiftMailer;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Tools\Pagination\Paginator;
 use Doctrine\ORM\Query\Expr;
 use FOS\UserBundle\Model\UserManagerInterface;
 use FOS\UserBundle\Util\TokenGeneratorInterface;
@@ -137,20 +138,17 @@ class AdminController extends Controller
         return $this->redirectToRoute('admin_dashboard');
     }
 
-    protected function getOrderList(Request $request)
+    protected function getOrderList(Request $request, $showCanceled = false)
     {
-        $showCanceled = false;
-        if ($request->query->has('show_canceled')) {
-            $showCanceled = $request->query->getBoolean('show_canceled');
-        } elseif ($request->cookies->has('__show_canceled')) {
-            $showCanceled = $request->cookies->getBoolean('__show_canceled');
-        }
-
         $qb = $this->get('sylius.repository.order')
             ->createQueryBuilder('o');
         $qb
             ->andWhere('o.state != :state')
-            ->setParameter('state', OrderInterface::STATE_CART);
+            ->setParameter('state', OrderInterface::STATE_CART)
+            ->orderBy('LOWER(o.shippingTimeRange)', 'DESC')
+            ->setFirstResult(($request->query->get('p', 1) - 1) * self::ITEMS_PER_PAGE)
+            ->setMaxResults(self::ITEMS_PER_PAGE)
+            ;
 
         if (!$showCanceled) {
             $qb
@@ -158,21 +156,12 @@ class AdminController extends Controller
                 ->setParameter('state_cancelled', OrderInterface::STATE_CANCELLED);
         }
 
-        $count = (clone $qb)
-            ->select('COUNT(o)')
-            ->getQuery()
-            ->getSingleScalarResult();
+        $paginator = new Paginator($qb->getQuery());
+        $count = count($paginator);
 
+        $orders = $paginator->getIterator();
         $pages  = ceil($count / self::ITEMS_PER_PAGE);
         $page   = $request->query->get('p', 1);
-        $offset = self::ITEMS_PER_PAGE * ($page - 1);
-
-        $orders = (clone $qb)
-            ->setMaxResults(self::ITEMS_PER_PAGE)
-            ->setFirstResult($offset)
-            ->orderBy('LOWER(o.shippingTimeRange)', 'DESC')
-            ->getQuery()
-            ->getResult();
 
         return [ $orders, $pages, $page ];
     }
@@ -334,7 +323,7 @@ class AdminController extends Controller
             'resource_class' => Order::class,
             'operation_type' => 'item',
             'item_operation_name' => 'get',
-            'groups' => ['order_minimal', 'dispatch']
+            'groups' => ['order_minimal']
         ]);
 
         $preparationDelay = $redis->get('foodtech:preparation_delay');
@@ -384,8 +373,8 @@ class AdminController extends Controller
             [
                 PaginatorInterface::DEFAULT_SORT_FIELD_NAME => 'c.id',
                 PaginatorInterface::DEFAULT_SORT_DIRECTION => 'desc',
-                PaginatorInterface::SORT_FIELD_WHITELIST => ['u.username', 'c.id'],
-                PaginatorInterface::FILTER_FIELD_WHITELIST => ['u.roles', 'u.username']
+                PaginatorInterface::SORT_FIELD_ALLOW_LIST => ['u.username', 'c.id'],
+                PaginatorInterface::FILTER_FIELD_ALLOW_LIST => ['u.roles', 'u.username']
             ]
         );
 
@@ -645,9 +634,9 @@ class AdminController extends Controller
             [
                 PaginatorInterface::DEFAULT_SORT_FIELD_NAME => 'd.createdAt',
                 PaginatorInterface::DEFAULT_SORT_DIRECTION => 'desc',
-                PaginatorInterface::SORT_FIELD_WHITELIST => ['d.createdAt'],
+                PaginatorInterface::SORT_FIELD_ALLOW_LIST => ['d.createdAt'],
                 PaginatorInterface::DEFAULT_FILTER_FIELDS => ['s.id', 'r.id'],
-                PaginatorInterface::FILTER_FIELD_WHITELIST => ['s.id', 'r.id']
+                PaginatorInterface::FILTER_FIELD_ALLOW_LIST => ['s.id', 'r.id']
             ]
         );
 
@@ -708,9 +697,9 @@ class AdminController extends Controller
             [
                 PaginatorInterface::DEFAULT_SORT_FIELD_NAME => 't.doneBefore',
                 PaginatorInterface::DEFAULT_SORT_DIRECTION => 'desc',
-                PaginatorInterface::SORT_FIELD_WHITELIST => ['t.doneBefore'],
+                PaginatorInterface::SORT_FIELD_ALLOW_LIST => ['t.doneBefore'],
                 PaginatorInterface::DEFAULT_FILTER_FIELDS => [],
-                PaginatorInterface::FILTER_FIELD_WHITELIST => []
+                PaginatorInterface::FILTER_FIELD_ALLOW_LIST => []
             ]
         );
 

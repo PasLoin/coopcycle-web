@@ -11,7 +11,8 @@ use AppBundle\Service\RoutingInterface;
 use AppBundle\Sylius\Order\OrderInterface;
 use AppBundle\Utils\DateUtils;
 use AppBundle\Utils\OrderTimeHelper;
-use Carbon\Carbon;
+use AppBundle\Utils\OrderTimelineCalculator;
+use AppBundle\Utils\PickupTimeResolver;
 use Symfony\Component\ExpressionLanguage\ExpressionLanguage;
 
 class DeliveryManager
@@ -19,15 +20,18 @@ class DeliveryManager
     private $expressionLanguage;
     private $routing;
     private $orderTimeHelper;
+    private $orderTimelineCalculator;
 
     public function __construct(
         ExpressionLanguage $expressionLanguage,
         RoutingInterface $routing,
-        OrderTimeHelper $orderTimeHelper)
+        OrderTimeHelper $orderTimeHelper,
+        OrderTimelineCalculator $orderTimelineCalculator)
     {
         $this->expressionLanguage = $expressionLanguage;
         $this->routing = $routing;
         $this->orderTimeHelper = $orderTimeHelper;
+        $this->orderTimelineCalculator = $orderTimelineCalculator;
     }
 
     public function getPrice(Delivery $delivery, PricingRuleSet $ruleSet)
@@ -103,9 +107,8 @@ class DeliveryManager
             $dropoffAddress->getGeo()
         );
 
-        $pickupTime = Carbon::instance($dropoffTimeRange->getLower())
-            ->average($dropoffTimeRange->getUpper())
-            ->subSeconds($duration);
+        $timeline = $this->orderTimelineCalculator->calculate($order, $dropoffTimeRange);
+        $pickupTime = $timeline->getPickupExpectedAt();
 
         $pickupTimeRange = DateUtils::dateTimeToTsRange($pickupTime, 5);
 

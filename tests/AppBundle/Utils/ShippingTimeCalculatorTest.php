@@ -31,7 +31,12 @@ class ShippingTimeCalculatorTest extends TestCase
     {
         return [
             [ 600, '10 minutes' ],
-            [ 3950, '1 hours 5 minutes' ],
+            [ 3950, '1 hour 5 minutes 50 seconds' ],
+            [ 435, '7 minutes 15 seconds' ],
+            [ 1, '1 second' ],
+            [ 60, '1 minute' ],
+            // When the time is 0, we use the fallback
+            [ 0, '10 minutes' ],
         ];
     }
 

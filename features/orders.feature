@@ -345,15 +345,15 @@ Feature: Orders
       """
       {
         "preparation":"15 minutes",
-        "shipping":"1 minutes",
-        "asap":"2017-09-02T11:45:00+02:00",
+        "shipping":"1 minute 35 seconds",
+        "asap":"2017-09-02T12:05:00+02:00",
         "range":[
-          "2017-09-02T11:40:00+02:00",
-          "2017-09-02T11:50:00+02:00"
+          "2017-09-02T12:00:00+02:00",
+          "2017-09-02T12:10:00+02:00"
         ],
         "today":true,
         "fast":false,
-        "diff":"40 - 50",
+        "diff":"60 - 70",
         "choices":@array@,
         "ranges":@array@,
         "behavior":@string@
@@ -387,7 +387,7 @@ Feature: Orders
       """
       {
         "preparation":"@string@.matchRegex('/^[0-9]+ minutes$/')",
-        "shipping":"@string@.matchRegex('/^[0-9]+ minutes$/')",
+        "shipping":"10 minutes",
         "asap":"@string@.isDateTime()",
         "range": @array@,
         "today":@boolean@,
@@ -427,8 +427,8 @@ Feature: Orders
       """
       {
         "preparation":"@string@.matchRegex('/^[0-9]+ minutes$/')",
-        "shipping":"@string@.matchRegex('/^[0-9]+ minutes$/')",
-        "asap":"@string@.startsWith('2017-09-04T11:35:00')",
+        "shipping":"10 minutes",
+        "asap":"@string@.startsWith('2017-09-04T12:05:00')",
         "range": @array@,
         "today":@boolean@,
         "fast":@boolean@,
@@ -684,12 +684,15 @@ Feature: Orders
         "notes": null,
         "createdAt":@string@,
         "shippedAt":"@string@.isDateTime()",
-        "shippingTimeRange":["2017-09-02T11:40:00+02:00","2017-09-02T11:50:00+02:00"],
+        "shippingTimeRange":["2017-09-02T12:00:00+02:00","2017-09-02T12:10:00+02:00"],
         "preparationExpectedAt":null,
         "pickupExpectedAt":null,
         "reusablePackagingEnabled": false,
         "reusablePackagingPledgeReturn": 0,
-        "takeaway":false
+        "takeaway":false,
+        "assignedTo":"@string@||@null@",
+        "preparationTime":"@string@||@null@",
+        "shippingTime":"@string@||@null@"
       }
       """
 
