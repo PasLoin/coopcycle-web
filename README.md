@@ -63,12 +63,14 @@ To configure geocoding, create an account on [OpenCage](https://opencagedata.com
 
 ### Run the application
 
-    (Linux) Setup permissions
+#### Pull the Docker containers (optional)
 
-If you are using Linux, you will need to allow the user www-data used by the php docker container to write files to your local disk. You can do this by running the following commands in the directory containing your local clone of the repository:
+We have prebuilt some images and uploaded them to [Docker Hub](https://hub.docker.com/u/coopcycle).
+To avoid building those images locally, you can pull them first.
 
-sudo chown -R $(id -u):82 coopcycle-web
-sudo chmod -R g+w coopcycle-web
+```
+docker-compose pull
+```
 
 #### Start the Docker containers
 
