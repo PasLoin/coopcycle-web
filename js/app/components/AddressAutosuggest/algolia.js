@@ -5,6 +5,10 @@ import algoliasearch from 'algoliasearch/lite'
 import { shuffle } from '@algolia/client-common'
 
 import PoweredByAlgolia from './algolia.svg'
+import { includes } from 'lodash'
+
+let appId
+let apiKey
 
 let search = null
 const getSearch = function() {
@@ -17,26 +21,12 @@ const getSearch = function() {
 
 let aroundLatLng = null
 function getAroundLatLng() {
-  if (null === aroundLatLng) {
-    const el = document.getElementById('algolia-places')
-    if (el) {
-      aroundLatLng = el.dataset.aroundLatLng
-    }
-  }
 
   return aroundLatLng
 }
 
 let addressTemplate = null
 function getAddressTemplate() {
-  if (null === addressTemplate) {
-    const el = document.getElementById('algolia-places')
-    if (el) {
-      addressTemplate = el.dataset.addressTemplate
-    } else {
-      addressTemplate = 'city'
-    }
-  }
 
   return addressTemplate
 }
@@ -66,10 +56,7 @@ export const places = (appId = '', apiKey = '', options) => {
 }
 
 const initSearch = () => {
-  const el = document.getElementById('algolia-places')
-  if (el) {
-    return places(el.dataset.appId, el.dataset.apiKey)
-  }
+  return places(appId, apiKey)
 }
 
 /* Exported to make it testable */
@@ -77,18 +64,22 @@ export const formatAddress = (hit, template) => {
 
   template = template || getAddressTemplate()
 
+  const options = template.split(',')
+  const useCounty = includes(options, 'county')
+  const usePostcode = !includes(options, 'no-postcode')
+
   const parts = [
     hit.locale_names[0]
   ]
 
   if (hit.postcode && hit.postcode[0]) {
-    if (template === 'county') {
-      parts.push(`${hit.postcode[0]} ${hit.county[0]}`)
+    if (useCounty) {
+      parts.push(usePostcode ? `${hit.postcode[0]} ${hit.county[0]}` : hit.county[0])
     } else {
-      parts.push(`${hit.postcode[0]} ${hit.city[0]}`)
+      parts.push(usePostcode ? `${hit.postcode[0]} ${hit.city[0]}` : hit.city[0])
     }
   } else {
-    if (template === 'county') {
+    if (useCounty) {
       parts.push(hit.county[0])
     } else {
       parts.push(hit.city[0])
@@ -124,7 +115,10 @@ const hitToAddress = (hit, value = '') => {
     // which means that all the house numbers of a street will have the same geolocation.
     // However, Places offers house level precision in France
     isPrecise: Object.prototype.hasOwnProperty.call(hit._rankingInfo, 'roadNumberPrecision'),
-    needsGeocoding: Object.prototype.hasOwnProperty.call(hit._rankingInfo, 'roadNumberPrecision') && hit._rankingInfo.roadNumberPrecision === 'centroid',
+    needsGeocoding:
+      (Object.prototype.hasOwnProperty.call(hit._rankingInfo, 'roadNumberPrecision') && hit._rankingInfo.roadNumberPrecision === 'centroid')
+      ||
+      (Object.prototype.hasOwnProperty.call(hit._rankingInfo, 'geoDistance') && hit._rankingInfo.geoDistance > 0),
   }
 }
 
@@ -167,7 +161,7 @@ export const onSuggestionsFetchRequested = function({ value }) {
       hit,
     }))
 
-    this._autocompleteCallback(predictionsAsSuggestions, value)
+    this._autocompleteCallback(predictionsAsSuggestions, value, true)
   })
 }
 
@@ -219,4 +213,11 @@ export const geocode = function (text, country = 'en', language = 'en') {
       }
     }).catch(() => resolve(null))
   })
+}
+
+export const configure = function (options) {
+  appId = options.appId
+  apiKey = options.apiKey
+  aroundLatLng = options.aroundLatLng
+  addressTemplate = options.addressTemplate
 }

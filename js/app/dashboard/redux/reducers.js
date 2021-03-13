@@ -10,7 +10,6 @@ import {
   SELECT_TASKS,
   SET_TASK_LIST_GROUP_MODE,
   SET_GEOLOCATION,
-  SET_OFFLINE,
   OPEN_NEW_TASK_MODAL,
   CLOSE_NEW_TASK_MODAL,
   SET_CURRENT_TASK,
@@ -40,7 +39,24 @@ import {
   CLOSE_IMPORT_MODAL,
   SET_CLUSTERS_ENABLED,
   CLEAR_SELECTED_TASKS,
+  SCAN_POSITIONS,
+  MODIFY_TASK_LIST_REQUEST_SUCCESS,
+  RIGHT_PANEL_MORE_THAN_HALF,
+  RIGHT_PANEL_LESS_THAN_HALF,
+  OPEN_RECURRENCE_RULE_MODAL,
+  CLOSE_RECURRENCE_RULE_MODAL,
+  SET_CURRENT_RECURRENCE_RULE,
+  UPDATE_RECURRENCE_RULE_SUCCESS,
+  UPDATE_RECURRENCE_RULE_REQUEST,
+  DELETE_RECURRENCE_RULE_SUCCESS,
+  UPDATE_RECURRENCE_RULE_ERROR,
 } from './actions'
+
+import {
+  recurrenceRulesAdapter,
+} from './selectors'
+
+import { isOffline } from './utils'
 
 const defaultFilters = {
   showFinishedTasks: true,
@@ -83,6 +99,13 @@ const initialState = {
   uploaderEndpoint: '',
   exampleSpreadsheetUrl: '#',
   clustersEnabled: false,
+  rightPanelSplitDirection: 'vertical',
+  recurrenceRuleModalIsOpen: false,
+  currentRecurrenceRule: null,
+  rrules: recurrenceRulesAdapter.getInitialState(),
+  stores: [],
+  recurrenceRulesLoading: false,
+  recurrenceRulesErrorMessage: '',
 }
 
 const addModalIsOpen = (state = false, action) => {
@@ -144,8 +167,15 @@ const selectedTasks = (state = [], action) => {
     return action.tasks
 
   case CLEAR_SELECTED_TASKS:
+  case MODIFY_TASK_LIST_REQUEST_SUCCESS:
 
-    return []
+    // OPTIMIZATION
+    // Make sure the array if not already empty
+    // before returning a new reference
+    if (state.length > 0) {
+      return []
+    }
+    break
   }
 
   return state
@@ -172,7 +202,8 @@ const jwt = (state = '', action) => {
   }
 }
 
-const positions = (state = [], action) => {
+const combinedPositions = (state = initialState, action) => {
+
   switch (action.type) {
   case SET_GEOLOCATION:
 
@@ -182,42 +213,35 @@ const positions = (state = [], action) => {
       lastSeen: moment(action.timestamp, 'X'),
     }
 
-    const newState = state.slice(0)
-    const index = _.findIndex(newState, position => position.username === action.username)
+    const newPositions = state.positions.slice(0)
+    const index = _.findIndex(newPositions, position => position.username === action.username)
     if (-1 !== index) {
-      newState.splice(index, 1, marker)
+      newPositions.splice(index, 1, marker)
     } else {
-      newState.push(marker)
+      newPositions.push(marker)
     }
 
-    return newState
-
-  default:
-
-    return state
-  }
-}
-
-const offline = (state = [], action) => {
-  let index
-
-  switch (action.type) {
-  case SET_GEOLOCATION:
-
-    index = _.findIndex(state, username => username === action.username)
-    if (-1 === index) {
-
-      return state
+    return {
+      ...state,
+      positions: newPositions,
     }
 
-    return _.filter(state, username => username !== action.username)
+  case SCAN_POSITIONS:
 
-  case SET_OFFLINE:
+    const offline = _.reduce(state.positions, (acc, position) => {
 
-    index = _.findIndex(state, username => username === action.username)
-    if (-1 === index) {
+      if (isOffline(position.lastSeen)) {
+        acc.push(position.username)
+      }
 
-      return state.concat([ action.username ])
+      return acc
+    }, [])
+
+    if (!_.isEqual(offline, state.offline)) {
+      return {
+        ...state,
+        offline,
+      }
     }
 
     break
@@ -460,9 +484,98 @@ const centrifugoToken = (state = initialState.centrifugoToken) => state
 const centrifugoTrackingChannel = (state = initialState.centrifugoTrackingChannel) => state
 const centrifugoEventsChannel = (state = initialState.centrifugoEventsChannel) => state
 
+const rightPanelSplitDirection = (state = initialState.rightPanelSplitDirection, action) => {
+  switch (action.type) {
+  case RIGHT_PANEL_MORE_THAN_HALF:
+
+    return 'horizontal'
+  case RIGHT_PANEL_LESS_THAN_HALF:
+
+    return 'vertical'
+  }
+
+  return state
+}
+
+const recurrenceRuleModalIsOpen = (state = false, action) => {
+  switch(action.type) {
+  case OPEN_RECURRENCE_RULE_MODAL:
+    return true
+  case CLOSE_RECURRENCE_RULE_MODAL:
+    return false
+  case SET_CURRENT_RECURRENCE_RULE:
+
+    if (!!action.recurrenceRule) {
+      return true
+    }
+
+    return false
+  }
+
+  return state
+}
+
+const currentRecurrenceRule = (state = null, action) => {
+  switch(action.type) {
+  case SET_CURRENT_RECURRENCE_RULE:
+
+    return action.recurrenceRule
+  case CLOSE_RECURRENCE_RULE_MODAL:
+    return null
+  }
+
+  return state
+}
+
+const rrules = (state = initialState.rrules, action) => {
+  switch(action.type) {
+  case UPDATE_RECURRENCE_RULE_SUCCESS:
+
+    return recurrenceRulesAdapter.upsertOne(state, action.recurrenceRule)
+  case DELETE_RECURRENCE_RULE_SUCCESS:
+
+    return recurrenceRulesAdapter.removeOne(state, action.recurrenceRule)
+  }
+
+  return state
+}
+
+const stores = (state = initialState.stores) => state
+
+const recurrenceRulesLoading = (state = initialState.recurrenceRulesLoading, action) => {
+  switch(action.type) {
+  case UPDATE_RECURRENCE_RULE_REQUEST:
+
+    return true
+  case UPDATE_RECURRENCE_RULE_SUCCESS:
+  case DELETE_RECURRENCE_RULE_SUCCESS:
+  case UPDATE_RECURRENCE_RULE_ERROR:
+
+    return false
+  }
+
+  return state
+}
+
+const recurrenceRulesErrorMessage = (state = initialState.recurrenceRulesErrorMessage, action) => {
+  switch(action.type) {
+  case UPDATE_RECURRENCE_RULE_REQUEST:
+  case UPDATE_RECURRENCE_RULE_SUCCESS:
+  case DELETE_RECURRENCE_RULE_SUCCESS:
+
+    return ''
+  case UPDATE_RECURRENCE_RULE_ERROR:
+
+    return action.message
+  }
+
+  return state
+}
+
 export default (state = initialState, action) => {
 
   const { filters, isDefaultFilters } = combinedFilters(state, action)
+  const { positions, offline } = combinedPositions(state, action)
 
   return {
     ...state,
@@ -474,8 +587,8 @@ export default (state = initialState, action) => {
     centrifugoToken: centrifugoToken(state.centrifugoToken, action),
     centrifugoTrackingChannel: centrifugoTrackingChannel(state.centrifugoTrackingChannel, action),
     centrifugoEventsChannel: centrifugoEventsChannel(state.centrifugoEventsChannel, action),
-    positions: positions(state.positions, action),
-    offline: offline(state.offline, action),
+    positions,
+    offline,
     taskModalIsOpen: taskModalIsOpen(state.taskModalIsOpen, action),
     currentTask: currentTask(state.currentTask, action),
     isTaskModalLoading: isTaskModalLoading(state.isTaskModalLoading, action),
@@ -491,5 +604,12 @@ export default (state = initialState, action) => {
     imports: imports(state.imports, action),
     importModalIsOpen: importModalIsOpen(state.importModalIsOpen, action),
     clustersEnabled: clustersEnabled(state.clustersEnabled, action),
+    rightPanelSplitDirection: rightPanelSplitDirection(state.rightPanelSplitDirection, action),
+    recurrenceRuleModalIsOpen: recurrenceRuleModalIsOpen(state.recurrenceRuleModalIsOpen, action),
+    currentRecurrenceRule: currentRecurrenceRule(state.currentRecurrenceRule, action),
+    rrules: rrules(state.rrules, action),
+    stores: stores(state.stores, action),
+    recurrenceRulesLoading: recurrenceRulesLoading(state.recurrenceRulesLoading, action),
+    recurrenceRulesErrorMessage: recurrenceRulesErrorMessage(state.recurrenceRulesErrorMessage, action),
   }
 }

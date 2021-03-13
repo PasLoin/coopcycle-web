@@ -37,12 +37,12 @@ class AddressModal extends Component {
         </button>
         <h4 className="text-center">{ this.props.titleText }</h4>
         <AddressAutosuggest
+          id="modal"
           addresses={ this.props.addresses }
           fuseOptions={{ threshold: 0.7, minMatchCharLength: 2 }}
           fuseSearchOptions={{ limit: 3 }}
           autofocus
           address={ '' }
-          geohash={ '' }
           onAddressSelected={ (value, address) => this.props.changeAddress(address) } />
         { this.props.isAddressTooFar && (
           <div className="text-center">

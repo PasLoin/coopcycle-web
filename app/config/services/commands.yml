@@ -80,6 +80,7 @@ services:
       $promotionFactory: '@sylius.factory.promotion'
       $taxCategoryFactory: '@sylius.factory.tax_category'
       $locale: '%env(COOPCYCLE_LOCALE)%'
+      $country: "%country_iso%"
     tags:
       - { name: 'console.command', command: 'coopcycle:setup' }
 
@@ -132,3 +133,18 @@ services:
   AppBundle\Command\ResolveImagineCacheCommand:
     tags:
       - { name: 'console.command', command: 'coopcycle:imagine:cache:resolve' }
+
+  AppBundle\Command\CreateTasksCommand:
+    arguments:
+      $faker: '@nelmio_alice.faker.generator'
+      $country: "%country_iso%"
+      $defaultLocale: "%env(COOPCYCLE_LOCALE)%"
+    tags:
+      - { name: 'console.command', command: 'coopcycle:tasks:create' }
+
+  AppBundle\Command\CopyTranslationCommand:
+    arguments:
+      $jsTranslationsDir: "%kernel.project_dir%/js/app/i18n/locales"
+      $localeRegex: "%locale_regex%"
+    tags:
+      - { name: 'console.command', command: 'coopcycle:translations:copy' }

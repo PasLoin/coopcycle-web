@@ -5,6 +5,7 @@ namespace AppBundle\Controller;
 use ApiPlatform\Core\Api\IriConverterInterface;
 use AppBundle\Controller\Utils\OrderConfirmTrait;
 use AppBundle\DataType\TsRange;
+use AppBundle\Edenred\Client as EdenredClient;
 use AppBundle\Embed\Context as EmbedContext;
 use AppBundle\Entity\Address;
 use AppBundle\Entity\Delivery;
@@ -19,7 +20,7 @@ use AppBundle\Service\SettingsManager;
 use AppBundle\Service\StripeManager;
 use AppBundle\Sylius\Order\OrderInterface;
 use AppBundle\Utils\OrderEventCollection;
-use Carbon\Carbon;
+use AppBundle\Validator\Constraints\ShippingAddress as ShippingAddressConstraint;
 use Doctrine\ORM\EntityManagerInterface;
 use Hashids\Hashids;
 use League\Flysystem\Filesystem;
@@ -30,14 +31,16 @@ use Sylius\Component\Order\Context\CartContextInterface;
 use Sylius\Component\Order\Modifier\OrderModifierInterface;
 use Sylius\Component\Order\Processor\OrderProcessorInterface;
 use Sylius\Component\Payment\Model\PaymentInterface;
+use Sylius\Component\Payment\Repository\PaymentMethodRepositoryInterface;
 use Sylius\Component\Resource\Factory\FactoryInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Session\Flash\FlashBagInterface;
 use Symfony\Component\HttpFoundation\Session\SessionInterface;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Routing\Annotation\Route;
-use Symfony\Component\Translation\TranslatorInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 class OrderController extends AbstractController
@@ -45,18 +48,15 @@ class OrderController extends AbstractController
     use OrderConfirmTrait;
 
     private $objectManager;
-    private $logger;
 
     public function __construct(
         EntityManagerInterface $objectManager,
         FactoryInterface $orderFactory,
-        string $sessionKeyName,
-        LoggerInterface $logger)
+        string $sessionKeyName)
     {
         $this->objectManager = $objectManager;
         $this->orderFactory = $orderFactory;
         $this->sessionKeyName = $sessionKeyName;
-        $this->logger = $logger;
     }
 
     /**
@@ -82,6 +82,19 @@ class OrderController extends AbstractController
         if (null === $order || null === $order->getVendor()) {
 
             return $this->redirectToRoute('homepage');
+        }
+
+        $errors = $validator->validate($order);
+
+        // @see https://github.com/coopcycle/coopcycle-web/issues/2069
+        if (count($errors->findByCodes(ShippingAddressConstraint::ADDRESS_NOT_SET)) > 0) {
+
+            $vendor = $order->getVendor();
+            if ($vendor->isHub()) {
+                return $this->redirectToRoute('hub', ['id' => $vendor->getHub()->getId()]);
+            }
+
+            return $this->redirectToRoute('restaurant', ['id' => $vendor->getRestaurant()->getId()]);
         }
 
         $user = $this->getUser();
@@ -277,6 +290,92 @@ class OrderController extends AbstractController
     }
 
     /**
+     * @Route("/order/payment/{hashId}/method", name="order_payment_select_method", methods={"POST"})
+     */
+    public function selectPaymentMethodAction($hashId, Request $request,
+        OrderManager $orderManager,
+        CartContextInterface $cartContext,
+        PaymentMethodRepositoryInterface $paymentMethodRepository,
+        EntityManagerInterface $entityManager,
+        EdenredClient $edenredClient)
+    {
+        $order = $cartContext->getCart();
+
+        if (null === $order || null === $order->getVendor()) {
+
+            return new JsonResponse(['message' => 'No cart found in context'], 404);
+        }
+
+        $hashids = new Hashids($this->getParameter('secret'), 8);
+
+        $decoded = $hashids->decode($hashId);
+
+        if (count($decoded) !== 1) {
+
+            return new JsonResponse(['message' => 'Hashid could not be decoded'], 400);
+        }
+
+        $paymentId = current($decoded);
+        $payment = $entityManager->getRepository(PaymentInterface::class)->find($paymentId);
+
+        if (null === $payment) {
+
+            return new JsonResponse(['message' => 'Payment does not exist'], 404);
+        }
+
+        if (!$order->hasPayment($payment)) {
+
+            return new JsonResponse(['message' => 'Payment does not belong to current cart'], 400);
+        }
+
+        $content = $request->getContent();
+
+        $data = [];
+
+        if (!empty($content)) {
+            $data = json_decode($content, true);
+        }
+
+        if (!isset($data['method'])) {
+
+            return new JsonResponse(['message' => 'No payment method found in request'], 400);
+        }
+
+        $code = strtoupper($data['method']);
+
+        $paymentMethod = $paymentMethodRepository->findOneByCode($code);
+
+        if (null === $paymentMethod) {
+
+            return new JsonResponse(['message' => 'Payment method does not exist'], 404);
+        }
+
+        if (!$paymentMethod->isEnabled() && !$this->getParameter('kernel.debug')) {
+
+            return new JsonResponse(['message' => 'Payment method is not enabled'], 400);
+        }
+
+        $payment->setMethod($paymentMethod);
+
+        switch ($code) {
+            case 'EDENRED+CARD':
+            case 'EDENRED':
+                $breakdown = $edenredClient->splitAmounts($order);
+                $payment->setAmountBreakdown($breakdown['edenred'], $breakdown['card']);
+                break;
+            default:
+                $payment->clearAmountBreakdown();
+                break;
+        }
+
+        $entityManager->flush();
+
+        return new JsonResponse([
+            'amount_breakdown' => $payment->getAmountBreakdown(),
+        ]);
+    }
+
+    /**
      * @Route("/order/confirm/{hashid}", name="order_confirm")
      */
     public function confirmAction($hashid,
@@ -286,8 +385,7 @@ class OrderController extends AbstractController
         IriConverterInterface $iriConverter,
         SessionInterface $session,
         Filesystem $assetsFilesystem,
-        CentrifugoClient $centrifugoClient,
-        Request $request)
+        CentrifugoClient $centrifugoClient)
     {
         $hashids = new Hashids($this->getParameter('secret'), 16);
 
@@ -363,8 +461,7 @@ class OrderController extends AbstractController
         OrderRepository $orderRepository,
         SessionInterface $session,
         OrderProcessorInterface $orderProcessor,
-        OrderModifierInterface $orderModifier,
-        Request $request)
+        OrderModifierInterface $orderModifier)
     {
         $hashids = new Hashids($this->getParameter('secret'), 16);
 

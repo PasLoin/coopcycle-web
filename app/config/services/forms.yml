@@ -8,9 +8,7 @@ services:
     arguments:
       $countryCode: '%country_iso%'
 
-  AppBundle\Utils\DeliverySpreadsheetParser:
-    arguments:
-      $countryCode: "%country_iso%"
+  AppBundle\Spreadsheet\DeliverySpreadsheetParser: ~
 
   AppBundle\Spreadsheet\ProductSpreadsheetParser: ~
 
@@ -128,8 +126,6 @@ services:
     tags: [ form.type ]
 
   AppBundle\Form\ApiAppType:
-    arguments:
-      - '@Trikoder\Bundle\OAuth2Bundle\Manager\ClientManagerInterface'
     tags: [ form.type ]
 
   AppBundle\Form\MaintenanceType:

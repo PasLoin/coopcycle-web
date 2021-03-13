@@ -14,7 +14,6 @@ use AppBundle\Taxonomy\CuisineProvider;
 use Cocur\Slugify\SlugifyInterface;
 use Doctrine\Persistence\ManagerRegistry;
 use Doctrine\ORM\EntityManagerInterface;
-use FOS\UserBundle\Model\UserInterface;
 use Psr\Log\LogLevel;
 use Stripe;
 use Sylius\Component\Product\Factory\ProductFactoryInterface;
@@ -157,7 +156,8 @@ class SetupCommand extends Command
         TranslatorInterface $translator,
         SettingsManager $settingsManager,
         UrlGeneratorInterface $urlGenerator,
-        string $locale)
+        string $locale,
+        string $country)
     {
         $this->productRepository = $productRepository;
         $this->productFactory = $productFactory;
@@ -198,6 +198,7 @@ class SetupCommand extends Command
         $this->urlGenerator = $urlGenerator;
 
         $this->locale = $locale;
+        $this->country = $country;
 
         parent::__construct();
     }
@@ -309,28 +310,53 @@ class SetupCommand extends Command
 
     private function createSyliusPaymentMethods(OutputInterface $output)
     {
-        $paymentMethod = $this->paymentMethodRepository->findOneByCode('STRIPE');
+        $methods = [
+            [
+                'code' => 'CARD',
+                'name' => 'Card',
+            ],
+            [
+                'code' => 'GIROPAY',
+                'name' => 'Giropay',
+                'countries' => ['de'],
+            ],
+            [
+                'code' => 'EDENRED',
+                'name' => 'Edenred',
+                'countries' => ['fr'],
+            ],
+            [
+                'code' => 'EDENRED+CARD',
+                'name' => 'Edenred + Card',
+                'countries' => ['fr'],
+            ],
+        ];
 
-        if (null === $paymentMethod) {
+        foreach ($methods as $method) {
 
-            $paymentMethod = new PaymentMethod();
+            $paymentMethod = $this->paymentMethodRepository->findOneByCode($method['code']);
 
-            $paymentMethod->setCode('STRIPE');
-            $paymentMethod->enable();
+            if (null === $paymentMethod) {
 
-            foreach ($this->locales as $locale) {
+                $paymentMethod = new PaymentMethod();
+                $paymentMethod->setCode($method['code']);
+                $paymentMethod->setEnabled(
+                    isset($method['countries']) ? in_array($this->country, $method['countries']) : true
+                );
 
-                $paymentMethod->setFallbackLocale($locale);
-                $translation = $paymentMethod->getTranslation($locale);
+                foreach ($this->locales as $locale) {
 
-                $translation->setName('Stripe');
+                    $paymentMethod->setFallbackLocale($locale);
+                    $translation = $paymentMethod->getTranslation($locale);
+
+                    $translation->setName($method['name']);
+                }
+
+                $this->paymentMethodRepository->add($paymentMethod);
+                $output->writeln(sprintf('Creating payment method « %s »', $method['name']));
+            } else {
+                $output->writeln(sprintf('Payment method « %s » already exists', $method['name']));
             }
-
-            $this->paymentMethodRepository->add($paymentMethod);
-
-            $output->writeln('Creating payment method « Stripe »');
-        } else {
-            $output->writeln('Payment method « Stripe » already exists');
         }
     }
 

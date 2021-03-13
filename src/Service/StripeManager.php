@@ -6,26 +6,19 @@ use Hashids\Hashids;
 use Psr\Log\LoggerInterface;
 use Stripe;
 use Sylius\Component\Payment\Model\PaymentInterface;
-use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 class StripeManager
 {
     private $settingsManager;
-    private $urlGenerator;
-    private $secret;
     private $logger;
 
     const STRIPE_API_VERSION = '2019-09-09';
 
     public function __construct(
         SettingsManager $settingsManager,
-        UrlGeneratorInterface $urlGenerator,
-        string $secret,
         LoggerInterface $logger)
     {
         $this->settingsManager = $settingsManager;
-        $this->urlGenerator = $urlGenerator;
-        $this->secret = $secret;
         $this->logger = $logger;
     }
 
@@ -41,6 +34,10 @@ class StripeManager
 
         $vendor = $order->getVendor();
         if (null === $vendor || $vendor->isHub()) {
+            return;
+        }
+
+        if ($payment->isEdenredWithCard()) {
             return;
         }
 
@@ -70,6 +67,10 @@ class StripeManager
             return $options;
         }
 
+        if ($payment->isEdenredWithCard()) {
+            return $options;
+        }
+
         $restaurant = $order->getRestaurant();
 
         $livemode = $this->settingsManager->isStripeLivemode();
@@ -88,6 +89,11 @@ class StripeManager
 
         $restaurant = $order->getRestaurant();
         if (null === $restaurant) {
+
+            return $payload;
+        }
+
+        if ($payment->isEdenredWithCard()) {
 
             return $payload;
         }
@@ -126,7 +132,7 @@ class StripeManager
         $order = $payment->getOrder();
 
         $payload = [
-            'amount' => $payment->getAmount(),
+            'amount' => $payment->getAmountForMethod('CARD'),
             'currency' => strtolower($payment->getCurrencyCode()),
             'description' => sprintf('Order %s', $order->getNumber()),
             'payment_method' => $payment->getPaymentMethod(),
@@ -147,9 +153,7 @@ class StripeManager
             sprintf('Order #%d | StripeManager::createIntent | %s', $order->getId(), json_encode($payload))
         );
 
-        $intent = Stripe\PaymentIntent::create($payload, $stripeOptions);
-
-        return $intent;
+        return Stripe\PaymentIntent::create($payload, $stripeOptions);
     }
 
     /**
@@ -182,9 +186,7 @@ class StripeManager
             sprintf('Order #%d | StripeManager::createGiropayIntent | %s', $order->getId(), json_encode($payload))
         );
 
-        $intent = Stripe\PaymentIntent::create($payload, $stripeOptions);
-
-        return $intent;
+        return Stripe\PaymentIntent::create($payload, $stripeOptions);
     }
 
     /**
@@ -217,32 +219,7 @@ class StripeManager
             return $stripeToken;
         }
 
-        if ($source = $payment->getSource()) {
-
-            return $source;
-        }
-
         throw new \Exception(sprintf('No Stripe source found in payment #%d', $payment->getId()));
-    }
-
-    public function shouldCapture(PaymentInterface $payment): bool
-    {
-        if ($sourceId = $payment->getSource()) {
-
-            $source =
-                Stripe\Source::retrieve($sourceId, $this->getStripeOptions($payment));
-
-            // @see https://stripe.com/docs/api/sources/object#source_object-type
-
-            return in_array($source->type, [
-                'giropay',
-                // We need to add this for unit tests
-                // because stripe-mock always returns this type
-                'ach_credit_transfer',
-            ]);
-        }
-
-        return false;
     }
 
     /**
@@ -264,7 +241,7 @@ class StripeManager
             // When false, the charge issues an authorization (or pre-authorization),
             // and will need to be captured later.
             // Uncaptured charges expire in seven days.
-            'capture' => $this->shouldCapture($payment),
+            'capture' => false,
         ];
 
         $stripeOptions = [];

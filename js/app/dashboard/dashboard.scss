@@ -51,6 +51,7 @@ html, body {
 
   &__map-container {
     flex: 1;
+    width: 100%;
   }
 
   &__toolbar-container {
@@ -79,8 +80,6 @@ html, body {
   &__panel {
     display: flex;
     flex-direction: column;
-    flex: 1;
-    max-height: 50%;
     > h4 {
       padding: 15px;
       margin: 0;
@@ -133,10 +132,6 @@ html, body {
 
   }
 
-  &__map {
-    flex: 7.5;
-  }
-
   &__date {
     padding-left: 15px;
     padding-right: 15px;
@@ -177,7 +172,6 @@ html, body {
   &__aside {
     overflow: scroll;
 
-    flex: 2.5;
     flex-direction: column;
 
     min-width: 275px;
@@ -188,7 +182,6 @@ html, body {
     &-container {
       display: flex;
       flex: 1;
-      flex-direction: column;
       max-height: 100%;
     }
   }
@@ -209,6 +202,9 @@ html, body {
 
   &--cancelled {
     opacity: 0.5;
+  }
+  &.text-info:hover {
+    color: lighten($state-info-text, 10%);
   }
   &:hover {
     color: $gray-light;
@@ -236,6 +232,10 @@ html, body {
   }
   .dashboard__panel__heading__link {
     flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-right: 15px;
   }
 }
 
@@ -353,14 +353,15 @@ html, body {
 
 .ReactModal__Content--filters {
   padding: 15px;
+  max-height: calc(100vh - 30px);
   .dashboard {
     &__modal-filters {
       &__tabpane {
         min-height: 150px;
-        padding: 0 15px;
         display: flex;
         flex-direction: column;
         justify-content: center;
+        padding-top: 15px;
       }
       &__courier {
         padding: 5px 0;
@@ -373,6 +374,12 @@ html, body {
 
 .ReactModal__Content--settings {
   padding: 15px;
+}
+
+.ReactModal__Content--recurrence {
+  min-width: 50%;
+  max-height: calc(100vh - 30px);
+  padding: 0;
 }
 
 .ReactModal__Content--import {
@@ -485,4 +492,38 @@ $pulse-color: #2ECC40;
 
 .react-phone-number-input__input {
   border: 1px solid #ccc;
+}
+
+.task-dragging-number {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  background-color: #e67e22;
+  color: white;
+  height: 20px;
+  width: 20px;
+  border-radius: 50%;
+  text-align: center;
+  & > span {
+    line-height: 20px;
+    font-weight: 700;
+  }
+}
+
+// https://github.com/nathancahill/split/tree/master/packages/splitjs#css
+.gutter {
+  background-color: #eee;
+
+  background-repeat: no-repeat;
+  background-position: 50%;
+}
+
+.gutter.gutter-horizontal {
+  background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAeCAYAAADkftS9AAAAIklEQVQoU2M4c+bMfxAGAgYYmwGrIIiDjrELjpo5aiZeMwF+yNnOs5KSvgAAAABJRU5ErkJggg==');
+  cursor: col-resize;
+}
+
+.gutter.gutter-vertical {
+  background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAFAQMAAABo7865AAAABlBMVEVHcEzMzMzyAv2sAAAAAXRSTlMAQObYZgAAABBJREFUeF5jOAMEEAIEEFwAn3kMwcB6I2AAAAAASUVORK5CYII=');
+  cursor: row-resize;
 }

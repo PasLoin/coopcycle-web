@@ -50,7 +50,7 @@
         <cascade-persist/>
       </cascade>
       <join-columns>
-        <join-column name="address_id" referenced-column-name="id"/>
+        <join-column name="address_id" referenced-column-name="id" nullable="false"/>
       </join-columns>
     </many-to-one>
     <many-to-one field="group" target-entity="AppBundle\Entity\Task\Group" inversed-by="tasks">
@@ -69,6 +69,11 @@
     <many-to-one field="organization" target-entity="AppBundle\Entity\Organization">
       <join-columns>
         <join-column name="organization_id" referenced-column-name="id" on-delete="SET NULL" />
+      </join-columns>
+    </many-to-one>
+    <many-to-one field="recurrenceRule" target-entity="AppBundle\Entity\Task\RecurrenceRule">
+      <join-columns>
+        <join-column name="rrule_id" referenced-column-name="id" nullable="true" on-delete="SET NULL" />
       </join-columns>
     </many-to-one>
     <entity-listeners>

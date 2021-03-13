@@ -36,6 +36,7 @@ use AppBundle\Form\AttachToOrganizationType;
 use AppBundle\Form\ApiAppType;
 use AppBundle\Form\BannerType;
 use AppBundle\Form\CustomizeType;
+use AppBundle\Form\DataExportType;
 use AppBundle\Form\DeliveryImportType;
 use AppBundle\Form\EmbedSettingsType;
 use AppBundle\Form\GeoJSONUploadType;
@@ -55,19 +56,20 @@ use AppBundle\Form\Sylius\Promotion\CreditNoteType;
 use AppBundle\Form\TimeSlotType;
 use AppBundle\Form\UpdateProfileType;
 use AppBundle\Form\ZoneCollectionType;
+use AppBundle\Mailer\FOSUserBundleMailer;
 use AppBundle\Service\ActivityManager;
 use AppBundle\Service\DeliveryManager;
 use AppBundle\Service\EmailManager;
 use AppBundle\Service\OrderManager;
 use AppBundle\Service\SettingsManager;
 use AppBundle\Service\TagManager;
+use AppBundle\Spreadsheet\DeliveryDataExporter;
 use AppBundle\Sylius\Order\OrderInterface;
 use AppBundle\Sylius\Order\OrderFactory;
 use AppBundle\Sylius\Promotion\Action\FixedDiscountPromotionActionCommand;
 use AppBundle\Sylius\Promotion\Action\PercentageDiscountPromotionActionCommand;
 use AppBundle\Sylius\Promotion\Checker\Rule\IsCustomerRuleChecker;
 use AppBundle\Sylius\Promotion\Checker\Rule\IsRestaurantRuleChecker;
-use AppBundle\Utils\MessageLoggingTwigSwiftMailer;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Tools\Pagination\Paginator;
@@ -75,14 +77,21 @@ use Doctrine\ORM\Query\Expr;
 use FOS\UserBundle\Model\UserManagerInterface;
 use FOS\UserBundle\Util\TokenGeneratorInterface;
 use FOS\UserBundle\Util\CanonicalizerInterface;
+use GuzzleHttp\Client as HttpClient;
 use Knp\Component\Pager\PaginatorInterface;
 use Ramsey\Uuid\Uuid;
 use Redis;
 use Sylius\Bundle\OrderBundle\NumberAssigner\OrderNumberAssignerInterface;
 use Sylius\Bundle\PromotionBundle\Form\Type\PromotionCouponType;
+use Sylius\Component\Order\Repository\OrderRepositoryInterface;
+use Sylius\Component\Promotion\Factory\PromotionCouponFactoryInterface;
 use Sylius\Component\Promotion\Model\PromotionAction;
+use Sylius\Component\Promotion\Repository\PromotionCouponRepositoryInterface;
+use Sylius\Component\Promotion\Repository\PromotionRepositoryInterface;
+use Sylius\Component\Resource\Factory\FactoryInterface;
 use Sylius\Component\Taxation\Resolver\TaxRateResolverInterface;
-use Symfony\Bundle\FrameworkBundle\Controller\Controller;
+use Sylius\Component\Taxation\Repository\TaxCategoryRepositoryInterface;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Form\Extension\Core\Type\EmailType;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -90,10 +99,11 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
-class AdminController extends Controller
+class AdminController extends AbstractController
 {
     const ITEMS_PER_PAGE = 20;
 
@@ -130,17 +140,36 @@ class AdminController extends Controller
         ];
     }
 
+    public function __construct(
+        OrderRepositoryInterface $orderRepository,
+        TranslatorInterface $translator,
+        EntityManagerInterface $entityManager,
+        PromotionCouponRepositoryInterface $promotionCouponRepository,
+        FactoryInterface $promotionRuleFactory,
+        FactoryInterface $promotionFactory,
+        HttpClient $browserlessClient
+    )
+    {
+        $this->orderRepository = $orderRepository;
+        $this->translator = $translator;
+        $this->entityManager = $entityManager;
+        $this->promotionCouponRepository = $promotionCouponRepository;
+        $this->promotionRuleFactory = $promotionRuleFactory;
+        $this->promotionFactory = $promotionFactory;
+        $this->browserlessClient = $browserlessClient;
+    }
+
     /**
      * @Route("/admin", name="admin_index")
      */
-    public function indexAction(Request $request)
+    public function indexAction()
     {
         return $this->redirectToRoute('admin_dashboard');
     }
 
     protected function getOrderList(Request $request, $showCanceled = false)
     {
-        $qb = $this->get('sylius.repository.order')
+        $qb = $this->orderRepository
             ->createQueryBuilder('o');
         $qb
             ->andWhere('o.state != :state')
@@ -169,8 +198,10 @@ class AdminController extends Controller
     /**
      * @Route("/admin/orders/search", name="admin_orders_search")
      */
-    public function searchOrdersAction(Request $request,
-        OrderRepository $orderRepository)
+    public function searchOrdersAction(
+        Request $request,
+        OrderRepository $orderRepository
+    )
     {
         $results = $orderRepository->search($request->query->get('q'));
 
@@ -178,7 +209,8 @@ class AdminController extends Controller
         foreach ($results as $order) {
             $data[] = [
                 'id' => $order->getId(),
-                'name' => sprintf('%s (%s)',
+                'name' => sprintf(
+                    '%s (%s)',
                     $order->getNumber(),
                     $order->getCustomer()->getEmailCanonical()
                 ),
@@ -192,12 +224,15 @@ class AdminController extends Controller
     /**
      * @Route("/admin/orders/{id}", name="admin_order")
      */
-    public function orderAction($id, Request $request,
+    public function orderAction(
+        $id,
+        Request $request,
         OrderManager $orderManager,
         DeliveryManager $deliveryManager,
-        EmailManager $emailManager)
+        EmailManager $emailManager
+    )
     {
-        $order = $this->container->get('sylius.repository.order')->find($id);
+        $order = $this->orderRepository->find($id);
 
         if (!$order) {
             throw $this->createNotFoundException(sprintf('Order #%d does not exist', $id));
@@ -210,7 +245,6 @@ class AdminController extends Controller
         $emailForm->handleRequest($request);
 
         if ($emailForm->isSubmitted() && $emailForm->isValid()) {
-
             $email = $emailForm->get('email')->getData();
 
             $message = $emailManager->createOrderPaymentMessage($order);
@@ -219,7 +253,7 @@ class AdminController extends Controller
 
             $this->addFlash(
                 'notice',
-                $this->get('translator')->trans('orders.payment_link.sent')
+                $this->translator->trans('orders.payment_link.sent')
             );
 
             return $this->redirectToRoute('admin_order', ['id' => $id]);
@@ -231,14 +265,12 @@ class AdminController extends Controller
 
         foreach ($form->get('payments') as $paymentForm) {
             if ($paymentForm->isSubmitted() && $paymentForm->isValid()) {
-
                 $hasClickedRefund =
                     $paymentForm->getClickedButton() && 'refund' === $paymentForm->getClickedButton()->getName();
 
                 $hasExpectedFields = $paymentForm->has('amount');
 
                 if ($hasClickedRefund && $hasExpectedFields) {
-
                     $payment = $paymentForm->getData();
                     $amount = $paymentForm->get('amount')->getData();
                     $liableParty = $paymentForm->get('liable')->getData();
@@ -246,11 +278,11 @@ class AdminController extends Controller
 
                     $orderManager->refundPayment($payment, $amount, $liableParty, $comments);
 
-                    $this->get('sylius.manager.order')->flush();
+                    $this->entityManager->flush();
 
                     $this->addFlash(
                         'notice',
-                        $this->get('translator')->trans('orders.payment_refunded')
+                        $this->translator->trans('orders.payment_refunded')
                     );
 
                     return $this->redirectToRoute('admin_order', ['id' => $id]);
@@ -260,7 +292,6 @@ class AdminController extends Controller
 
         if ($form->isSubmitted() && $form->isValid()) {
             if ($form->getClickedButton()) {
-
                 if ('accept' === $form->getClickedButton()->getName()) {
                     $orderManager->accept($order);
                 }
@@ -281,7 +312,7 @@ class AdminController extends Controller
                     $orderManager->cancel($order);
                 }
 
-                $this->get('sylius.manager.order')->flush();
+                $this->entityManager->flush();
 
                 return $this->redirectToRoute('admin_orders');
             }
@@ -307,7 +338,6 @@ class AdminController extends Controller
         if ($request->query->has('order')) {
             $order = $request->query->get('order');
             if (is_numeric($order)) {
-
                 return $this->redirectToRoute($request->attributes->get('_route'), [
                     'date' => $date,
                     'order' => $iriConverter->getItemIriFromResourceClass(Order::class, [$order])
@@ -317,7 +347,7 @@ class AdminController extends Controller
 
         $date = new \DateTime($date);
 
-        $orders = $this->get('sylius.repository.order')->findByDate($date);
+        $orders = $this->orderRepository->findByDate($date);
 
         $ordersNormalized = $this->get('serializer')->normalize($orders, 'jsonld', [
             'resource_class' => Order::class,
@@ -358,7 +388,7 @@ class AdminController extends Controller
     /**
      * @Route("/admin/users", name="admin_users")
      */
-    public function usersAction(Request $request)
+    public function usersAction(Request $request, PaginatorInterface $paginator)
     {
         $qb = $this->getDoctrine()
             ->getRepository(Customer::class)
@@ -366,7 +396,7 @@ class AdminController extends Controller
 
         $qb->leftJoin(User::class, 'u', Expr\Join::WITH, 'c.id = u.customer');
 
-        $customers = $this->get('knp_paginator')->paginate(
+        $customers = $paginator->paginate(
             $qb,
             $request->query->getInt('page', 1),
             self::ITEMS_PER_PAGE,
@@ -381,10 +411,9 @@ class AdminController extends Controller
         $attributes = [];
 
         foreach ($customers as $customer) {
-
             $key = $customer->getEmailCanonical();
 
-            $qb = $this->get('sylius.repository.order')->createQueryBuilder('o');
+            $qb = $this->orderRepository->createQueryBuilder('o');
             $qb->andWhere('o.customer = :customer');
             $qb->andWhere('o.state != :state');
             $qb->setParameter('customer', $customer);
@@ -394,7 +423,7 @@ class AdminController extends Controller
 
             $attributes[$key]['orders_count'] = count($res);
 
-            $qb = $this->get('sylius.repository.order')->createQueryBuilder('o');
+            $qb = $this->orderRepository->createQueryBuilder('o');
             $qb->andWhere('o.customer = :customer');
             $qb->andWhere('o.state != :state');
             $qb->setParameter('customer', $customer);
@@ -416,17 +445,18 @@ class AdminController extends Controller
     /**
      * @Route("/admin/users/invite", name="admin_users_invite")
      */
-    public function inviteUserAction(Request $request,
+    public function inviteUserAction(
+        Request $request,
         EmailManager $emailManager,
         TokenGeneratorInterface $tokenGenerator,
         EntityManagerInterface $objectManager,
-        CanonicalizerInterface $canonicalizer)
+        CanonicalizerInterface $canonicalizer
+    )
     {
         $form = $this->createForm(InviteUserType::class);
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
-
             $invitation = $form->getData();
 
             $roles = $form->get('roles')->getData();
@@ -466,7 +496,7 @@ class AdminController extends Controller
 
             $this->addFlash(
                 'notice',
-                $this->get('translator')->trans('basics.send_invitation.confirm')
+                $this->translator->trans('basics.send_invitation.confirm')
             );
 
             return $this->redirectToRoute('admin_users');
@@ -507,7 +537,7 @@ class AdminController extends Controller
         // Roles that can be edited by admin
         $editableRoles = ['ROLE_ADMIN', 'ROLE_COURIER', 'ROLE_RESTAURANT', 'ROLE_STORE'];
 
-        $originalRoles = array_filter($user->getRoles(), function($role) use ($editableRoles) {
+        $originalRoles = array_filter($user->getRoles(), function ($role) use ($editableRoles) {
             return in_array($role, $editableRoles);
         });
 
@@ -520,7 +550,6 @@ class AdminController extends Controller
         $editForm->handleRequest($request);
 
         if ($editForm->isSubmitted() && $editForm->isValid()) {
-
             $user = $editForm->getData();
 
             $roles = $editForm->get('roles')->getData();
@@ -541,7 +570,7 @@ class AdminController extends Controller
 
             $this->addFlash(
                 'notice',
-                $this->get('translator')->trans('global.changesSaved')
+                $this->translator->trans('global.changesSaved')
             );
 
             return $this->redirectToRoute('admin_user_edit', ['username' => $user->getUsername()]);
@@ -591,7 +620,7 @@ class AdminController extends Controller
     /**
      * @Route("/admin/deliveries", name="admin_deliveries")
      */
-    public function deliveriesAction(Request $request, TranslatorInterface $translator)
+    public function deliveriesAction(Request $request, DeliveryDataExporter $dataExporter, PaginatorInterface $paginator)
     {
         $deliveryImportForm = $this->createForm(DeliveryImportType::class, null, [
             'with_store' => true
@@ -599,7 +628,6 @@ class AdminController extends Controller
 
         $deliveryImportForm->handleRequest($request);
         if ($deliveryImportForm->isSubmitted() && $deliveryImportForm->isValid()) {
-
             $store = $deliveryImportForm->get('store')->getData();
 
             $deliveries = $deliveryImportForm->getData();
@@ -611,10 +639,34 @@ class AdminController extends Controller
 
             $this->addFlash(
                 'notice',
-                $translator->trans('delivery.import.success_message', ['%count%' => count($deliveries)])
+                $this->translator->trans('delivery.import.success_message', ['%count%' => count($deliveries)])
             );
 
             return $this->redirectToRoute('admin_deliveries');
+        }
+
+        $dataExportForm = $this->createForm(DataExportType::class, null, [
+            'data_exporter' => $dataExporter
+        ]);
+
+        $dataExportForm->handleRequest($request);
+        if ($dataExportForm->isSubmitted() && $dataExportForm->isValid()) {
+            $data = $dataExportForm->getData();
+
+            $start = $dataExportForm->get('start')->getData();
+            $end = $dataExportForm->get('end')->getData();
+
+            $response = new Response($data['csv']);
+
+            $response->headers->add(['Content-Type' => 'text/csv']);
+            $response->headers->add([
+                'Content-Disposition' => $response->headers->makeDisposition(
+                    ResponseHeaderBag::DISPOSITION_ATTACHMENT,
+                    sprintf('deliveries-%s-%s.csv', $start->format('Y-m-d'), $end->format('Y-m-d'))
+                )
+            ]);
+
+            return $response;
         }
 
         $qb = $this->getDoctrine()
@@ -627,7 +679,7 @@ class AdminController extends Controller
         $qb->leftJoin(Vendor::class, 'v', Expr\Join::WITH, 'o.vendor = v.id');
         $qb->leftJoin(LocalBusiness::class, 'r', Expr\Join::WITH, 'v.restaurant = r.id');
 
-        $deliveries = $this->get('knp_paginator')->paginate(
+        $deliveries = $paginator->paginate(
             $qb,
             $request->query->getInt('page', 1),
             self::ITEMS_PER_PAGE,
@@ -645,6 +697,7 @@ class AdminController extends Controller
             'routes' => $this->getDeliveryRoutes(),
             'stores' => $this->getDoctrine()->getRepository(Store::class)->findBy([], ['name' => 'ASC']),
             'delivery_import_form' => $deliveryImportForm->createView(),
+            'delivery_export_form' => $dataExportForm->createView(),
         ]);
     }
 
@@ -662,14 +715,13 @@ class AdminController extends Controller
     /**
      * @Route("/admin/tasks", name="admin_tasks")
      */
-    public function tasksAction(Request $request, TranslatorInterface $translator)
+    public function tasksAction(Request $request, PaginatorInterface $paginator)
     {
         $form = $this->createForm(AttachToOrganizationType::class);
 
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
-
             $tasks = $form->get('tasks')->getData();
             $store = $form->get('store')->getData();
 
@@ -690,7 +742,7 @@ class AdminController extends Controller
             ->getRepository(Task::class)
             ->createQueryBuilder('t');
 
-        $tasks = $this->get('knp_paginator')->paginate(
+        $tasks = $paginator->paginate(
             $qb,
             $request->query->getInt('page', 1),
             self::ITEMS_PER_PAGE,
@@ -712,18 +764,17 @@ class AdminController extends Controller
     /**
      * @Route("/admin/settings/taxation", name="admin_taxation_settings")
      */
-    public function taxationSettingsAction(Request $request,
+    public function taxationSettingsAction(
+        Request $request,
         TaxRateResolverInterface $taxRateResolver,
-        TranslatorInterface $translator)
+        TaxCategoryRepositoryInterface $taxCategoryRepository
+    )
     {
-        $taxCategoryRepository = $this->get('sylius.repository.tax_category');
-
         $categories = [];
         $countries = [];
 
         $taxCategories = $taxCategoryRepository->findBy([], ['name' => 'ASC']);
         foreach ($taxCategories as $c) {
-
             $isLegacy = count($c->getRates()) === 1 && null === $c->getRates()->first()->getCountry();
             if (!$isLegacy) {
                 foreach ($c->getRates() as $r) {
@@ -741,7 +792,7 @@ class AdminController extends Controller
             }
 
             $categories[] = [
-                'name' => $translator->trans($c->getName(), [], 'taxation'),
+                'name' => $this->translator->trans($c->getName(), [], 'taxation'),
                 'rates' => $rates,
             ];
         }
@@ -757,7 +808,7 @@ class AdminController extends Controller
      */
     public function tagsAction(Request $request, TagManager $tagManager)
     {
-        if ($request->isMethod('POST') && $request->request->has('delete')){
+        if ($request->isMethod('POST') && $request->request->has('delete')) {
             $id = $request->request->get('tag');
             $tag = $this->getDoctrine()->getRepository(Tag::class)->find($id);
             $tagManager->untagAll($tag);
@@ -792,12 +843,11 @@ class AdminController extends Controller
     /**
      * @Route("/admin/deliveries/pricing", name="admin_deliveries_pricing")
      */
-    public function pricingRuleSetsAction(Request $request)
+    public function pricingRuleSetsAction()
     {
         $ruleSets = $this->getDoctrine()
             ->getRepository(Delivery\PricingRuleSet::class)
             ->findAll();
-
         return $this->render('admin/pricing.html.twig', [
             'ruleSets' => $ruleSets
         ]);
@@ -884,7 +934,7 @@ class AdminController extends Controller
     /**
      * @Route("/admin/zones/{id}/delete", methods={"POST"}, name="admin_zone_delete")
      */
-    public function deleteZoneAction($id, Request $request)
+    public function deleteZoneAction($id)
     {
         $zone = $this->getDoctrine()->getRepository(Zone::class)->find($id);
 
@@ -907,7 +957,6 @@ class AdminController extends Controller
 
         $zoneCollectionForm->handleRequest($request);
         if ($zoneCollectionForm->isSubmitted() && $zoneCollectionForm->isValid()) {
-
             $zoneCollection = $zoneCollectionForm->getData();
 
             foreach ($zoneCollection->zones as $zone) {
@@ -940,18 +989,17 @@ class AdminController extends Controller
         ]);
     }
 
-    public function getStoreList(Request $request)
+    public function getStoreList()
     {
         $stores = $this->getDoctrine()->getRepository(Store::class)->findAll();
-
         return [ $stores, 1, 1 ];
     }
 
-    public function newStoreAction(Request $request, TranslatorInterface $translator)
+    public function newStoreAction(Request $request)
     {
         $store = new Store();
 
-        return $this->renderStoreForm($store, $request, $translator);
+        return $this->renderStoreForm($store, $request, $this->translator);
     }
 
     /**
@@ -964,7 +1012,6 @@ class AdminController extends Controller
         $results = $repository->search($request->query->get('q'));
 
         if ($request->query->has('format') && 'json' === $request->query->get('format')) {
-
             $data = array_map(function (LocalBusiness $restaurant) {
                 return [
                     'id' => $restaurant->getId(),
@@ -991,7 +1038,6 @@ class AdminController extends Controller
         $results = $qb->getQuery()->getResult();
 
         if ($request->query->has('format') && 'json' === $request->query->get('format')) {
-
             $data = array_map(function (Store $store) {
                 return [
                     'id' => $store->getId(),
@@ -1022,9 +1068,7 @@ class AdminController extends Controller
         $results = $repository->search($request->query->get('q'));
 
         if ($request->query->has('format') && 'json' === $request->query->get('format')) {
-
             $data = array_map(function (User $user) {
-
                 $text = sprintf('%s (%s)', $user->getEmail(), $user->getUsername());
 
                 return [
@@ -1054,7 +1098,6 @@ class AdminController extends Controller
 
         $stripeLivemodeForm->handleRequest($request);
         if ($stripeLivemodeForm->isSubmitted() && $stripeLivemodeForm->isValid()) {
-
             if ($stripeLivemodeForm->getClickedButton()) {
                 if ('enable' === $stripeLivemodeForm->getClickedButton()->getName()) {
                     $settingsManager->set('stripe_livemode', 'yes');
@@ -1080,7 +1123,6 @@ class AdminController extends Controller
 
         $mercadopagoLivemodeForm->handleRequest($request);
         if ($mercadopagoLivemodeForm->isSubmitted() && $mercadopagoLivemodeForm->isValid()) {
-
             if ($mercadopagoLivemodeForm->getClickedButton()) {
                 if ('enable' === $mercadopagoLivemodeForm->getClickedButton()->getName()) {
                     $settingsManager->set('mercadopago_livemode', 'yes');
@@ -1104,7 +1146,6 @@ class AdminController extends Controller
 
         $maintenanceForm->handleRequest($request);
         if ($maintenanceForm->isSubmitted() && $maintenanceForm->isValid()) {
-
             if ($maintenanceForm->getClickedButton()) {
                 if ('enable' === $maintenanceForm->getClickedButton()->getName()) {
                     $maintenanceMessage = $maintenanceForm->get('message')->getData();
@@ -1127,7 +1168,6 @@ class AdminController extends Controller
 
         $bannerForm->handleRequest($request);
         if ($bannerForm->isSubmitted() && $bannerForm->isValid()) {
-
             if ($bannerForm->getClickedButton()) {
                 if ('enable' === $bannerForm->getClickedButton()->getName()) {
                     $bannerMessage = $bannerForm->get('message')->getData();
@@ -1151,7 +1191,6 @@ class AdminController extends Controller
 
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
-
             $data = $form->getData();
 
             foreach ($data as $name => $value) {
@@ -1162,7 +1201,7 @@ class AdminController extends Controller
 
             $this->addFlash(
                 'notice',
-                $this->get('translator')->trans('global.changesSaved')
+                $this->translator->trans('global.changesSaved')
             );
 
             return $this->redirectToRoute('admin_settings');
@@ -1187,7 +1226,7 @@ class AdminController extends Controller
     /**
      * @Route("/admin/embed", name="admin_embed")
      */
-    public function embedAction(Request $request, SettingsManager $settingsManager)
+    public function embedAction()
     {
         return $this->redirectToRoute('admin_forms', [], 301);
     }
@@ -1202,7 +1241,6 @@ class AdminController extends Controller
 
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
-
             $this->getDoctrine()
                 ->getManagerForClass(DeliveryForm::class)
                 ->persist($deliveryForm);
@@ -1229,7 +1267,6 @@ class AdminController extends Controller
 
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
-
             $this->getDoctrine()
                 ->getManagerForClass(DeliveryForm::class)
                 ->flush();
@@ -1245,10 +1282,9 @@ class AdminController extends Controller
     /**
      * @Route("/admin/forms", name="admin_forms")
      */
-    public function formsAction(Request $request)
+    public function formsAction()
     {
         $forms = $this->getDoctrine()->getRepository(DeliveryForm::class)->findAll();
-
         return $this->render('admin/forms.html.twig', [
             'forms' => $forms,
         ]);
@@ -1275,12 +1311,11 @@ class AdminController extends Controller
     /**
      * @Route("/admin/api/apps", name="admin_api_apps")
      */
-    public function apiAppsAction(Request $request)
+    public function apiAppsAction()
     {
         $apiApps = $this->getDoctrine()
             ->getRepository(ApiApp::class)
             ->findAll();
-
         return $this->render('admin/api_apps.html.twig', [
             'api_apps' => $apiApps
         ]);
@@ -1297,7 +1332,6 @@ class AdminController extends Controller
 
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
-
             $apiApp = $form->getData();
 
             $this->getDoctrine()
@@ -1310,7 +1344,7 @@ class AdminController extends Controller
 
             $this->addFlash(
                 'notice',
-                $this->get('translator')->trans('api_apps.created.message')
+                $this->translator->trans('api_apps.created.message')
             );
 
             return $this->redirectToRoute('admin_api_app', [ 'id' => $apiApp->getId() ]);
@@ -1334,7 +1368,6 @@ class AdminController extends Controller
 
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
-
             $apiApp = $form->getData();
 
             $this->getDoctrine()
@@ -1352,14 +1385,12 @@ class AdminController extends Controller
     /**
      * @Route("/admin/promotions", name="admin_promotions")
      */
-    public function promotionsAction(Request $request)
+    public function promotionsAction()
     {
-        $qb = $this->get('sylius.repository.promotion_coupon')->createQueryBuilder('c');
+        $qb = $this->promotionCouponRepository->createQueryBuilder('c');
         $qb->andWhere('c.expiresAt IS NULL OR c.expiresAt > :date');
         $qb->setParameter('date', new \DateTime());
-
         $promotionCoupons = $qb->getQuery()->getResult();
-
         return $this->render('admin/promotions.html.twig', [
             'promotion_coupons' => $promotionCoupons,
         ]);
@@ -1368,21 +1399,25 @@ class AdminController extends Controller
     /**
      * @Route("/admin/promotions/{id}/coupons/new", name="admin_new_promotion_coupon")
      */
-    public function newPromotionCouponAction($id, Request $request)
+    public function newPromotionCouponAction(
+        $id,
+        Request $request,
+        PromotionRepositoryInterface $promotionRepository,
+        PromotionCouponFactoryInterface $promotionCouponFactory
+    )
     {
-        $promotion = $this->get('sylius.repository.promotion')->find($id);
+        $promotion = $promotionRepository->find($id);
 
-        $promotionCoupon = $this->get('sylius.factory.promotion_coupon')->createForPromotion($promotion);
+        $promotionCoupon = $promotionCouponFactory->createForPromotion($promotion);
 
         $form = $this->createForm(PromotionCouponType::class, $promotionCoupon);
 
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
-
             $promotionCoupon = $form->getData();
             $promotion->addCoupon($promotionCoupon);
 
-            $this->get('sylius.manager.promotion')->flush();
+            $this->entityManager->flush();
 
             return $this->redirectToRoute('admin_promotions');
         }
@@ -1395,71 +1430,23 @@ class AdminController extends Controller
     /**
      * @Route("/admin/promotions/credit-notes/new", name="admin_new_credit_note")
      */
-    public function newCreditNoteAction(Request $request)
+    public function newCreditNoteAction(Request $request, PromotionCouponFactoryInterface $promotionCouponFactory)
     {
-        $form = $this->createForm(CreditNoteType::class, [
-            'type' => FixedDiscountPromotionActionCommand::TYPE
-        ]);
+        $form = $this->createForm(CreditNoteType::class);
 
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
-
             $data = $form->getData();
 
-            $promotion = $this->get('sylius.factory.promotion')->createNew();
-            $promotion->setName($data['name']);
-            $promotion->setCouponBased(true);
-            $promotion->setCode(Uuid::uuid4()->toString());
-            $promotion->setPriority(1);
+            $promotion = $data->toPromotion(
+                $this->promotionFactory,
+                $this->promotionRuleFactory,
+                $this->promotionCouponRepository,
+                $promotionCouponFactory
+            );
 
-            $promotionAction = new PromotionAction();
-            $promotionAction->setType($data['type']);
-
-            $promotionActionConfiguration = [];
-            switch ($data['type']) {
-                case FixedDiscountPromotionActionCommand::TYPE:
-                    $promotionActionConfiguration = ['amount' => $data['amount']];
-                    break;
-                case PercentageDiscountPromotionActionCommand::TYPE:
-                    $promotionActionConfiguration = ['percentage' => $data['percentage']];
-                    break;
-            }
-            $promotionAction->setConfiguration($promotionActionConfiguration);
-
-            $promotion->addAction($promotionAction);
-
-            // TODO Make this optional
-            $promotionRule = $this->get('sylius.factory.promotion_rule')->createNew();
-            $promotionRule->setType(IsCustomerRuleChecker::TYPE);
-            $promotionRule->setConfiguration([
-                'username' => $data['username']
-            ]);
-
-            $promotion->addRule($promotionRule);
-
-            if (isset($data['restaurant']) && $data['restaurant'] instanceof LocalBusiness) {
-
-                $isRestaurantRule = $this->get('sylius.factory.promotion_rule')->createNew();
-                $isRestaurantRule->setType(IsRestaurantRuleChecker::TYPE);
-                $isRestaurantRule->setConfiguration([
-                    'restaurant_id' => $data['restaurant']->getId()
-                ]);
-
-                $promotion->addRule($isRestaurantRule);
-            }
-
-            do {
-                $hash = bin2hex(random_bytes(20));
-                $code = strtoupper(substr($hash, 0, 6));
-            } while ($this->isUsedCouponCode($code));
-
-            $promotionCoupon = $this->get('sylius.factory.promotion_coupon')->createNew();
-            $promotionCoupon->setCode($code);
-            $promotionCoupon->setPerCustomerUsageLimit(1);
-
-            $promotion->addCoupon($promotionCoupon);
-
-            $this->get('sylius.repository.promotion')->add($promotion);
+            $this->entityManager->persist($promotion);
+            $this->entityManager->flush();
 
             return $this->redirectToRoute('admin_promotions');
         }
@@ -1472,15 +1459,19 @@ class AdminController extends Controller
     /**
      * @Route("/admin/promotions/coupons/new", name="admin_new_promotion_coupon_from_template")
      */
-    public function newPromotionCouponFromTemplateAction(Request $request)
+    public function newPromotionCouponFromTemplateAction(
+        Request $request,
+        PromotionRepositoryInterface $promotionRepository,
+        PromotionCouponFactoryInterface $promotionCouponFactory
+    )
     {
         $template = $request->query->get('template');
 
         switch ($template) {
             case 'credit_note':
-                return $this->newCreditNoteAction($request);
+                return $this->newCreditNoteAction($request, $promotionCouponFactory);
             case 'free_delivery':
-                $promotion = $this->get('sylius.repository.promotion')->findOneByCode('FREE_DELIVERY');
+                $promotion = $promotionRepository->findOneByCode('FREE_DELIVERY');
 
                 return $this->redirectToRoute('admin_new_promotion_coupon', ['id' => $promotion->getId()]);
         }
@@ -1488,25 +1479,19 @@ class AdminController extends Controller
         return $this->createNotFoundException();
     }
 
-    private function isUsedCouponCode(string $code): bool
-    {
-        return null !== $this->get('sylius.repository.promotion_coupon')->findOneBy(['code' => $code]);
-    }
-
     /**
      * @Route("/admin/promotions/{id}/coupons/{code}", name="admin_promotion_coupon")
      */
-    public function promotionCouponAction($id, $code, Request $request)
+    public function promotionCouponAction($id, $code, Request $request, PromotionRepositoryInterface $promotionRepository)
     {
-        $promotionCoupon = $this->get('sylius.repository.promotion_coupon')->findOneByCode($code);
-        $promotion = $this->get('sylius.repository.promotion')->find($id);
+        $promotionCoupon = $this->promotionCouponRepository->findOneByCode($code);
+        $promotion = $promotionRepository->find($id);
 
         $form = $this->createForm(PromotionCouponType::class, $promotionCoupon);
 
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
-
-            $this->get('sylius.manager.promotion_coupon')->flush();
+            $this->entityManager->flush();
 
             return $this->redirectToRoute('admin_promotions');
         }
@@ -1521,7 +1506,7 @@ class AdminController extends Controller
      */
     public function orderEmailPreviewAction($id, Request $request, EmailManager $emailManager)
     {
-        $order = $this->container->get('sylius.repository.order')->find($id);
+        $order = $this->orderRepository->find($id);
 
         if (!$order) {
             throw $this->createNotFoundException(sprintf('Order #%d does not exist', $id));
@@ -1572,7 +1557,7 @@ class AdminController extends Controller
     /**
      * @Route("/admin/emails", name="admin_email_preview")
      */
-    public function emailsPreviewAction(Request $request, MessageLoggingTwigSwiftMailer $mailer)
+    public function emailsPreviewAction(Request $request, FOSUserBundleMailer $mailer)
     {
         $method = 'sendConfirmationEmailMessage';
         if ($request->query->has('method')) {
@@ -1581,13 +1566,18 @@ class AdminController extends Controller
 
         $this->getUser()->setConfirmationToken('123456');
 
+        $mailer->enableLogging();
+
         call_user_func_array([$mailer, $method], [$this->getUser()]);
 
         $messages = $mailer->getMessages();
         $message = current($messages);
 
+        // An email must have a "To", "Cc", or "Bcc" header."
+        $message->to('dev@coopcycle.org');
+
         $response = new Response();
-        $response->setContent($message->getBody());
+        $response->setContent((string) $message->getHtmlBody());
 
         return $response;
     }
@@ -1602,22 +1592,6 @@ class AdminController extends Controller
         $invitation->setCode('123456');
 
         $message = $emailManager->createInvitationMessage($invitation);
-
-        // An email must have a "To", "Cc", or "Bcc" header."
-        $message->to('dev@coopcycle.org');
-
-        $response = new Response();
-        $response->setContent((string) $message->getHtmlBody());
-
-        return $response;
-    }
-
-    /**
-     * @Route("/admin/emails/covid-19", name="admin_email_covid_19_preview")
-     */
-    public function covid19EmailPreviewAction(Request $request, EmailManager $emailManager)
-    {
-        $message = $emailManager->createCovid19Message();
 
         // An email must have a "To", "Cc", or "Bcc" header."
         $message->to('dev@coopcycle.org');
@@ -1685,10 +1659,9 @@ class AdminController extends Controller
     /**
      * @Route("/admin/settings/time-slots", name="admin_time_slots")
      */
-    public function timeSlotsAction(Request $request)
+    public function timeSlotsAction()
     {
         $timeSlots = $this->getDoctrine()->getRepository(TimeSlot::class)->findAll();
-
         return $this->render('admin/time_slots.html.twig', [
             'time_slots' => $timeSlots,
         ]);
@@ -1700,7 +1673,6 @@ class AdminController extends Controller
 
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
-
             if ($timeSlot->hasOpeningHours()) {
                 foreach ($timeSlot->getChoices() as $choice) {
                     $timeSlot->removeChoice($choice);
@@ -1746,10 +1718,9 @@ class AdminController extends Controller
     /**
      * @Route("/admin/settings/packages", name="admin_packages")
      */
-    public function packageSetsAction(Request $request)
+    public function packageSetsAction()
     {
         $packageSets = $this->getDoctrine()->getRepository(PackageSet::class)->findAll();
-
         return $this->render('admin/package_sets.html.twig', [
             'package_sets' => $packageSets,
         ]);
@@ -1761,7 +1732,6 @@ class AdminController extends Controller
 
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
-
             $objectManager->persist($packageSet);
             $objectManager->flush();
 
@@ -1797,17 +1767,18 @@ class AdminController extends Controller
         return $this->renderPackageSetForm($request, $packageSet, $objectManager);
     }
 
-    public function newOrderAction(Request $request,
+    public function newOrderAction(
+        Request $request,
         EntityManagerInterface $objectManager,
         OrderFactory $orderFactory,
-        OrderNumberAssignerInterface $orderNumberAssigner)
+        OrderNumberAssignerInterface $orderNumberAssigner
+    )
     {
         $delivery = new Delivery();
         $form = $this->createForm(NewOrderType::class, $delivery);
 
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
-
             $delivery = $form->getData();
 
             $variantName = $form->get('variantName')->getData();
@@ -1837,7 +1808,7 @@ class AdminController extends Controller
         ]);
     }
 
-    public function taskReceiptAction($id, Request $request, EmailManager $emailManager, \Symfony\Component\Messenger\MessageBusInterface $bus)
+    public function taskReceiptAction($id)
     {
         $task = $this->getDoctrine()->getRepository(Task::class)->find($id);
 
@@ -1845,9 +1816,7 @@ class AdminController extends Controller
             'task' => $task,
         ]);
 
-        $client = $this->get('csa_guzzle.client.browserless');
-
-        $pdf = $client->request('POST', '/pdf', [
+        $pdf = $this->browserlessClient->request('POST', '/pdf', [
             'json' => ['html' => $html]
         ]);
 
@@ -1876,10 +1845,9 @@ class AdminController extends Controller
 
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
-
             $this->addFlash(
                 'notice',
-                $this->get('translator')->trans('global.changesSaved')
+                $this->translator->trans('global.changesSaved')
             );
 
             return $this->redirectToRoute('admin_customize');
@@ -1910,7 +1878,6 @@ class AdminController extends Controller
         $form = $this->createForm(OrganizationType::class);
 
         if ($request->isMethod('POST') && $form->handleRequest($request)->isValid()) {
-
             $organization = $form->getData();
             $em = $this->getDoctrine()->getManager();
             $em->persist($organization);
@@ -1944,7 +1911,6 @@ class AdminController extends Controller
 
         $form = $this->createForm(AddOrganizationType::class, $organizationConfig);
         if ($request->isMethod('POST') && $form->handleRequest($request)->isValid()) {
-
             $organization = $form->getData();
             $em = $this->getDoctrine()->getManager();
             $em->persist($organization);
@@ -1953,7 +1919,8 @@ class AdminController extends Controller
             return new RedirectResponse($this->generateUrl('admin_organizations'));
         }
 
-        return $this->render('admin/add_organization.html.twig',
+        return $this->render(
+            'admin/add_organization.html.twig',
             [
                 'form' => $form->createView(),
                 'organization' => $organization,
@@ -1971,13 +1938,12 @@ class AdminController extends Controller
 
         $form = $this->createForm(HubType::class, $hub);
         if ($request->isMethod('POST') && $form->handleRequest($request)->isValid()) {
-
             $this->getDoctrine()->getManager()->persist($hub);
             $this->getDoctrine()->getManager()->flush();
 
             $this->addFlash(
                 'notice',
-                $this->get('translator')->trans('global.changesSaved')
+                $this->translator->trans('global.changesSaved')
             );
 
             return $this->redirectToRoute('admin_hub', ['id' => $id]);

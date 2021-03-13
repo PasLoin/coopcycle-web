@@ -9,7 +9,7 @@ use AppBundle\Entity\Restaurant\Pledge;
 use AppBundle\Entity\Task;
 use NotFloran\MjmlBundle\Renderer\RendererInterface;
 use Sylius\Component\Order\Model\OrderInterface;
-use Symfony\Component\Translation\TranslatorInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
@@ -229,14 +229,6 @@ class EmailManager
             'user' => $invitation->getUser(),
             'invitation' => $invitation,
         ]));
-
-        return $this->createHtmlMessageWithReplyTo($subject, $body);
-    }
-
-    public function createCovid19Message()
-    {
-        $subject = $this->translator->trans('covid_19.subject', [], 'emails');
-        $body = $this->mjml->render($this->templating->render('emails/covid_19.mjml.twig'));
 
         return $this->createHtmlMessageWithReplyTo($subject, $body);
     }

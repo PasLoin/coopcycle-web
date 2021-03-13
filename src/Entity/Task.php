@@ -18,11 +18,13 @@ use AppBundle\Api\Filter\TaskFilter;
 use AppBundle\DataType\TsRange;
 use AppBundle\Domain\Task\Event as TaskDomainEvent;
 use AppBundle\Entity\Task\Group as TaskGroup;
+use AppBundle\Entity\Task\RecurrenceRule;
 use AppBundle\Entity\Model\TaggableInterface;
 use AppBundle\Entity\Model\TaggableTrait;
 use AppBundle\Entity\Model\OrganizationAwareInterface;
 use AppBundle\Entity\Model\OrganizationAwareTrait;
 use AppBundle\Validator\Constraints\Task as AssertTask;
+use AppBundle\Vroom\Job as VroomJob;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\Common\Collections\Criteria;
@@ -47,23 +49,6 @@ use Symfony\Component\Validator\Constraints as Assert;
  *       "access_control"="is_granted('ROLE_ADMIN')",
  *       "denormalization_context"={"groups"={"task_create"}},
  *       "validation_groups"={"Default"}
- *     },
- *     "my_tasks"={
- *       "method"="GET",
- *       "path"="/me/tasks/{date}",
- *       "access_control"="is_granted('ROLE_ADMIN') or is_granted('ROLE_COURIER')",
- *       "pagination_enabled"=false,
- *       "filters"={},
- *       "swagger_context"={
- *         "summary"="Retrieves the collection of Task resources assigned to the authenticated token.",
- *         "parameters"={{
- *           "in"="path",
- *           "name"="date",
- *           "required"=true,
- *           "type"="string",
- *           "format"="date"
- *         }}
- *       }
  *     }
  *   },
  *   itemOperations={
@@ -219,6 +204,7 @@ class Task implements TaggableInterface, OrganizationAwareInterface
     private $delivery;
 
     /**
+     * @Assert\NotNull()
      * @Assert\Valid()
      * @Groups({"task", "task_create", "task_edit", "address", "address_create", "delivery_create", "pricing_rule_evalute"})
      */
@@ -283,6 +269,12 @@ class Task implements TaggableInterface, OrganizationAwareInterface
      * @Groups({"task", "task_create"})
      */
     private $ref;
+
+    /**
+     * @var RecurrenceRule|null
+     * @Groups({"task"})
+     */
+    private $recurrenceRule;
 
     public function __construct()
     {
@@ -703,5 +695,36 @@ class Task implements TaggableInterface, OrganizationAwareInterface
     public function getRef(): ?string
     {
         return $this->ref;
+    }
+
+    public static function toVroomJob(Task $task): VroomJob
+    {
+        $job = new VroomJob();
+
+        $job->id = $task->getId();
+        $job->location = [
+            $task->getAddress()->getGeo()->getLongitude(),
+            $task->getAddress()->getGeo()->getLatitude()
+        ];
+        $job->time_windows = [
+            [
+                (int) $task->getAfter()->format('U'),
+                (int) $task->getBefore()->format('U')
+            ]
+        ];
+
+        return $job;
+    }
+
+    public function setRecurrenceRule(RecurrenceRule $recurrenceRule)
+    {
+        $this->recurrenceRule = $recurrenceRule;
+
+        return $this;
+    }
+
+    public function getRecurrenceRule(): ?RecurrenceRule
+    {
+        return $this->recurrenceRule;
     }
 }

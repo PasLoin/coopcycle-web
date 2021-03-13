@@ -54,6 +54,7 @@ parameters:
     restaurant_caption_cache_annotation: 'restaurant_caption_v0.1'
     avatar_dir: '%env(APP_PUBLIC_DIR)%/images/avatars/'
     centrifugo_tracking_channel: '$%centrifugo_namespace%_tracking'
+    edenred_enabled: '%env(bool:EDENRED_ENABLED)%'
 
 services:
     # It is important to set a namespace,
@@ -125,6 +126,7 @@ framework:
                     consumer: "%database_name%:consumer"
         routing:
             'AppBundle\Message\CalculateRoute': async
+            'AppBundle\Message\DeliveryCreated': async
             'AppBundle\Message\Email': async
             'AppBundle\Message\PushNotification': async
             'AppBundle\Message\ImportTasks': async
@@ -179,6 +181,8 @@ twig:
         restaurant_menu_cache_annotation: '%restaurant_menu_cache_annotation%'
         restaurant_caption_cache_annotation: '%restaurant_caption_cache_annotation%'
         cdn_root_url: '%env(CDN_ROOT_URL)%'
+        edenred_enabled: '%env(bool:EDENRED_ENABLED)%'
+        cubejs_api_url: '%env(CUBEJS_API_URL)%'
     exception_controller: null
 
 # Doctrine Configuration
@@ -201,6 +205,7 @@ doctrine:
             phone_number: Misd\PhoneNumberBundle\Doctrine\DBAL\Types\PhoneNumberType
             numrange: AppBundle\Doctrine\DBAL\Types\NumRangeType
             tsrange: AppBundle\Doctrine\DBAL\Types\TsRangeType
+            rrule: AppBundle\Doctrine\DBAL\Types\RRuleType
         mapping_types:
             _text: string
             numrange: string
@@ -273,12 +278,6 @@ api_platform:
         csv: ['text/csv']
         html: ['text/html']
 
-# Swiftmailer Configuration
-swiftmailer:
-    url: "%env(COOPCYCLE_MAIL_URL)%"
-    transport: smtp
-    spool: { type: memory }
-
 # Nelmio CORS
 nelmio_cors:
     defaults:
@@ -296,7 +295,7 @@ fos_user:
     firewall_name: web
     user_class: AppBundle\Entity\User
     service:
-        mailer: fos_user.mailer.twig_swift
+        mailer: AppBundle\Mailer\FOSUserBundleMailer
         user_manager: coopcycle.user_manager
     from_email:
         address:        "%transactional_address%"
@@ -887,11 +886,17 @@ trikoder_oauth2:
         encryption_key: "%env(COOPCYCLE_OAUTH_ENCRYPTION_KEY)%"
         access_token_ttl: PT1H
         refresh_token_ttl: P1M
-        enable_client_credentials_grant: true
-        enable_password_grant: false
-        enable_refresh_token_grant: false
-        enable_auth_code_grant: false
-        enable_implicit_grant: false
+        grant_types:
+            client_credentials:
+                enable: true
+            password:
+                enable: false
+            refresh_token:
+                enable: false
+            authorization_code:
+                enable: false
+            implicit:
+                enable: false
     resource_server:
         public_key: "%jwt_public_key_path%"
     scopes:

@@ -1,5 +1,7 @@
 import _ from 'lodash'
 import axios from 'axios'
+import moment from 'moment'
+
 import { taskComparator, withoutTasks, withLinkedTasks } from './utils'
 import {
   selectSelectedDate,
@@ -9,6 +11,7 @@ import {
   createTaskListSuccess,
   createTaskListFailure,
 } from '../../coopcycle-frontend-js/dispatch/redux'
+import { selectNextWorkingDay } from './selectors'
 
 function createClient(dispatch) {
 
@@ -98,7 +101,7 @@ export const CLEAR_SELECTED_TASKS = 'CLEAR_SELECTED_TASKS'
 export const SET_TASK_LIST_GROUP_MODE = 'SET_TASK_LIST_GROUP_MODE'
 
 export const SET_GEOLOCATION = 'SET_GEOLOCATION'
-export const SET_OFFLINE = 'SET_OFFLINE'
+export const SCAN_POSITIONS = 'SCAN_POSITIONS'
 export const OPEN_NEW_TASK_MODAL = 'OPEN_NEW_TASK_MODAL'
 export const CLOSE_NEW_TASK_MODAL = 'CLOSE_NEW_TASK_MODAL'
 export const SET_CURRENT_TASK = 'SET_CURRENT_TASK'
@@ -136,6 +139,17 @@ export const OPEN_IMPORT_MODAL = 'OPEN_IMPORT_MODAL'
 export const CLOSE_IMPORT_MODAL = 'CLOSE_IMPORT_MODAL'
 
 export const OPTIMIZE_TASK_LIST = 'OPTIMIZE_TASK_LIST'
+
+export const RIGHT_PANEL_MORE_THAN_HALF = 'RIGHT_PANEL_MORE_THAN_HALF'
+export const RIGHT_PANEL_LESS_THAN_HALF = 'RIGHT_PANEL_LESS_THAN_HALF'
+
+export const OPEN_RECURRENCE_RULE_MODAL = 'OPEN_RECURRENCE_RULE_MODAL'
+export const CLOSE_RECURRENCE_RULE_MODAL = 'CLOSE_RECURRENCE_RULE_MODAL'
+export const SET_CURRENT_RECURRENCE_RULE = 'SET_CURRENT_RECURRENCE_RULE'
+export const UPDATE_RECURRENCE_RULE_REQUEST = 'UPDATE_RECURRENCE_RULE_REQUEST'
+export const UPDATE_RECURRENCE_RULE_SUCCESS = 'UPDATE_RECURRENCE_RULE_SUCCESS'
+export const DELETE_RECURRENCE_RULE_SUCCESS = 'DELETE_RECURRENCE_RULE_SUCCESS'
+export const UPDATE_RECURRENCE_RULE_ERROR = 'UPDATE_RECURRENCE_RULE_ERROR'
 
 function setTaskListsLoading(loading = true) {
   return { type: SET_TASK_LISTS_LOADING, loading }
@@ -360,8 +374,8 @@ function setGeolocation(username, coords, timestamp) {
   return { type: SET_GEOLOCATION, username, coords, timestamp }
 }
 
-function setOffline(username) {
-  return { type: SET_OFFLINE, username }
+function scanPositions() {
+  return { type: SCAN_POSITIONS }
 }
 
 function openNewTaskModal() {
@@ -706,6 +720,223 @@ export function optimizeTaskList(taskList) {
   }
 }
 
+function moveTasksToNextDay(tasks) {
+
+  return function(dispatch, getState) {
+
+    if (tasks.length === 0) {
+      return
+    }
+
+    const { jwt } = getState()
+
+    dispatch(createTaskRequest())
+
+    const httpClient = createClient(dispatch)
+
+    const requests = tasks.map(task => {
+
+      return httpClient.request({
+        method: 'put',
+        url: task['@id'],
+        data: {
+          after: moment(task.after).add(1, 'day').format(),
+          before: moment(task.before).add(1, 'day').format(),
+        },
+        headers: {
+          'Authorization': `Bearer ${jwt}`,
+          'Accept': 'application/ld+json',
+          'Content-Type': 'application/ld+json'
+        }
+      })
+    })
+
+    Promise.all(requests)
+      .then(values => {
+        dispatch(createTaskSuccess())
+        values.forEach(response => dispatch(updateTask(response.data)))
+      })
+      .catch(error => dispatch(cancelTaskFailure(error)))
+  }
+}
+
+function moveTasksToNextWorkingDay(tasks) {
+
+  return function(dispatch, getState) {
+
+    if (tasks.length === 0) {
+      return
+    }
+
+    const nextWorkingDay = selectNextWorkingDay(getState())
+
+    const { jwt } = getState()
+
+    dispatch(createTaskRequest())
+
+    const httpClient = createClient(dispatch)
+
+    const nextWorkingDayProps = {
+      date:  moment(nextWorkingDay).get('date'),
+      month: moment(nextWorkingDay).get('month'),
+      year:  moment(nextWorkingDay).get('year'),
+    }
+
+    const requests = tasks.map(task => {
+
+      return httpClient.request({
+        method: 'put',
+        url: task['@id'],
+        data: {
+          after: moment(task.after).set(nextWorkingDayProps).format(),
+          before: moment(task.before).set(nextWorkingDayProps).format(),
+        },
+        headers: {
+          'Authorization': `Bearer ${jwt}`,
+          'Accept': 'application/ld+json',
+          'Content-Type': 'application/ld+json'
+        }
+      })
+    })
+
+    Promise.all(requests)
+      .then(values => {
+        dispatch(createTaskSuccess())
+        values.forEach(response => dispatch(updateTask(response.data)))
+      })
+      .catch(error => dispatch(cancelTaskFailure(error)))
+  }
+}
+
+function updateRightPanelSize(size) {
+  return { type: size > 40 ? RIGHT_PANEL_MORE_THAN_HALF : RIGHT_PANEL_LESS_THAN_HALF }
+}
+
+function openNewRecurrenceRuleModal() {
+  return { type: OPEN_RECURRENCE_RULE_MODAL }
+}
+
+function closeRecurrenceRuleModal() {
+  return { type: CLOSE_RECURRENCE_RULE_MODAL }
+}
+
+function setCurrentRecurrenceRule(recurrenceRule) {
+  return { type: SET_CURRENT_RECURRENCE_RULE, recurrenceRule }
+}
+
+function updateRecurrenceRuleRequest() {
+  return { type: UPDATE_RECURRENCE_RULE_REQUEST }
+}
+
+function updateRecurrenceRuleSuccess(recurrenceRule) {
+  return { type: UPDATE_RECURRENCE_RULE_SUCCESS, recurrenceRule }
+}
+
+function updateRecurrenceRuleError(message) {
+  return { type: UPDATE_RECURRENCE_RULE_ERROR, message }
+}
+
+function deleteRecurrenceRuleSuccess(recurrenceRule) {
+  return { type: DELETE_RECURRENCE_RULE_SUCCESS, recurrenceRule }
+}
+
+function saveRecurrenceRule(recurrenceRule) {
+
+  return function(dispatch, getState) {
+
+    const { jwt } = getState()
+
+    const url = Object.prototype.hasOwnProperty.call(recurrenceRule, '@id') ? recurrenceRule['@id'] : '/api/recurrence_rules'
+    const method = Object.prototype.hasOwnProperty.call(recurrenceRule, '@id') ? 'put' : 'post'
+
+    const payload = _.pick(recurrenceRule, [
+      'store',
+      'rule',
+      'template',
+    ])
+
+    dispatch(updateRecurrenceRuleRequest())
+
+    createClient(dispatch).request({
+      method,
+      url,
+      data: payload,
+      headers: {
+        'Authorization': `Bearer ${jwt}`,
+        'Accept': 'application/ld+json',
+        'Content-Type': 'application/ld+json'
+      }
+    })
+      .then(response => {
+        dispatch(updateRecurrenceRuleSuccess(response.data))
+        dispatch(closeRecurrenceRuleModal())
+      })
+      .catch(error => {
+        if (error.response &&
+          Object.prototype.hasOwnProperty.call(error.response.data, '@type') &&
+          error.response.data['@type'] === 'ConstraintViolationList') {
+          dispatch(updateRecurrenceRuleError(`${error.response.data['hydra:description']}`))
+        } else {
+          dispatch(updateRecurrenceRuleError('An error occurred'))
+        }
+      })
+  }
+}
+
+function createTasksFromRecurrenceRule(recurrenceRule) {
+
+  return function(dispatch, getState) {
+
+    const { jwt } = getState()
+    const date = selectSelectedDate(getState())
+
+    createClient(dispatch).request({
+      method: 'post',
+      url: `${recurrenceRule['@id']}/between`,
+      data: {
+        after: moment(date).startOf('day').format(),
+        before: moment(date).endOf('day').format(),
+      },
+      headers: {
+        'Authorization': `Bearer ${jwt}`,
+        'Accept': 'application/ld+json',
+        'Content-Type': 'application/ld+json'
+      }
+    })
+      .then(() => dispatch(closeRecurrenceRuleModal()))
+      // eslint-disable-next-line no-console
+      .catch(error => console.log(error))
+  }
+}
+
+function deleteRecurrenceRule(recurrenceRule) {
+
+  return function(dispatch, getState) {
+
+    const { jwt } = getState()
+
+    dispatch(updateRecurrenceRuleRequest())
+
+    const resourceId = recurrenceRule['@id']
+
+    createClient(dispatch).request({
+      method: 'delete',
+      url: resourceId,
+      headers: {
+        'Authorization': `Bearer ${jwt}`,
+        'Accept': 'application/ld+json',
+        'Content-Type': 'application/ld+json'
+      }
+    })
+      .then(() => {
+        dispatch(deleteRecurrenceRuleSuccess(resourceId))
+        dispatch(closeRecurrenceRuleModal())
+      })
+      // eslint-disable-next-line no-console
+      .catch(error => console.log(error))
+  }
+}
+
 export {
   assignAfter,
   updateTask,
@@ -720,7 +951,6 @@ export {
   selectTask,
   selectTasks,
   setGeolocation,
-  setOffline,
   openNewTaskModal,
   closeNewTaskModal,
   setCurrentTask,
@@ -753,4 +983,14 @@ export {
   taskListUpdated,
   taskListsUpdated,
   clearSelectedTasks,
+  scanPositions,
+  moveTasksToNextDay,
+  moveTasksToNextWorkingDay,
+  updateRightPanelSize,
+  closeRecurrenceRuleModal,
+  setCurrentRecurrenceRule,
+  saveRecurrenceRule,
+  createTasksFromRecurrenceRule,
+  openNewRecurrenceRuleModal,
+  deleteRecurrenceRule,
 }

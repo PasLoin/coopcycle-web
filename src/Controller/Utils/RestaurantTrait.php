@@ -329,6 +329,12 @@ trait RestaurantTrait
             }
         }
 
+        $start = clone $date;
+        $end = clone $date;
+
+        $start->setTime(0, 0, 0);
+        $end->setTime(23, 59, 59);
+
         $qb = $entityManager->getRepository(Order::class)
             ->createQueryBuilder('o')
             ->join(Vendor::class, 'v', Expr\Join::WITH, 'o.vendor = v.id')
@@ -336,11 +342,40 @@ trait RestaurantTrait
             ->andWhere('OVERLAPS(o.shippingTimeRange, CAST(:range AS tsrange)) = TRUE')
             ->andWhere('o.state != :state')
             ->setParameter('restaurant', $restaurant)
-            ->setParameter('range', sprintf('[%s, %s]', $date->format('Y-m-d 00:00:00'), $date->format('Y-m-d 23:59:59')))
+            ->setParameter('range', sprintf('[%s, %s]', $start->format('Y-m-d H:i:s'), $end->format('Y-m-d H:i:s')))
             ->setParameter('state', OrderInterface::STATE_CART);
             ;
 
         $orders = $qb->getQuery()->getResult();
+
+        //
+        // Add hub orders
+        //
+
+        $orderIds = array_map(fn(OrderInterface $r) => $r->getId(), $orders);
+
+        $qb = $entityManager->getRepository(OrderView::class)
+            ->createQueryBuilder('ov');
+
+        $qb = OrderRepository::addShippingTimeRangeClause($qb, 'ov', $start, $end);
+        $qb->select('ov.id');
+        $qb->andWhere('ov.restaurant = :restaurant');
+        if (count($orderIds) > 0) {
+            $qb->andWhere($qb->expr()->notIn('ov.id', $orderIds));
+        }
+        $qb->setParameter('restaurant', $restaurant->getId());
+
+        $hubOrderIds = array_map(fn(array $o) => $o['id'], $qb->getQuery()->getArrayResult());
+
+        if (count($hubOrderIds) > 0) {
+            $qb = $entityManager->getRepository(Order::class)
+                ->createQueryBuilder('o')
+                ->andWhere($qb->expr()->in('o.id', $hubOrderIds));
+
+            $hubOrders = $qb->getQuery()->getResult();
+
+            $orders = array_merge($orders, $hubOrders);
+        }
 
         $routes = $request->attributes->get('routes');
 
@@ -1192,8 +1227,6 @@ trait RestaurantTrait
         $end->setDate($date->format('Y'), $date->format('m'), $date->format('t'));
         $end->setTime(23, 59, 59);
 
-        $maxResults = 50;
-
         $qb = $entityManager->getRepository(OrderView::class)
             ->createQueryBuilder('ov');
 
@@ -1201,9 +1234,6 @@ trait RestaurantTrait
         $qb->andWhere('ov.restaurant = :restaurant');
         $qb->setParameter('restaurant', $restaurant->getId());
         $qb->addOrderBy('ov.shippingTimeRange', 'DESC');
-        $qb
-            ->setFirstResult(($request->query->getInt('page', 1) - 1) * $maxResults)
-            ->setMaxResults($maxResults);
 
         $refundedOrders = $entityManager->getRepository(Order::class)
             ->findRefundedOrdersByRestaurantAndDateRange(
@@ -1236,6 +1266,28 @@ trait RestaurantTrait
             return $response;
         }
 
+        // https://cube.dev/docs/security
+        $key = \Lcobucci\JWT\Signer\Key\InMemory::plainText($_SERVER['CUBEJS_API_SECRET']);
+        $config = \Lcobucci\JWT\Configuration::forSymmetricSigner(
+            new \Lcobucci\JWT\Signer\Hmac\Sha256(),
+            $key
+        );
+
+        $token = null;
+        $vendor = $entityManager->getRepository(Vendor::class)
+            ->findOneBy(['restaurant' => $restaurant]);
+
+        if (null !== $vendor) {
+            // https://github.com/lcobucci/jwt/issues/229
+            $now = new \DateTimeImmutable('@' . time());
+
+            $token = $config->builder()
+                ->expiresAt($now->modify('+1 hour'))
+                ->withClaim('database', $this->getParameter('database_name'))
+                ->withClaim('vendor_id', $vendor->getId())
+                ->getToken($config->signer(), $config->signingKey());
+        }
+
         return $this->render('restaurant/stats.html.twig', $this->withRoutes([
             'layout' => $request->attributes->get('layout'),
             'restaurant' => $restaurant,
@@ -1244,8 +1296,7 @@ trait RestaurantTrait
             'start' => $start,
             'end' => $end,
             'tab' => $tab,
-            'page' => $request->query->getInt('page', 1),
-            'pages' => ceil(count($stats) / $maxResults),
+            'cube_token' => (null !== $vendor && null !== $token) ? $token->toString() : null,
         ]));
     }
 

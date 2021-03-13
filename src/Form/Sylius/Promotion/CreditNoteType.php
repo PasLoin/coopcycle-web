@@ -3,6 +3,7 @@
 namespace AppBundle\Form\Sylius\Promotion;
 
 use AppBundle\Entity\LocalBusiness;
+use AppBundle\Form\Model\Promotion as PromotionData;
 use AppBundle\Form\Type\MoneyType;
 use AppBundle\Sylius\Promotion\Action\FixedDiscountPromotionActionCommand;
 use AppBundle\Sylius\Promotion\Action\PercentageDiscountPromotionActionCommand;
@@ -18,7 +19,7 @@ use Symfony\Component\Form\Extension\Core\Type\PercentType;
 use Symfony\Component\Form\Extension\Core\Type\SearchType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\OptionsResolver\OptionsResolver;
-use Symfony\Component\Translation\TranslatorInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Symfony\Component\Validator\Validation;
 use Symfony\Component\Validator\Constraints;
 
@@ -61,6 +62,17 @@ class CreditNoteType extends AbstractType
                 'choice_label' => 'name',
                 'help' => 'form.credit_note.restaurant.help',
                 'required' => false,
+            ])
+            ->add('couponCode', TextType::class, [
+                'label' => 'sylius.ui.code',
+                'help' => 'form.offer_delivery.coupon_code.help',
             ]);
+    }
+
+    public function configureOptions(OptionsResolver $resolver)
+    {
+        $resolver->setDefaults(array(
+            'data_class' => PromotionData::class,
+        ));
     }
 }

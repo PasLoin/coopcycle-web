@@ -1,23 +1,24 @@
 import { createSelector } from 'reselect'
+import Fuse from 'fuse.js'
+import Holidays from 'date-holidays'
+import { rrulestr } from 'rrule'
+import {
+  createEntityAdapter,
+} from '@reduxjs/toolkit'
+
 import { moment } from '../../coopcycle-frontend-js'
-import { selectTaskLists } from '../../coopcycle-frontend-js/dispatch/redux'
-import { filter, includes, intersectionWith, isEqual } from 'lodash'
+import { selectTaskLists as selectTaskListsBase, selectUnassignedTasks, selectAllTasks, selectSelectedDate } from '../../coopcycle-frontend-js/dispatch/redux'
+import { filter, orderBy, forEach, find, reduce, map, differenceWith, includes } from 'lodash'
+import { isTaskVisible, isOffline, recurrenceTemplateToArray } from './utils'
 
-export const selectFilteredTasks = createSelector(
-  state => state.tasks,
-  state => state.filters,
-  state => state.date,
-  (tasks, filters, date) => {
+export const recurrenceRulesAdapter = createEntityAdapter({
+  selectId: (o) => o['@id'],
+  sortComparer: (a, b) => a.orgName.localeCompare(b.orgName),
+})
 
-    return filter(tasks.slice(0), task => {
-
-      return selectIsVisibleTask({
-        task,
-        filters,
-        date,
-      })
-    })
-  }
+export const selectTaskLists = createSelector(
+  selectTaskListsBase,
+  taskLists => orderBy(taskLists, 'username')
 )
 
 export const selectBookedUsernames = createSelector(
@@ -25,84 +26,204 @@ export const selectBookedUsernames = createSelector(
   taskLists => taskLists.map(taskList => taskList.username)
 )
 
-export const selectIsVisibleTask = createSelector(
-  state => state.task,
+export const selectGroups = createSelector(
+  selectUnassignedTasks,
+  state => state.taskListGroupMode,
+  (unassignedTasks, taskListGroupMode) => {
+
+    if (taskListGroupMode !== 'GROUP_MODE_FOLDERS') {
+      return []
+    }
+
+    const groupsMap = new Map()
+    const groups = []
+
+    const tasksWithGroup = filter(unassignedTasks, task => Object.prototype.hasOwnProperty.call(task, 'group') && task.group)
+
+    forEach(tasksWithGroup, task => {
+      const keys = Array.from(groupsMap.keys())
+      const group = find(keys, group => group.id === task.group.id)
+      if (!group) {
+        groupsMap.set(task.group, [ task ])
+      } else {
+        groupsMap.get(group).push(task)
+      }
+    })
+
+    groupsMap.forEach((tasks, group) => {
+      groups.push({
+        ...group,
+        tasks
+      })
+    })
+
+    return groups
+  }
+)
+
+export const selectStandaloneTasks = createSelector(
+  selectUnassignedTasks,
+  state => state.taskListGroupMode,
+  (unassignedTasks, taskListGroupMode) => {
+
+    let standaloneTasks = unassignedTasks
+
+    if (taskListGroupMode === 'GROUP_MODE_FOLDERS') {
+      standaloneTasks = filter(unassignedTasks, task => !Object.prototype.hasOwnProperty.call(task, 'group') || !task.group)
+    }
+
+    // Order by dropoff desc, with pickup before
+    if (taskListGroupMode === 'GROUP_MODE_DROPOFF_DESC' || taskListGroupMode === 'GROUP_MODE_DROPOFF_ASC') {
+
+      const dropoffTasks = filter(standaloneTasks, t => t.type === 'DROPOFF')
+
+      dropoffTasks.sort((a, b) => {
+        return moment(a.before).isBefore(b.before) ?
+          (taskListGroupMode === 'GROUP_MODE_DROPOFF_DESC' ? -1 : 1)
+          :
+          (taskListGroupMode === 'GROUP_MODE_DROPOFF_DESC' ? 1 : -1)
+      })
+
+      const grouped = reduce(dropoffTasks, (acc, task) => {
+        if (task.previous) {
+          const prev = find(standaloneTasks, t => t['@id'] === task.previous)
+          if (prev) {
+            acc.push(prev)
+          }
+        }
+        acc.push(task)
+
+        return acc
+      }, [])
+
+      standaloneTasks = grouped
+    } else {
+      standaloneTasks.sort((a, b) => {
+        return moment(a.before).isBefore(b.before) ? -1 : 1
+      })
+    }
+
+    return standaloneTasks
+  }
+)
+
+export const selectVisibleTaskIds = createSelector(
+  selectAllTasks,
   state => state.filters,
-  state => state.date,
-  (task, filters, date) => {
+  selectSelectedDate,
+  (tasks, filters, date) => filter(tasks, task => isTaskVisible(task, filters, date)).map(task => task['@id'])
+)
 
-    const {
-      showFinishedTasks,
-      showCancelledTasks,
-      alwayShowUnassignedTasks,
-      tags,
-      hiddenCouriers,
-      timeRange,
-    } = filters
+export const selectPolylines = createSelector(
+  selectTaskLists,
+  (taskLists) => {
+    let polylines = {}
+    forEach(taskLists, taskList => {
+      polylines[taskList.username] = taskList.polyline
+    })
+    return polylines
+  }
+)
 
-    const isFinished = includes(['DONE', 'FAILED'], task.status)
-    const isCancelled = 'CANCELLED' === task.status
+export const selectAsTheCrowFlies = createSelector(
+  selectTaskLists,
+  (taskLists) => {
+    let asTheCrowFlies = {}
+    forEach(taskLists, taskList => {
+      asTheCrowFlies[taskList.username] =
+        map(taskList.items, item => ([ item.address.geo.latitude, item.address.geo.longitude ]))
+    })
+    return asTheCrowFlies
+  }
+)
 
-    if (alwayShowUnassignedTasks && !task.isAssigned) {
-      if (!showCancelledTasks && isCancelled) {
-        return false
-      }
-      return true
-    }
+export const selectHiddenTaskIds = createSelector(
+  selectAllTasks,
+  selectVisibleTaskIds,
+  (tasks, visibleTaskIds) => {
+    const taskIds = tasks.map(task => task['@id'])
+    return differenceWith(taskIds, visibleTaskIds)
+  }
+)
 
-    if (!showFinishedTasks && isFinished) {
-      return false
-    }
+const fuseOptions = {
+  shouldSort: true,
+  includeScore: true,
+  keys: [{
+    name: 'id',
+    weight: 0.7
+  }, {
+    name: 'tags.slug',
+    weight: 0.1
+  }, {
+    name: 'address.name',
+    weight: 0.1
+  }, {
+    name: 'address.streetAddress',
+    weight: 0.1
+  }]
+}
 
-    if (!showCancelledTasks && isCancelled) {
-      return false
-    }
+export const selectFuseSearch = createSelector(
+  selectAllTasks,
+  (tasks) => new Fuse(tasks, fuseOptions)
+)
 
-    if (tags.length > 0) {
+export const selectPositions = createSelector(
+  state => state.positions,
+  state => state.offline,
+  (positions, offline) => positions.map(position => ({
+    ...position,
+    offline: includes(offline, position.username) ? true : isOffline(position.lastSeen),
+  }))
+)
 
-      if (task.tags.length === 0) {
-        return false
-      }
+export const selectCountry = createSelector(
+  selectSelectedDate,
+  () => $('body').data('country')
+)
 
-      if (intersectionWith(task.tags, tags, (tag, slug) => tag.slug === slug).length === 0) {
-        return false
-      }
-    }
+export const selectNextWorkingDay = createSelector(
+  selectCountry,
+  selectSelectedDate,
+  (country, date) => {
 
-    if (hiddenCouriers.length > 0) {
+    const holidays = new Holidays(country.toUpperCase())
 
-      if (!task.isAssigned) {
-        return false
-      }
+    let cursor = moment(date).startOf('day')
+    do {
+      cursor = cursor.add(1, 'day')
+    } while (holidays.isHoliday(cursor.toDate()))
 
-      if (includes(hiddenCouriers, task.assignedTo)) {
-        return false
-      }
-    }
+    return cursor.format()
+  }
+)
 
-    if (!isEqual(timeRange, [0, 24])) {
+const recurrenceRulesSelectors = recurrenceRulesAdapter.getSelectors(
+  (state) => state.rrules
+)
 
-      const [ start, end ] = timeRange
+export const selectRecurrenceRules = createSelector(
+  selectSelectedDate,
+  recurrenceRulesSelectors.selectAll,
+  (date, rrules) => {
 
-      const startHour = start
-      const endHour = end === 24 ? 23 : end
-      const endMinute = end === 24 ? 59 : 0
+    const startOfDayUTC = moment.utc(`${moment(date).format('YYYY-MM-DD')} 00:00:00`).toDate()
+    const endOfDayUTC   = moment.utc(`${moment(date).format('YYYY-MM-DD')} 23:59:59`).toDate()
 
-      const dateAsRange = moment.range(
-        moment(date).set({ hour: startHour, minute: 0 }),
-        moment(date).set({ hour: endHour, minute: endMinute })
-      )
+    return filter(rrules, rrule => {
 
-      const range = moment.range(
-        moment(task.doneAfter),
-        moment(task.doneBefore)
-      )
+      const tasks = recurrenceTemplateToArray(rrule.template)
 
-      if (!range.overlaps(dateAsRange)) {
-        return false
-      }
-    }
+      const matchingTasks = filter(tasks, task => {
+        const ruleObj = rrulestr(rrule.rule, {
+          dtstart: moment.utc(`${moment(date).format('YYYY-MM-DD')} ${task.after}`).toDate()
+        })
 
-    return true
+        return ruleObj.between(startOfDayUTC, endOfDayUTC, true).length > 0
+      })
+
+      return matchingTasks.length > 0
+    })
   }
 )

@@ -45,7 +45,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Serializer\SerializerInterface;
-use Symfony\Component\Translation\TranslatorInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
@@ -201,9 +201,7 @@ class RestaurantController extends AbstractController
      * )
      */
     public function hubAction($id, $slug, Request $request,
-        SlugifyInterface $slugify,
-        CartContextInterface $cartContext,
-        IriConverterInterface $iriConverter)
+        SlugifyInterface $slugify)
     {
         $hub = $this->getDoctrine()->getRepository(Hub::class)->find($id);
 
@@ -322,16 +320,6 @@ class RestaurantController extends AbstractController
             $cartForm->handleRequest($request);
 
             $cart = $cartForm->getData();
-
-            // Make sure the shipping address is valid
-            // FIXME This is cumbersome, there should be a better way
-            $shippingAddress = $cart->getShippingAddress();
-            if (null !== $shippingAddress) {
-                $isShippingAddressValid = count($this->validator->validate($shippingAddress)) === 0;
-                if (!$isShippingAddressValid) {
-                    $cart->setShippingAddress(null);
-                }
-            }
 
             if ($request->isXmlHttpRequest()) {
 

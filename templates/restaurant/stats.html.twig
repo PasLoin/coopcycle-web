@@ -23,6 +23,15 @@
   </div>
 </div>
 
+{% if cube_token is defined and cube_token is not empty %}
+<div id="cubejs"
+  data-api-url="{{ cubejs_api_url }}"
+  data-token="{{ cube_token|e('html_attr') }}"
+  data-date-range="{{ [ start|date('Y-m-d'), end|date('Y-m-d') ]|json_encode|e('html_attr') }}"
+  class="mb-4"
+  style="min-height: 240px;"></div>
+{% endif %}
+
 <ul class="nav nav-tabs mb-4">
   <li role="presentation" {% if tab == 'orders' %}class="active"{% endif %}>
     <a href="{{ path(stats_route, (app.request.query.all())|merge({ id: restaurant.id, tab: 'orders' })) }}">{{ 'restaurant.list.orders'|trans }} ({{ stats|length }})</a>
@@ -52,11 +61,11 @@
     <th></th>
   </thead>
   <tbody>
-    {% for order in stats %}
+    {% for order in stats.getPaginator(app.request.query.get('page', 1)) %}
       <tr class="{{ ('#' ~ order.id) in refunded_orders_hash|keys ? 'text-danger' : '' }}">
         {% for column in stats.columns %}
         <td class="{{ stats.isNumericColumn(column) ? 'text-right' : 'text-left' }}">
-          {{ stats.getRowValue(column, loop.parent.loop.index0) }}
+          {{ stats.getRowValueForPage(column, loop.parent.loop.index0, app.request.query.get('page', 1)) }}
         </td>
         {% endfor %}
         <td class="text-right">
@@ -92,10 +101,11 @@
   </tfoot>
 </table>
 <nav class="text-center">
+  {% set pages = stats.getPages() %}
   {% if pages > 1 %}
   <ul class="pagination pagination-sm">
       {% for i in 1..pages %}
-      <li {{ page == i ? 'class="active"' }}>
+      <li {{ app.request.query.get('page', 1) == i ? 'class="active"' }}>
         <a href="{{ path(app.request.attributes.get('_route'), { id: restaurant.id }|merge(app.request.query.all|merge({ page: i }))) }}">{{ i }}</a>
       </li>
       {% endfor %}
@@ -107,6 +117,7 @@
 {% endblock %}
 
 {% block scripts %}
+  {{ encore_entry_script_tags('metrics') }}
   <script>
     new CoopCycle.MonthPicker(document.querySelector('#month-picker'), {
       defaultValue: "{{ start|date('Y-m') }}",

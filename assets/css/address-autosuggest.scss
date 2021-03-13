@@ -100,9 +100,19 @@
 
 .has-error {
   .address-autosuggest {
-    &__container {
+    &__input-wrapper {
       &:before {
         background-color: $state-danger-text;
+      }
+    }
+  }
+}
+
+.form-group-sm {
+  .address-autosuggest {
+    &__input-wrapper {
+      &:before {
+        font-size: 18px;
       }
     }
   }

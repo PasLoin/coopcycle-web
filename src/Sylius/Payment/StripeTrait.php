@@ -78,12 +78,17 @@ trait StripeTrait
         ]);
     }
 
+    /**
+     * @return string|null
+     */
     public function getPaymentIntent()
     {
         if (isset($this->details['payment_intent'])) {
 
             return $this->details['payment_intent'];
         }
+
+        return null;
     }
 
     public function getPaymentIntentClientSecret()
@@ -177,6 +182,9 @@ trait StripeTrait
         }
     }
 
+    /**
+     * @deprecated
+     */
     public function getSource()
     {
         if (isset($this->details['source'])) {
@@ -185,6 +193,9 @@ trait StripeTrait
         }
     }
 
+    /**
+     * @deprecated
+     */
     public function getSourceType()
     {
         if (isset($this->details['source_type'])) {

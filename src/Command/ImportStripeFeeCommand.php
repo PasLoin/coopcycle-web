@@ -58,6 +58,12 @@ class ImportStripeFeeCommand extends Command
                 'o',
                 InputOption::VALUE_REQUIRED,
                 'Order'
+            )
+            ->addOption(
+                'force',
+                'f',
+                InputOption::VALUE_NONE,
+                'Overwrite Stripe fees even if they were already imported'
             );
     }
 
@@ -81,6 +87,7 @@ class ImportStripeFeeCommand extends Command
         $this->io->title('Importing Stripe fees');
 
         $dryRun = $input->getOption('dry-run');
+        $force = $input->getOption('force');
 
         $orders = [];
 
@@ -111,13 +118,24 @@ class ImportStripeFeeCommand extends Command
 
         foreach ($orders as $order) {
 
+            $stripeFeeAdjustments = $order->getAdjustments(AdjustmentInterface::STRIPE_FEE_ADJUSTMENT);
+
+            if (count($stripeFeeAdjustments) > 0 && !$force) {
+                $this->io->section(sprintf('Stripe fees for order #%d already imported, skipping…', $order->getId()));
+                continue;
+            }
+
             $this->io->section(sprintf('Importing Stripe fees for order #%d', $order->getId()));
 
             $lastCompletedPayment = $order->getLastPayment('completed');
 
             if (!$lastCompletedPayment) {
                 $lastPayment = $order->getLastPayment();
-                $this->io->text(sprintf('Last payment is in state %s, skipping…', $lastPayment->getState()));
+                if ($lastPayment) {
+                    $this->io->text(sprintf('Last payment is in state %s, skipping…', $lastPayment->getState()));
+                } else {
+                    $this->io->text('Order has no payment associated, skipping…');
+                }
                 continue;
             }
 

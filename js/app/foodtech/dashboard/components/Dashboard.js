@@ -9,6 +9,7 @@ import Column from './Column'
 import ModalContent from './ModalContent'
 import Tab from './Tab'
 import Search from './Search'
+import SlotViz from './SlotViz'
 import { setCurrentOrder, orderCreated, setPreparationDelay, changeStatus, setActiveTab } from '../redux/actions'
 import { selectNewOrders, selectAcceptedOrders, selectFulfilledOrders, selectCancelledOrders } from '../redux/selectors'
 
@@ -24,6 +25,9 @@ class Dashboard extends React.Component {
       60: '1h',
       75: '1h15',
       90: '1h30',
+      120: '2h',
+      150: '2h30',
+      180: '3h',
     }
   }
 
@@ -63,7 +67,7 @@ class Dashboard extends React.Component {
                 </Col>
                 <Col span={ 18 }>
                   <Slider
-                    max={ 90 }
+                    max={ 180 }
                     defaultValue={ this.props.preparationDelay }
                     marks={ this.sliderMarks }
                     step={ null }
@@ -99,8 +103,15 @@ class Dashboard extends React.Component {
             <DatePicker
               format={ 'll' }
               defaultValue={ moment(this.props.date) }
-              onChange={ (date) => this.props.onDateChange(date) } />
+              onChange={ (date) => {
+                if (date) {
+                  this.props.onDateChange(date)
+                }
+              }} />
           </div>
+        </div>
+        <div className="FoodtechDashboard__SlotViz">
+          <SlotViz />
         </div>
         <div className="FoodtechDashboard__Columns">
           <Column

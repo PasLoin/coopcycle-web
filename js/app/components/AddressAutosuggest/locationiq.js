@@ -1,5 +1,6 @@
 import React from 'react'
 import axios from 'axios'
+import qs from 'qs'
 
 import LocationIQ from './locationiq.png'
 
@@ -9,26 +10,63 @@ const client = axios.create({
 
 let accessToken = null
 function getAccessToken() {
-  if (null === accessToken) {
-    const el = document.getElementById('locationiq')
-    if (el) {
-      accessToken = el.dataset.accessToken
-    }
-  }
 
   return accessToken
 }
 
+let viewbox = null
+function getViewbox() {
+
+  return viewbox
+}
+
+const getFormattedAddress = (result) => {
+  if (result.type === 'house') {
+
+    return result.postal_address
+  }
+
+  // When the house number is missing,
+  // LocationIQ returns results with too much useless details
+  // For ex, when you type "calle de toledo", it returns
+  //
+  // Calle de Toledo, Embajadores, Madrid, Comunidad de Madrid, 28001, España
+  return [
+    result.address.name,
+    `${result.address.postcode} ${result.address.city}`,
+    result.address.country
+  ].join(', ')
+}
+
+const getSearchParams = (q, country, language) => ({
+  key: getAccessToken(),
+  q: q.substring(0, 200),
+  countrycodes: country,
+  'accept-language': language,
+  dedupe: '1',
+  limit: '5',
+  // FIXME
+  // This can be useful to have addresses formatted for country,
+  // but it doesn't work when entering only the street name
+  postaladdress: '1',
+  viewbox: getViewbox(),
+  bounded: '1',
+  tag: 'highway:*,place:*',
+})
+
 export const onSuggestionsFetchRequested = function({ value }) {
 
-  client.get(`/v1/autocomplete.php?key=${getAccessToken()}&q=${encodeURIComponent(value.substring(0, 200))}&countrycodes=${this.country}&accept-language=${this.language}&dedupe=1&tag=place:house`)
+  const params = getSearchParams(value, this.country, this.language)
+
+  // @see https://github.com/osm-search/Nominatim/blob/80df4d3b560f5b1fd550dcf8cdc09a992b69fee0/settings/partitionedtags.def
+  client.get(`/v1/autocomplete.php?${qs.stringify(params)}`)
     .then(response => {
 
       const predictionsAsSuggestions = response.data.map((result, idx) => ({
         type: 'prediction',
-        value: result.display_name,
+        value: getFormattedAddress(result),
         id: result.place_id,
-        description: result.display_name,
+        description: getFormattedAddress(result),
         index: idx,
         lat: parseFloat(result.lat),
         lng: parseFloat(result.lon),
@@ -58,8 +96,8 @@ const locationiqToAddress = (locationiq) => ({
   addressLocality: (locationiq.address && locationiq.address.city) || '',
   addressRegion: (locationiq.address && locationiq.address.state) || '',
   postalCode: (locationiq.address && locationiq.address.postcode) || '',
-  streetAddress: locationiq.display_name,
-  isPrecise: true,
+  streetAddress: getFormattedAddress(locationiq),
+  isPrecise: locationiq.type === 'house' || Object.prototype.hasOwnProperty.call(locationiq.address, 'house_number'),
   needsGeocoding: false,
 })
 
@@ -73,7 +111,10 @@ export const transformSuggestion = function (suggestion) {
 export const geocode = function (text, country = 'en', language = 'en') {
 
   return new Promise((resolve) => {
-    client.get(`/v1/autocomplete.php?key=${getAccessToken()}&q=${encodeURIComponent(text.substring(0, 200))}&countrycodes=${country}&accept-language=${language}&dedupe=1&tag=place:house&limit=1`)
+
+    const params = getSearchParams(text, country, language)
+
+    client.get(`/v1/autocomplete.php?${qs.stringify(params)}`)
       .then(response => {
         if (response.data.length > 0) {
           resolve(locationiqToAddress(response.data[0]))
@@ -85,4 +126,9 @@ export const geocode = function (text, country = 'en', language = 'en') {
         resolve(null)
       })
   })
+}
+
+export const configure = function (options) {
+  accessToken = options.accessToken
+  viewbox = options.viewbox
 }

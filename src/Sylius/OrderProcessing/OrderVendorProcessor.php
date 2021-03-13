@@ -9,23 +9,20 @@ use Sylius\Component\Order\Factory\AdjustmentFactoryInterface;
 use Sylius\Component\Order\Model\OrderInterface as BaseOrderInterface;
 use Sylius\Component\Order\Model\Adjustment;
 use Sylius\Component\Order\Processor\OrderProcessorInterface;
-use Symfony\Component\Translation\TranslatorInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Webmozart\Assert\Assert;
 
 final class OrderVendorProcessor implements OrderProcessorInterface
 {
     private $adjustmentFactory;
     private $translator;
-    private $logger;
 
     public function __construct(
         AdjustmentFactoryInterface $adjustmentFactory,
-        TranslatorInterface $translator,
-        LoggerInterface $logger)
+        TranslatorInterface $translator)
     {
         $this->adjustmentFactory = $adjustmentFactory;
         $this->translator = $translator;
-        $this->logger = $logger;
     }
 
     /**

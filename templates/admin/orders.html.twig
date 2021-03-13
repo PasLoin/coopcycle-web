@@ -30,6 +30,14 @@
   </div>
 </div>
 
+{% if cube_token is defined %}
+<div id="cubejs"
+  data-api-url="{{ cubejs_api_url }}"
+  data-token="{{ cube_token|e('html_attr') }}"
+  class="mb-4"
+  style="min-height: 180px;"></div>
+{% endif %}
+
 {% include "admin/pagination.html.twig" %}
 {% include "_partials/order/list.html.twig" %}
 
@@ -60,6 +68,7 @@
 {% endblock %}
 
 {% block scripts %}
+{{ encore_entry_script_tags('admin-orders') }}
 <script>
 
 var $settingsForm = $('form[name="admin_orders_settings"]');
@@ -67,13 +76,17 @@ var $settingsForm = $('form[name="admin_orders_settings"]');
 new CoopCycle.DatePicker(document.querySelector('#order_export_start_widget'), {
   defaultValue: "{{ 'now'|date('Y-m-d') }}",
   onChange: function(date, dateString) {
-    document.querySelector('#order_export_start').value = date.format('YYYY-MM-DD');
+    if (date) {
+      document.querySelector('#order_export_start').value = date.format('YYYY-MM-DD');
+    }
   }
 });
 new CoopCycle.DatePicker(document.querySelector('#order_export_end_widget'), {
   defaultValue: "{{ 'now'|date('Y-m-d') }}",
   onChange: function(date, dateString) {
-    document.querySelector('#order_export_end').value = date.format('YYYY-MM-DD');
+    if (date) {
+      document.querySelector('#order_export_end').value = date.format('YYYY-MM-DD');
+    }
   }
 });
 

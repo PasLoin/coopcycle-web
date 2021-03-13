@@ -9,15 +9,16 @@ use Geocoder\Location;
 use Geocoder\Provider\Addok\Addok as AddokProvider;
 use Geocoder\Provider\Chain\Chain as ChainProvider;
 use Geocoder\Provider\OpenCage\OpenCage as OpenCageProvider;
+use Geocoder\Provider\OpenCage\Model\OpenCageAddress;
 use Geocoder\Query\GeocodeQuery;
 use Geocoder\Query\ReverseQuery;
 use Geocoder\StatefulGeocoder;
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\HandlerStack;
 use Http\Adapter\Guzzle6\Client;
-use PredictHQ\AddressFormatter\Formatter as AddressFormatter;
 use Spatie\GuzzleRateLimiterMiddleware\RateLimiterMiddleware;
 use Spatie\GuzzleRateLimiterMiddleware\Store as RateLimiterStore;
+use Webmozart\Assert\Assert;
 
 class Geocoder
 {
@@ -27,6 +28,7 @@ class Geocoder
     private $country;
     private $locale;
     private $rateLimitPerSecond;
+    private $autoconfigure;
 
     private $geocoder;
     private $addressFormatter;
@@ -40,7 +42,8 @@ class Geocoder
         string $openCageApiKey,
         string $country,
         string $locale,
-        int $rateLimitPerSecond)
+        int $rateLimitPerSecond,
+        bool $autoconfigure = true)
     {
         $this->rateLimiterStore = $rateLimiterStore;
         $this->settingsManager = $settingsManager;
@@ -48,6 +51,7 @@ class Geocoder
         $this->country = $country;
         $this->locale = $locale;
         $this->rateLimitPerSecond = $rateLimitPerSecond;
+        $this->autoconfigure = $autoconfigure;
     }
 
     private function getGeocoder()
@@ -57,10 +61,12 @@ class Geocoder
 
             $providers = [];
 
-            // For France only, use https://adresse.data.gouv.fr/
-            if ('fr' === $this->country) {
-                // TODO Create own provider to get results with a high score
-                $providers[] = AddokProvider::withBANServer($httpClient);
+            if ($this->autoconfigure) {
+                // For France only, use https://adresse.data.gouv.fr/
+                if ('fr' === $this->country) {
+                    // TODO Create own provider to get results with a high score
+                    $providers[] = AddokProvider::withBANServer($httpClient);
+                }
             }
 
             // Add OpenCage provider only if api key is configured
@@ -146,34 +152,16 @@ class Geocoder
         }
     }
 
-    private function getAddressFormatter()
-    {
-        if (null === $this->addressFormatter) {
-            $this->addressFormatter = new AddressFormatter();
-        }
-
-        return $this->addressFormatter;
-    }
-
     private function formatAddress(Location $location)
     {
-        $data = [
-            'house_number' => $location->getStreetNumber(),
-            'road' => $location->getStreetName(),
-            'city' => $location->getLocality(),
-            'postcode' => $location->getPostalCode(),
-        ];
-
-        if (null !== $location->getCountry() && null !== $location->getCountry()->getCode()) {
-            $data['country_code'] = $location->getCountry()->getCode();
+        if ('addok' === $location->getProvidedBy()) {
+            // If it's addok, we use French formatting
+            return sprintf('%s %s, %s %s',
+                $location->getStreetNumber(), $location->getStreetName(), $location->getPostalCode(), $location->getLocality());
         }
 
-        $streetAddress = $this->getAddressFormatter()->formatArray($data);
+        Assert::isInstanceOf($location, OpenCageAddress::class);
 
-        // Convert address to single line
-        $lines = preg_split("/\r\n|\n|\r/", $streetAddress);
-        $lines = array_filter($lines);
-
-        return implode(', ', $lines);
+        return $location->getFormattedAddress();
     }
 }

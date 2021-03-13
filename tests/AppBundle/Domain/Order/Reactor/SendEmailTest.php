@@ -107,10 +107,6 @@ class SendEmailTest extends TestCase
             ->willReturn(new Email());
 
         $this->emailManager
-            ->createCovid19Message()
-            ->willReturn(new Email());
-
-        $this->emailManager
             ->createOrderCreatedMessageForAdmin($order->reveal())
             ->willReturn(new Email());
 
@@ -120,7 +116,7 @@ class SendEmailTest extends TestCase
 
         $this->emailManager
             ->sendTo(Argument::type(Email::class), Argument::any(), Argument::any())
-            ->shouldBeCalledTimes(4);
+            ->shouldBeCalledTimes(3);
 
         $this->eventBus
             ->handle(Argument::that(function (Event\EmailSent $event) {
@@ -136,7 +132,7 @@ class SendEmailTest extends TestCase
 
                 return isset($payload['recipient']) && in_array($payload['recipient'], $emails);
             }))
-            ->shouldBeCalled(5);
+            ->shouldBeCalled(4);
 
         call_user_func_array($this->sendEmail, [ new Event\OrderCreated($order->reveal()) ]);
     }
@@ -200,10 +196,6 @@ class SendEmailTest extends TestCase
             ->willReturn(new Email());
 
         $this->emailManager
-            ->createCovid19Message()
-            ->willReturn(new Email());
-
-        $this->emailManager
             ->createOrderCreatedMessageForAdmin($order->reveal())
             ->willReturn(new Email());
 
@@ -213,7 +205,7 @@ class SendEmailTest extends TestCase
 
         $this->emailManager
             ->sendTo(Argument::type(Email::class), Argument::any())
-            ->shouldBeCalledTimes(5);
+            ->shouldBeCalledTimes(4);
 
         $this->eventBus
             ->handle(Argument::that(function (Event\EmailSent $event) {
@@ -229,7 +221,7 @@ class SendEmailTest extends TestCase
 
                 return isset($payload['recipient']) && in_array($payload['recipient'], $emails);
             }))
-            ->shouldBeCalled(5);
+            ->shouldBeCalled(4);
 
         call_user_func_array($this->sendEmail, [ new Event\OrderCreated($order->reveal()) ]);
     }

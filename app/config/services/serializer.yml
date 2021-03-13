@@ -73,3 +73,18 @@ services:
 
   AppBundle\Serializer\Csv\TaskNormalizer:
     tags: [ { name: serializer.normalizer, priority: 128 } ]
+
+  AppBundle\Serializer\GeoCoordinatesNormalizer:
+    arguments:
+      $normalizer: "@api_platform.jsonld.normalizer.object"
+    tags: [ { name: serializer.normalizer, priority: 128 } ]
+
+  AppBundle\Serializer\Csv\DeliveryNormalizer:
+    arguments:
+      $normalizer: "@serializer.normalizer.object"
+    tags: [ { name: serializer.normalizer, priority: 128 } ]
+
+  AppBundle\Serializer\RRuleNormalizer:
+    arguments:
+      $normalizer: "@serializer.normalizer.object"
+    tags: [ { name: serializer.normalizer, priority: 128 } ]

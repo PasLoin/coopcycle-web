@@ -79,7 +79,7 @@ services:
   FOS\UserBundle\Util\UserManipulator:
     alias: 'fos_user.util.user_manipulator'
     public: true
-  FOS\UserBundle\Mailer\MailerInterface: '@fos_user.mailer.twig_swift'
+  FOS\UserBundle\Mailer\MailerInterface: '@AppBundle\Mailer\FOSUserBundleMailer'
   Lexik\Bundle\JWTAuthenticationBundle\Services\JWTManagerInterface: '@lexik_jwt_authentication.jwt_manager'
   Liip\ImagineBundle\Service\FilterService: '@liip_imagine.service.filter'
   League\Flysystem\MountManager: '@oneup_flysystem.mount_manager'
@@ -170,6 +170,21 @@ services:
     tags:
       - { name: monolog.logger, channel: stripe }
 
+  AppBundle\Controller\EdenredController:
+    tags:
+      - { name: monolog.logger, channel: edenred }
+
+  AppBundle\Controller\EmbedController:
+    arguments:
+      $customerRepository: '@sylius.repository.customer'
+      $customerFactory: '@sylius.factory.customer'
+
+  AppBundle\Controller\AdminController:
+    arguments:
+      $promotionRuleFactory: '@sylius.factory.promotion_rule'
+      $promotionFactory: '@sylius.factory.promotion'
+      $browserlessClient: '@csa_guzzle.client.browserless'
+
   AppBundle\EventListener\LocaleListener:
     arguments: ['%env(COOPCYCLE_LOCALE)%']
     tags:
@@ -188,7 +203,6 @@ services:
   AppBundle\EventListener\MaintenanceListener:
     arguments:
       $tokenStorage: '@security.token_storage'
-      $crawlerDetect: '@crawler_detect'
       $redis: '@snc_redis.default'
       $templating: '@twig'
     tags:
@@ -244,8 +258,6 @@ services:
     class: AppBundle\Sylius\OrderProcessing\OrderVendorProcessor
     arguments:
       $adjustmentFactory: "@sylius.factory.adjustment"
-    tags:
-      - { name: monolog.logger, channel: fee_calculation }
 
   AppBundle\Sylius\OrderProcessing\OrderDisabledProductProcessor:
     tags:
@@ -293,7 +305,7 @@ services:
       - name: sylius.promotion_action
         type: delivery_percentage_discount
         label: 'Delivery percentage discount'
-        form_type: AppBundle\Form\Sylius\Promotion\Action\PercentageDiscountConfigurationType
+        form_type: Sylius\Bundle\PromotionBundle\Form\Type\Action\PercentageDiscountConfigurationType
 
   sylius.promotion_action.fixed_discount:
     class: AppBundle\Sylius\Promotion\Action\FixedDiscountPromotionActionCommand
@@ -303,7 +315,7 @@ services:
       - name: sylius.promotion_action
         type: order_fixed_discount
         label: 'Fixed discount'
-        form_type: AppBundle\Form\Sylius\Promotion\Action\FixedDiscountConfigurationType
+        form_type: Sylius\Bundle\PromotionBundle\Form\Type\Action\FixedDiscountConfigurationType
 
   sylius.promotion_action.percentage_discount:
     class: AppBundle\Sylius\Promotion\Action\PercentageDiscountPromotionActionCommand
@@ -313,7 +325,7 @@ services:
       - name: sylius.promotion_action
         type: order_percentage_discount
         label: 'Percentage discount'
-        form_type: AppBundle\Form\Sylius\Promotion\Action\AppBundle\Form\Sylius\Promotion\Action\PercentageDiscountConfigurationType
+        form_type: Sylius\Bundle\PromotionBundle\Form\Type\Action\PercentageDiscountConfigurationType
 
   sylius.promotion.eligibility_checker.promotion_coupon_per_customer_usage_limit:
     class: AppBundle\Sylius\Promotion\Checker\Eligibility\PromotionCouponPerCustomerUsageLimitEligibilityChecker
@@ -396,7 +408,6 @@ services:
         - '@AppBundle\ExpressionLanguage\PickupExpressionLanguageProvider'
 
   AppBundle\EventListener\RegistrationListener:
-    arguments: ['@router']
     tags:
       - { name: kernel.event_subscriber }
 
@@ -523,12 +534,6 @@ services:
     arguments:
       $properties: []
 
-  AppBundle\Service\MailLoggerService:
-    arguments: ["@logger"]
-    tags:
-      - { name: monolog.logger, channel: mailer }
-      - { name: "swiftmailer.default.plugin" }
-
   coopcycle.web_success_handler:
     class: AppBundle\EventListener\AuthenticationWebSuccessHandler
     arguments: ['@security.http_utils', '@router']
@@ -560,6 +565,7 @@ services:
       $country: "%country_iso%"
       $locale: "%env(COOPCYCLE_LOCALE)%"
       $rateLimitPerSecond: 15
+      $autoconfigure: "%env(bool:COOPCYCLE_GEOCODER_AUTOCONF_ENABLED)%"
 
   AppBundle\Geocoder\RateLimiterStore:
     arguments:
@@ -571,14 +577,21 @@ services:
       $eventBus: '@event_bus'
       $eventStore: '@coopcycle.domain.event_store'
     tags:
+      - { name: monolog.logger, channel: coopcycle.logistics }
       - { name: doctrine.event_subscriber, connection: default, priority: 32 }
 
   AppBundle\Doctrine\EventSubscriber\TaskCollectionSubscriber:
-    arguments: [ '@event_dispatcher', '@routing_service', '@logger' ]
+    arguments:
+      $eventBus: '@event_bus'
     tags:
+      - { name: monolog.logger, channel: coopcycle.logistics }
       - { name: doctrine.event_subscriber, connection: default, priority: 16 }
 
   AppBundle\Doctrine\EventSubscriber\OrganizationSubscriber:
+    tags:
+      - { name: doctrine.event_subscriber }
+
+  AppBundle\Doctrine\EventSubscriber\TaskRecurrenceRuleSubscriber:
     tags:
       - { name: doctrine.event_subscriber }
 
@@ -668,15 +681,6 @@ services:
     tags:
       - { name: 'api_platform.doctrine.orm.query_extension.collection', priority: -18 }
 
-  AppBundle\Api\DataProvider\TaskCollectionDataProvider:
-    arguments:
-      $requestStack: '@request_stack'
-      $doctrine: '@doctrine'
-      $tokenStorage: '@security.token_storage'
-    tags:
-      - { name: 'api_platform.collection_data_provider', priority: 2 }
-    autoconfigure: false
-
   AppBundle\Api\DataProvider\StoreAddressesSubresourceDataProvider:
     arguments:
       $requestStack: '@request_stack'
@@ -700,7 +704,6 @@ services:
   AppBundle\Utils\PriceFormatter:
     arguments:
       - '@sylius.context.currency'
-      - '@sylius.templating.helper.currency'
 
   AppBundle\Sylius\Channel\ChannelResolver:
     tags:
@@ -772,16 +775,6 @@ services:
   AppBundle\Mjml\MjmlServerRenderer:
     arguments:
       $client: '@csa_guzzle.client.mjml_server'
-
-  AppBundle\Utils\MessageLoggingMailer: ~
-
-  AppBundle\Utils\MessageLoggingTwigSwiftMailer:
-    autowire: false
-    autoconfigure: false
-    public: true
-    parent: 'fos_user.mailer.twig_swift'
-    arguments:
-      $mailer: '@AppBundle\Utils\MessageLoggingMailer'
 
   AppBundle\Api\DataTransformer\DeliveryInputDataTransformer: ~
   AppBundle\Api\DataTransformer\PricingRuleEvaluateInputDataTransformer: ~
@@ -863,14 +856,10 @@ services:
       - { name: "liip_imagine.cache.resolver", resolver: "cached_s3_flysystem" }
 
   AppBundle\Service\StripeManager:
-    arguments:
-      $secret: '%secret%'
     tags:
       - { name: monolog.logger, channel: stripe }
 
-  AppBundle\Service\MercadopagoManager:
-    arguments:
-      $secret: '%secret%'
+  AppBundle\Service\MercadopagoManager: ~
 
   AppBundle\Sylius\Order\ReceiptGenerator:
     arguments:
@@ -906,7 +895,7 @@ services:
     arguments:
       $eventBus: '@simple_bus.event_bus'
     tags:
-      - { name: monolog.logger, channel: messenger }
+      - { name: monolog.logger, channel: coopcycle.logistics }
 
   AppBundle\MessageHandler\RetrieveStripeFeeHandler:
     arguments:
@@ -917,6 +906,10 @@ services:
   AppBundle\MessageHandler\TopBarNotificationHandler:
     arguments:
       $namespace: '%centrifugo_namespace%'
+
+  AppBundle\MessageHandler\DeliveryCreatedHandler:
+    arguments:
+      $locale: '%env(COOPCYCLE_LOCALE)%'
 
   AppBundle\Service\MaintenanceManager: ~
 
@@ -1051,8 +1044,6 @@ services:
       - '%env(SONIC_PORT)%'
       - 30
 
-  AppBundle\Serializer\RoutingProblemNormalizer: ~
-
   AppBundle\Service\RouteOptimizer:
     arguments:
       $client: '@csa_guzzle.client.vroom'
@@ -1066,3 +1057,41 @@ services:
   AppBundle\Service\SocketIoManager:
     arguments:
       $namespace: '%centrifugo_namespace%'
+
+  AppBundle\Spreadsheet\DeliveryDataExporter: ~
+
+  AppBundle\Edenred\Authentication:
+    arguments:
+      $config: { base_uri: "%env(EDENRED_AUTHENTICATION_BASE_URL)%" }
+      $clientId: "%env(EDENRED_AUTHENTICATION_CLIENT_ID)%"
+      $clientSecret: "%env(EDENRED_AUTHENTICATION_CLIENT_SECRET)%"
+    tags:
+      - { name: csa_guzzle.client }
+      - { name: monolog.logger, channel: edenred }
+
+  AppBundle\Edenred\RefreshTokenHandler:
+    arguments:
+      $baseUrl: "%env(EDENRED_AUTHENTICATION_BASE_URL)%"
+      $clientId: "%env(EDENRED_AUTHENTICATION_CLIENT_ID)%"
+      $clientSecret: "%env(EDENRED_AUTHENTICATION_CLIENT_SECRET)%"
+    tags:
+      - { name: monolog.logger, channel: edenred }
+
+  AppBundle\Mailer\FOSUserBundleMailer:
+    arguments:
+      $parameters:
+        template:
+          confirmation: '%fos_user.registration.confirmation.template%'
+          resetting: '%fos_user.resetting.email.template%'
+        from_email:
+          confirmation: '%fos_user.registration.confirmation.from_email%'
+          resetting: '%fos_user.resetting.email.from_email%'
+
+  AppBundle\Edenred\Client:
+    arguments:
+      $config: { base_uri: "%env(EDENRED_PAYMENT_BASE_URL)%" }
+      $paymentClientId: '%env(EDENRED_PAYMENT_CLIENT_ID)%'
+      $paymentClientSecret: '%env(EDENRED_PAYMENT_CLIENT_SECRET)%'
+    tags:
+      - { name: csa_guzzle.client }
+      - { name: monolog.logger, channel: edenred }

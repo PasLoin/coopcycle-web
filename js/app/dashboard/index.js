@@ -1,25 +1,24 @@
-import React from 'react'
+import React, { createRef } from 'react'
 import { render } from 'react-dom'
 import { Provider } from 'react-redux'
 import lottie from 'lottie-web'
 import { I18nextProvider } from 'react-i18next'
 import moment from 'moment'
 import _ from 'lodash'
+import { ConfigProvider } from 'antd'
+import Split from 'react-split'
 
-import i18n from '../i18n'
+import i18n, { antdLocale } from '../i18n'
 import { createStoreFromPreloadedState } from './redux/store'
-import DashboardApp from './app'
+import RightPanel from './components/RightPanel'
 import LeafletMap from './components/LeafletMap'
 import Navbar from './components/Navbar'
+import Modals from './components/Modals'
+import { updateRightPanelSize } from './redux/actions'
+import { recurrenceRulesAdapter } from './redux/selectors'
 
 import 'react-phone-number-input/style.css'
 import './dashboard.scss'
-
-let mapLoadedResolve, navbarLoadedResolve, dashboardLoadedResolve
-
-const mapLoaded = new Promise((resolve) => mapLoadedResolve = resolve)
-const navbarLoaded = new Promise((resolve) => navbarLoadedResolve = resolve)
-const dashboardLoaded = new Promise((resolve) => dashboardLoadedResolve = resolve)
 
 function start() {
 
@@ -51,6 +50,11 @@ function start() {
     centrifugoEventsChannel: dashboardEl.dataset.centrifugoEventsChannel,
     nav: dashboardEl.dataset.nav,
     positions,
+    rrules: recurrenceRulesAdapter.upsertMany(
+      recurrenceRulesAdapter.getInitialState(),
+      JSON.parse(dashboardEl.dataset.rrules)
+    ),
+    stores: JSON.parse(dashboardEl.dataset.stores),
   }
 
   const key = date.format('YYYY-MM-DD')
@@ -64,44 +68,45 @@ function start() {
 
   const store = createStoreFromPreloadedState(preloadedState)
 
-  Promise
-    .all([ mapLoaded, navbarLoaded, dashboardLoaded ])
-    .then(() => {
+  const mapRef = createRef()
+
+  render(
+    <Provider store={ store }>
+      <I18nextProvider i18n={ i18n }>
+        <ConfigProvider locale={antdLocale}>
+          <Split
+            sizes={[ 75, 25 ]}
+            style={{ display: 'flex', width: '100%' }}
+            onDrag={ sizes => store.dispatch(updateRightPanelSize(sizes[1])) }
+            onDragEnd={ () => mapRef.current.invalidateSize() }>
+            <div className="dashboard__map">
+              <div className="dashboard__toolbar-container">
+                <Navbar />
+              </div>
+              <div className="dashboard__map-container">
+                <LeafletMap onLoad={ (e) => {
+                  // It seems like a bad way to get a ref to the map,
+                  // but we can't use the ref prop
+                  mapRef.current = e.target
+                }} />
+              </div>
+            </div>
+            <aside className="dashboard__aside">
+              <RightPanel />
+            </aside>
+          </Split>
+          <Modals />
+        </ConfigProvider>
+      </I18nextProvider>
+    </Provider>,
+    document.getElementById('dashboard'),
+    () => {
       anim.stop()
       anim.destroy()
       document.querySelector('.dashboard__loader').remove()
-    })
 
-  render(
-    <Provider store={store}>
-      <I18nextProvider i18n={i18n}>
-        <LeafletMap onLoad={ () => mapLoadedResolve() } />
-      </I18nextProvider>
-    </Provider>,
-    document.querySelector('.dashboard__map-container')
-  )
-
-  render(
-    <Provider store={store}>
-      <I18nextProvider i18n={i18n}>
-        <Navbar />
-      </I18nextProvider>
-    </Provider>,
-    document.querySelector('.dashboard__toolbar-container'),
-    function () {
-      navbarLoadedResolve()
-    }
-  )
-
-  render(
-    <Provider store={store}>
-      <I18nextProvider i18n={i18n}>
-        <DashboardApp />
-      </I18nextProvider>
-    </Provider>,
-    document.querySelector('.dashboard__aside'),
-    function () {
-      dashboardLoadedResolve()
+      // Make sure map is rendered correctly with Split.js
+      mapRef.current.invalidateSize()
     }
   )
 

@@ -4,24 +4,26 @@ import MapHelper from '../../MapHelper'
 import MapProxy from './MapProxy'
 import _ from 'lodash'
 import { setCurrentTask, assignAfter, selectTask, selectTasks as selectTasksAction } from '../redux/actions'
-import { selectFilteredTasks } from '../redux/selectors'
-import { selectAllTasks, selectTaskLists, selectSelectedDate } from '../../coopcycle-frontend-js/dispatch/redux'
+import { selectVisibleTaskIds, selectHiddenTaskIds, selectPolylines, selectAsTheCrowFlies, selectPositions } from '../redux/selectors'
+import { selectAllTasks } from '../../coopcycle-frontend-js/dispatch/redux'
 
 class LeafletMap extends Component {
 
   _draw() {
     const {
+      tasks,
+      visibleTaskIds,
+      hiddenTaskIds,
       polylines,
       asTheCrowFlies,
-      tasks,
-      tasksFiltered,
       clustersEnabled,
     } = this.props
 
-    const tasksHidden = _.differenceWith(tasks, tasksFiltered, (a, b) => a['@id'] === b['@id'])
+    const visibleTasks = _.intersectionWith(tasks, visibleTaskIds, (task, id) => task['@id'] === id)
+    const hiddenTasks  = _.intersectionWith(tasks, hiddenTaskIds,  (task, id) => task['@id'] === id)
 
-    tasksFiltered.forEach(task => this.proxy.addTask(task))
-    tasksHidden.forEach(task => this.proxy.hideTask(task))
+    visibleTasks.forEach(task => this.proxy.addTask(task))
+    hiddenTasks.forEach(task => this.proxy.hideTask(task))
 
     _.forEach(polylines, (polyline, username) => this.proxy.setPolyline(username, polyline))
     _.forEach(asTheCrowFlies, (polyline, username) => this.proxy.setPolylineAsTheCrowFlies(username, polyline))
@@ -100,8 +102,8 @@ class LeafletMap extends Component {
     this._draw()
 
     this.props.positions.forEach(position => {
-      const { username, coords, lastSeen } = position
-      this.proxy.setGeolocation(username, coords, lastSeen)
+      const { username, coords, lastSeen, offline } = position
+      this.proxy.setGeolocation(username, coords, lastSeen, offline)
     })
   }
 
@@ -112,7 +114,6 @@ class LeafletMap extends Component {
       polylines,
       selectedTasks,
       positions,
-      offline,
       polylineStyle,
     } = this.props
 
@@ -137,18 +138,10 @@ class LeafletMap extends Component {
 
     if (prevProps.positions !== positions) {
       positions.forEach(position => {
-        const { username, coords, lastSeen } = position
-        this.proxy.setGeolocation(username, coords, lastSeen)
-        this.proxy.setOnline(username)
+        const { username, coords, lastSeen, offline } = position
+        this.proxy.setGeolocation(username, coords, lastSeen, offline)
       })
     }
-
-    if (prevProps.offline !== offline) {
-      offline.forEach(username => {
-        this.proxy.setOffline(username)
-      })
-    }
-
   }
 
   render() {
@@ -160,37 +153,16 @@ class LeafletMap extends Component {
 
 function mapStateToProps(state) {
 
-  const { polylineEnabled } = state
-
-  const taskLists = selectTaskLists(state)
-
-  let polylines = {}
-  _.forEach(taskLists, taskList => {
-    polylines[taskList.username] = taskList.polyline
-  })
-
-  let asTheCrowFlies = {}
-  _.forEach(taskLists, taskList => {
-    asTheCrowFlies[taskList.username] =
-      _.map(taskList.items, item => ([ item.address.geo.latitude, item.address.geo.longitude ]))
-  })
-
-  const tasks = selectAllTasks(state)
-
   return {
-    tasks,
-    tasksFiltered: selectFilteredTasks({
-      tasks,
-      filters: state.filters,
-      date: selectSelectedDate(state)
-    }),
-    polylines,
-    polylineEnabled,
+    tasks: selectAllTasks(state),
+    visibleTaskIds: selectVisibleTaskIds(state),
+    hiddenTaskIds: selectHiddenTaskIds(state),
+    polylines: selectPolylines(state),
+    polylineEnabled: state.polylineEnabled,
     selectedTasks: state.selectedTasks,
-    positions: state.positions,
-    offline: state.offline,
+    positions: selectPositions(state),
     polylineStyle: state.polylineStyle,
-    asTheCrowFlies,
+    asTheCrowFlies: selectAsTheCrowFlies(state),
     clustersEnabled: state.clustersEnabled,
   }
 }
