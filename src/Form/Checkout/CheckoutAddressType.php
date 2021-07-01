@@ -100,16 +100,18 @@ class CheckoutAddressType extends AbstractType
             }
 
             $restaurant = $order->getRestaurant();
-            $vendor = $order->getVendor();
             $customer = $order->getCustomer();
             $packagingQuantity = $order->getReusablePackagingQuantity();
 
             if ($order->isEligibleToReusablePackaging()) {
 
+                $supportsLoopEat = $restaurant->isLoopeatEnabled() && $restaurant->hasLoopEatCredentials();
+
                 // FIXME
                 // We need to check if $packagingQuantity > 0
 
-                if (!$vendor->isHub() && $restaurant->isLoopeatEnabled() && $restaurant->hasLoopEatCredentials()) {
+                if (!$order->isMultiVendor() && $supportsLoopEat) {
+
 
                     $this->loopeatContext->initialize();
 
@@ -143,6 +145,16 @@ class CheckoutAddressType extends AbstractType
                         'empty_data' => '0',
                     ]);
 
+                } elseif (!$order->isMultiVendor() && $restaurant->isVytalEnabled()) {
+
+                    $form->add('reusablePackagingEnabled', CheckboxType::class, [
+                        'required' => false,
+                        'label' => 'form.checkout_address.reusable_packaging_vytal_enabled.label',
+                        'attr' => [
+                            'data-vytal' => 'true',
+                        ],
+                    ]);
+
                 } elseif ($restaurant->isDepositRefundEnabled() && $restaurant->isDepositRefundOptin()) {
 
                     $packagingAmount = $order->getReusablePackagingAmount();
@@ -168,7 +180,7 @@ class CheckoutAddressType extends AbstractType
 
             // When the restaurant accepts quotes and the customer is allowed,
             // we add another submit button
-            if (!$vendor->isHub() &&
+            if (!$order->isMultiVendor() &&
                 $restaurant->isQuotesAllowed() && null !== $customer && $customer->hasUser() && $customer->getUser()->isQuotesAllowed()) {
                 $form->add('quote', SubmitType::class, [
                     'label' => 'form.checkout_address.quote.label'

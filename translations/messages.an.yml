@@ -60,8 +60,7 @@ adminDashboard.stores.form.uploadImage: 'Puyar una imachen'
 adminDashboard.orders.title: 'Pedius'
 adminDashboard.orders.previousOrders: 'Pedius anteriors'
 adminDashboard.orders.showCanceled: 'Amostrar pedius cancelaus'
-adminDashboard.restaurants.title: 'Restaurants'
-adminDashboard.restaurants.createNew: 'Creyar restaurant'
+adminDashboard.shops.title: 'Botigas'
 adminDashboard.restaurants.exclusive: 'Exclusivo'
 adminDashboard.users.title: 'Usuarios'
 adminDashboard.users.roles: 'Funcions'
@@ -176,7 +175,6 @@ restaurant.form.section.fulfillment: 'Complimiento'
 restaurant.form.section.payment: 'Pago'
 restaurant.form.section.settlement: 'Liquidación'
 restaurant.form.section.taxonomy: 'Taxonomía'
-restaurant.form.section.loopeat: ''
 restaurant.form.cuisines.label: 'Estilos de cocina'
 restaurant.contract.title: 'Contracto'
 restaurant.deliveryPerimeterExpression.title: 'Perimetro d''entrega'
@@ -236,17 +234,13 @@ restaurant.menus.activated: 'Lo menú « %menu_name% » ha estau activau. Agora 
 restaurant.closingForm.title: 'Anyadir zarre temporal'
 restaurant.closingForm.reason.label: 'Razón'
 restaurant.closingForm.dates.label: 'Zarrau de/dica'
-restaurant.list.manage: 'Chestionar'
 restaurant.list.orders: 'Pedius'
 restaurant.list.refunds: 'Devolucions'
 restaurant.list.products: 'Productos'
 restaurant.list.product_options: 'Opcions'
-restaurant.list.menus: 'Cartas'
-restaurant.list.activeMenu: 'Carta activada'
 restaurant.list.planning: 'Calandario'
 restaurant.list.settings: 'Achustes'
 restaurant.list.norestaurant: 'Encara no existen restaurants'
-restaurant.list.createNewRestaurant: 'Creyar restaurant'
 restaurant.list.preparationTime: 'Preparación'
 restaurant.list.stats: 'Estatisticas'
 restaurant.list.depositRefund: 'Reembolso de deposito'
@@ -512,10 +506,6 @@ form.settings.stripe_connect_client_id.label: 'Identificador de Stripe Connect'
 form.settings.stripe_connect_client_id.help: "Puetz trobar lo tuyo identificador en\
   \ a <a href=\"https://dashboard.stripe.com/account/applications/settings\">pachina\
   \ de parametros</a>\n"
-form.settings.google_api_key.label: 'Clau de l''API de Google'
-form.settings.google_api_key.help: "Creya una cuenta Google pa obtener la tuya <a\
-  \ href=\"https://developers.google.com/maps/documentation/javascript/get-api-key?hl=Fr\"\
-  >clau API</a>\n"
 form.settings.latlng.label: 'Coordinadas cheograficas'
 form.settings.latlng.help: "Especifica la latitut y lonchitut per defecto d'o mapa.\
   \ Puetz obtener-la en <a href=\"https://www.latlong.net/\">latlong.net</a>\n"
@@ -528,12 +518,6 @@ form.settings.company_logo.label: 'Logo d''empresa'
 form.settings.company_logo.help: 'Este logo s''usará pa facturas y comprobants d''entrega'
 form.settings.subject_to_vat.label: 'Subchecto a l''IVA'
 form.settings.sms_enabled.label: 'Habilitar ninvio de SMS'
-form.settings.sms.title: ''
-form.settings.sms_gateway.label: ''
-form.settings.sms_gateway_config.mailjet.api_token.label: ''
-form.settings.sms_gateway_config.twilio.sid.label: ''
-form.settings.sms_gateway_config.twilio.auth_token.label: ''
-form.settings.sms_gateway_config.twilio.from.label: ''
 form.suggest.name.label: 'Nombre'
 form.suggest.name.help: 'Indique lo nombre completo pa que podamos trobar-lo'
 form.suggest.submit.label: 'Sucherir agora'
@@ -606,7 +590,6 @@ form.local_business.stripe_account.link_ok: "Este restaurant ha estau enlazau a 
   \ cuenta Stripe y puede recibir pagos d'a plataforma.<br>\nPa chestionar la tuya\
   \ cuenta Stripe, per favor usa lo <a href=\"https://dashboard.stripe.com/\" target=\"\
   _blank\">panel d'administración de Stripe</a>.\n"
-form.settings.mercadopago.title: ''
 form.local_business.mercadopago_account.title: 'Cuenta de MercadoPago'
 form.local_business.mercadopago_account.success: 'Cuenta MercadoPago connectada con
   exito'
@@ -796,7 +779,6 @@ admin.settings.missing_mandatory_settings: "Qualques achustes obligatorios no ha
   \ estau configuraus.\nIr ta la <a href=\"%settings_url%\">pachina d'achustes</a>\
   \ pa configurar-los.\n"
 index.map.tip: 'Usa lo mapa pa trobar restaurants'
-index.banner: ''
 index.our_restaurants: 'Los nuestros restaurants'
 index.view_all_restaurants: 'Veyer totz los restaurants'
 index.our_shops: 'Botigas locals'
@@ -1078,10 +1060,8 @@ promotion_rule.is_restaurant: 'Lo restaurant ye %restaurant%'
 promotion_rule.is_customer: 'Client ye %username%'
 order.refund.total_amount: 'Este pediu ha estau reembolsau por una cantidat de %amount%'
 spreadsheet.download_example: 'Descarga una fuella d''eixemplo'
-nav.about_us: ''
 basics.tax_incl: 'Impuestos incl.'
 basics.tax_excl: 'Impuestos excl.'
-basics.kilos: ''
 form.product_tax_category_choice.placeholder: 'Tría impuesto'
 form.package_with_quantity.package.placeholder: 'Tría un tipo de paquet'
 form.time_slot.same_day_cutoff.label: 'Cutoff mesmo día'
@@ -1095,8 +1075,6 @@ form:
       label: 'Nombre d''o restaurant'
     contact_referent:
       label: 'Persona de contacto d''o restaurant'
-    b2b:
-      label: ''
 refund.list.amount: 'Importe tornau'
 refund.list.liable_party: 'Parte responsable'
 refund.list.comments: 'Comentarios'
@@ -1131,3 +1109,4 @@ homepage.form.title: 'Necesitas qualcosa pa entregar?'
 homepage.form.content: "<strong>%brand_name%</strong> opera localment servicios d'entrega\
   \ con bicicletas no contaminants. Ninvie un paquet u complete lo ninvio recursivo\
   \ pa lo suyo negocio."
+products.on_demand_delivery.name: Entrega baixo demanda

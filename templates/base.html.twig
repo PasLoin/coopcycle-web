@@ -58,28 +58,14 @@
       {% endif %}
     {% endblock %}
     {% if app.environment == "prod" %}
-      {% if sentry_apm_enabled %}
       <script
-        src="https://browser.sentry-cdn.com/5.17.0/bundle.apm.min.js"
-        crossorigin="anonymous"></script>
-      <script>
-        Sentry.init({
-          dsn: '{{ sentry_public_dsn }}',
-          integrations: [
-            new Sentry.Integrations.Tracing()
-          ],
-          tracesSampleRate: 0.25
-        });
-      </script>
-      {% else %}
-      <script
-        src="https://browser.sentry-cdn.com/5.17.0/bundle.min.js"
-        integrity="sha384-lowBFC6YTkvMIWPORr7+TERnCkZdo5ab00oH5NkFLeQUAmBTLGwJpFjF6djuxJ/5"
-        crossorigin="anonymous"></script>
+        src="https://browser.sentry-cdn.com/6.2.4/bundle.min.js"
+        integrity="sha384-b3mYy/x0ZxlqU5OjYvVD7RczftJVOXmpHSmrcqpL4c+kBSXWEnRL2Puv9eMjYmDq"
+        crossorigin="anonymous"
+      ></script>
       <script>
         Sentry.init({ dsn: '{{ sentry_public_dsn }}' });
       </script>
-      {% endif %}
     {% endif %}
 
     <div id="cpccl_settings"
@@ -95,21 +81,11 @@
       {{ encore_entry_script_tags('notifications') }}
     {% endif %}
 
-    <div id="autocomplete-adapter" data-value="{{ autocomplete_adapter|default('algolia') }}"></div>
-    {% if autocomplete_adapter|default('algolia') == 'geocode-earth' %}
-    <div id="geocode-earth" data-api-key="{{ geocode_earth_api_key }}"
-      data-boundary-circle-latlon="{{ coopcycle_setting('latlng')|e('html_attr') }}"></div>
-    {% elseif autocomplete_adapter|default('algolia') == 'locationiq' %}
-    <div id="locationiq"
-      data-access-token="{{ locationiq_access_token }}"
-      data-viewbox="{{ coopcycle_bounding_rect() }}"></div>
-    {% else %}
-    <div id="algolia-places"
-      data-app-id="{{ algolia_places_app_id }}"
-      data-api-key="{{ algolia_places_api_key }}"
-      data-around-lat-lng="{{ coopcycle_setting('latlng')|e('html_attr') }}"
-      data-address-template="{{ algolia_places_address_template }}"></div>
-    {% endif %}
+    {% include '_partials/autocomplete_adapter.html.twig' %}
+
+    {# We load Google Maps *SYNCHRONOUSLY*, so this must be added *BEFORE* scripts, so that Google is loaded #}
+    {# https://developers.google.com/maps/documentation/javascript/examples/map-sync #}
+    {% include '_partials/google_maps.html.twig' %}
 
     {% block scripts_common %}
       {% block scripts %}{% endblock %}

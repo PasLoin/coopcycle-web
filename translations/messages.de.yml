@@ -18,7 +18,6 @@ embed.breadcrumb.summary: Zusammenfassung
 embed.breadcrumb.confirm: Bestätigung
 adminDashboard.stores.form.uploadImage: Bild hochladen
 adminDashboard.orders.title: Bestellungen
-adminDashboard.restaurants.title: Restaurants
 adminDashboard.users.edit.addRestaurant: Restaurant hinzufügen
 adminDashboard.settings.title: Einstellungen
 adminDashboard.pricing.settings: Einstellungen
@@ -145,7 +144,6 @@ adminDashboard.stores.title: Läden
 adminDashboard.stores.createNew: Neuen Laden erstellen
 adminDashboard.orders.previousOrders: Vorherige Bestellung
 adminDashboard.orders.showCanceled: Zeige stornierte Bestellungen
-adminDashboard.restaurants.createNew: Neues Restaurant erstellen
 adminDashboard.users.title: Benutzer
 adminDashboard.users.roles: Funktion
 adminDashboard.users.editUser: Benutzer bearbeiten
@@ -240,14 +238,10 @@ restaurant.menus.activated: Das Menü « %menu_name% » wurde aktiviert. Es wird
   auf der Website des Restaurants gezeigt
 restaurant.closingForm.title: Eine temporäre Schließzeit hinzufügen
 restaurant.closingForm.dates.label: Geschlossen von/bis
-restaurant.list.manage: Verwalten
 restaurant.list.orders: Bestellungen
 restaurant.list.product_options: Optionen
-restaurant.list.menus: Menüs
-restaurant.list.activeMenu: Aktives Menü
 restaurant.list.planning: Planung
 restaurant.list.norestaurant: Es gibt zur Zeit keine Restaurants
-restaurant.list.createNewRestaurant: Ein neues Restaurant erstellen
 restaurant.list.preparationTime: Vorbereitung
 restaurant.list.stats: Statistiken
 order.list.receipt: Empfangsbestätigung
@@ -406,10 +400,6 @@ form.settings.administrator_email.label: Administrator E-Mail-Adresse
 form.settings.latlng.help: "Bestimme die standardmäßigen Längen- und Breitengrade.\
   \ Du erhältst sie auf <a href=\"https://www.latlong.net/\">latlong.net</a>\n"
 form.settings.latlng.label: Geo-Koordinaten
-form.settings.google_api_key.help: "Erstelle ein Google-Konto um Deinen <a href=\"\
-  https://developers.google.com/maps/documentation/javascript/get-api-key?hl=Fr\"\
-  >API Schlüssel</a> anzufordern\n"
-form.settings.google_api_key.label: Google API Schlüssel
 form.settings.stripe_connect_client_id.help: "Den Identifier erhältst Du auf der <a\
   \ href=\"https://dashboard.stripe.com/account/applications/settings\">Einstellungen-Seite</a>\
   \ von Stripe Connect\n"
@@ -686,3 +676,4 @@ restaurant.form.cuisines.label: Küchenrichtung
 restaurant.form.fulfillment_methods.label: Möglichkeiten zur Auftragsausführung
 restaurant.form.loopeat_enabled.label: LoopEat System einschalten
 checkout.breadcrumb.confirm: Bestätigung
+products.on_demand_delivery.name: Lieferung auf Anfrage

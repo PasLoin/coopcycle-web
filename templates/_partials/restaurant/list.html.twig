@@ -17,7 +17,7 @@
         <td class="text-right">
           <div class="btn-group">
             <button type="button" class="btn btn-sm btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-              {% trans %}restaurant.list.manage{% endtrans %}   <span class="caret"></span>
+              {% trans %}restaurant.list.settings{% endtrans %}   <span class="caret"></span>
             </button>
             <ul class="dropdown-menu dropdown-menu-right">
               {% if is_granted('edit', restaurant) %}
@@ -30,13 +30,13 @@
               {% if restaurant.menuTaxon is not null %}
               <li>
                 <a href="{{ path(menu_taxon_route, { restaurantId: restaurant.id, menuId: restaurant.menuTaxon.id }) }}">
-                  {% trans %}restaurant.list.activeMenu{% endtrans %}
+                  {% trans %}restaurant.list.active_catalog{% endtrans %}
                 </a>
               </li>
               {% endif %}
               <li>
                 <a href="{{ path(menu_taxons_route, { id: restaurant.id }) }}">
-                  {% trans %}restaurant.list.menus{% endtrans %}
+                  {% trans %}restaurant.list.catalogs{% endtrans %}
                 </a>
               </li>
               <li>
@@ -64,6 +64,6 @@
 {% else %}
   <div class="alert alert-info">
   {% trans %}restaurant.list.norestaurant{% endtrans %}
-  <a href="{{ path('admin_restaurant_new') }}">{% trans %}restaurant.list.createNewRestaurant{% endtrans %}</a>
+  <a href="{{ path('admin_restaurant_new') }}">{% trans %}basics.add{% endtrans %}</a>
   </div>
 {% endif %}

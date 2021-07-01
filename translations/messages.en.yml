@@ -59,8 +59,7 @@ adminDashboard.stores.form.uploadImage: Upload an image
 adminDashboard.orders.title: Orders
 adminDashboard.orders.previousOrders: Previous orders
 adminDashboard.orders.showCanceled: Show cancelled orders
-adminDashboard.restaurants.title: Restaurants
-adminDashboard.restaurants.createNew: Create a new restaurant
+adminDashboard.shops.title: Shops
 adminDashboard.restaurants.exclusive: Exclusive
 adminDashboard.users.title: Users
 adminDashboard.users.roles: Roles
@@ -231,17 +230,15 @@ restaurant.menus.activated: The menu « %menu_name% » has been activated. It wi
 restaurant.closingForm.title: Add a temporary closure
 restaurant.closingForm.reason.label: Reason
 restaurant.closingForm.dates.label: Closing from/to
-restaurant.list.manage: Manage
 restaurant.list.orders: Orders
 restaurant.list.refunds: Refunds
 restaurant.list.products: Products
 restaurant.list.product_options: Options
-restaurant.list.menus: Menus
-restaurant.list.activeMenu: Active menu
-restaurant.list.planning: Planning
+restaurant.list.catalogs: Catalogs
+restaurant.list.active_catalog: Active catalog
+restaurant.list.planning: Holidays
 restaurant.list.settings: Settings
 restaurant.list.norestaurant: There are no restaurants yet
-restaurant.list.createNewRestaurant: Create a new restaurant
 restaurant.list.preparationTime: Preparation
 restaurant.list.stats: Statistics
 restaurant.list.depositRefund: Deposit-refund
@@ -506,10 +503,6 @@ form.settings.stripe_secret_key.help: "Create a Stripe account to obtain your <a
 form.settings.stripe_connect_client_id.label: Stripe Connect identifier
 form.settings.stripe_connect_client_id.help: "Get the identifier on the <a href=\"\
   https://dashboard.stripe.com/account/applications/settings\">parameters page</a>\n"
-form.settings.google_api_key.label: Google API key
-form.settings.google_api_key.help: "Create a Google account to obtain your <a href=\"\
-  https://developers.google.com/maps/documentation/javascript/get-api-key?hl=Fr\"\
-  >API key</a>\n"
 form.settings.latlng.label: Geographical coordinates
 form.settings.latlng.help: "Specify the default latitude and longitude. You can get\
   \ it on <a href=\"https://www.latlong.net/\">latlong.net</a>\n"
@@ -631,7 +624,7 @@ form.menu_item_modifier.name.label: Name
 form.menu_item_modifier.price.label: Price
 form.menu_item_modifier.calculusStrategy.label: Price calculation
 form.menu_taxon.name.label: Name
-form.menu_taxon.add_child.label: Add section
+form.menu_taxon.add_child.label: Add category
 form.menu_taxon.child_name.placeholder: "Example: main courses, desserts…\n"
 form.menu_editor.products_panel.title: Products
 form.menu_editor.save.label: Save Changes
@@ -752,7 +745,7 @@ form.customize.custom_banner.label: Custom banner
 form.customize.custom_banner.help: Make sure that the banner is a repeatable SVG pattern
 promotion_coupon.used.label: Number of uses
 product_option.strategy.free: Free
-product_option.strategy.option_value: Each option has a different price
+product_option.strategy.option_value: Custom price
 roles.ROLE_ADMIN: Administrator
 roles.ROLE_COURIER: Courier
 roles.ROLE_RESTAURANT: Restaurant
@@ -976,6 +969,7 @@ order.export.heading.stripe_fee: Stripe fee
 order.export.heading.platform_fee: Platform fee
 order.export.heading.net_revenue: Net revenue
 order.export.heading.completed_by: Completed by
+order.export.heading.refund_total: Refunds
 order.export.empty: There are no orders to export
 form.order_export.messenger.label: Add column with messenger who completed the order
 basics.show: Show
@@ -1031,6 +1025,7 @@ restaurant_promotion.offer_delivery.help: This allows you to offer the delivery 
   <strong>on your own money</strong>. Your margin will be diminished by the amount
   of the delivery fees. This will <strong>not diminish</strong> the fees perceived
   by the platform.
+restaurant_promotion.items_total: Based on items total
 form.offer_delivery.coupon_code.error.exists: This code already exists
 form.offer_delivery.coupon_code.help: It is your responsibility to communicate this
   code to the customer, either personally or via social networks
@@ -1146,3 +1141,57 @@ profile.edenred.connect: Connect my Edenred account
 edenred.oauth_connect.success: Edenred account connected successfully!
 form.payment.method.name.label: Payment method
 order.export.heading.promotions: Promotions
+stores.address_book: Address book
+store.form.section.settings: Settings
+adminDashboard.hubs.title: Hubs
+adminDashboard.hubs.createNew: Create a new hub
+adminDashboard.hubs.help: Hubs allow to group together shops sharing the same pickup address, like a market for example.
+restaurant.form.edenred_merchant_id.label: Edenred Merchant ID
+restaurant.form.edenred_merchant_id.help: Leave empty to disable Edenred
+restaurants.mode.list: View as list
+restaurants.mode.map: View as map
+order.number: 'Your order has number <strong><span class="text-monospace">%number%</span></strong>'
+adminDashboard.stores.help: Create customer accounts
+adminDashboard.pricing.help: Define rules to calculate the price of a delivery
+adminDashboard.embed.help: Create forms to order deliveries
+adminDashboard.time_slots.help: Set up time slots
+adminDashboard.package_sets.help: Configure the types of goods to transport
+adminDashboard.zones.help: Define geographical areas
+adminDashboard.tags.help: Assign tags and colors to tasks
+form.time_slot.preview_title: Time slot preview
+adminDashboard.api.title: API
+adminDashboard.api.help: Allow to create deliveries programmatically
+checkout.suggestions.continue_shopping_hub: You can continue shopping in other shops of <strong>%name%</strong>
+hub.disclaimer: Order from multiple shops, and we'll deliver everything at once!
+form.adress_book.remember_address: Remember this address
+restaurant.list.tags.zerowaste: Zero waste
+homepage.zerowaste: Discover our zero waste restaurants!
+restaurant.stats.view_simple: Simple view
+restaurant.stats.view_detailed: Detailed view
+form.items_total_promotion.items_total.label: Above items total
+form.items_total_promotion.fixed_discount_amount.label: Apply a discount of
+restaurant_promotion.items_total.help: This allows you to apply a discount above a certain amount.
+  Your margin will be diminished by the amount
+  of the discount. This will <strong>not diminish</strong> the fees perceived
+  by the platform.
+adminDashboard.metrics.title: Metrics
+restaurants.edenred_transactions.disclaimer: This page lists all the orders paid with Edenred, in part or in full.
+  For these orders, all the money has been collected by the restaurant.
+  You must therefore send an invoice to each restaurant, to claim the commissions due.
+restaurants.edenred_transactions.edenred_amount: Amount paid with Edenred
+restaurants.edenred_transactions.title: Edenred transactions
+form.product.alcohol.label: This product is an alcoholic beverage
+form.product.alcohol.help: Check this box only if this product is an alcoholic beverage, like a bottle of wine.
+form.checkout_address.reusable_packaging_vytal_enabled.label: I want to use Vytal containers
+vytal.code.disclaimer: Open the Vytal app, generate a delivery token, then enter it below. <a href="https://www.vytal.org/bestellen" target="_blank">Learn more</a>
+restaurant.form.section.vytal: Vytal
+restaurant.form.vytal_enabled.label: Enable Vytal deposit-refund system
+form.settings.addresses.title: Addresses
+form.settings.autocomplete_provider.label: Suggestions provider
+form.settings.google_api_key_custom.label: Google API Key
+form.payment.edenred_disclaimer: This order was paid with Edenred and a supplement by credit card.
+  The refund will be made in priority on the amount paid by credit card, and on the Edenred amount if necessary.
+form.payment.refund_breakdown: Amount refundable by card %card%, amount refundable by Edenred %edenred%
+form.settings.geocoding_provider.label: Geocoding provider
+form.settings.geocoding_provider.help: Used by the API and when importing spreadsheets
+products.on_demand_delivery.name: On demand delivery

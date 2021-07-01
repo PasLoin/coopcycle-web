@@ -66,7 +66,7 @@ use Symfony\Component\Validator\Constraints as Assert;
  *       "path"="/tasks/{id}/start",
  *       "controller"=TaskStart::class,
  *       "access_control"="is_granted('ROLE_ADMIN') or (is_granted('ROLE_COURIER') and object.isAssignedTo(user))",
- *       "swagger_context"={
+ *       "openapi_context"={
  *         "summary"="Marks a Task as started"
  *       }
  *     },
@@ -76,12 +76,14 @@ use Symfony\Component\Validator\Constraints as Assert;
  *       "controller"=TaskDone::class,
  *       "denormalization_context"={"groups"={"task_operation"}},
  *       "access_control"="is_granted('ROLE_ADMIN') or (is_granted('ROLE_COURIER') and object.isAssignedTo(user))",
- *       "swagger_context"={
+ *       "openapi_context"={
  *         "summary"="Marks a Task as done",
  *         "parameters"={
  *           {
  *             "in"="body",
- *             "schema"={"type"="object", "properties"={"notes"={"type"="string"}}}
+ *             "name"="N/A",
+ *             "schema"={"type"="object", "properties"={"notes"={"type"="string"}}},
+ *             "style"="form"
  *           }
  *         }
  *       }
@@ -92,12 +94,14 @@ use Symfony\Component\Validator\Constraints as Assert;
  *       "controller"=TaskFailed::class,
  *       "denormalization_context"={"groups"={"task_operation"}},
  *       "access_control"="is_granted('ROLE_ADMIN') or (is_granted('ROLE_COURIER') and object.isAssignedTo(user))",
- *       "swagger_context"={
+ *       "openapi_context"={
  *         "summary"="Marks a Task as failed",
  *         "parameters"={
  *           {
  *             "in"="body",
- *             "schema"={"type"="object", "properties"={"notes"={"type"="string"}}}
+ *             "name"="N/A",
+ *             "schema"={"type"="object", "properties"={"notes"={"type"="string"}}},
+ *             "style"="form"
  *           }
  *         }
  *       }
@@ -108,12 +112,14 @@ use Symfony\Component\Validator\Constraints as Assert;
  *       "controller"=TaskAssign::class,
  *       "denormalization_context"={"groups"={"task_operation"}},
  *       "access_control"="is_granted('ROLE_ADMIN') or is_granted('ROLE_COURIER')",
- *       "swagger_context"={
+ *       "openapi_context"={
  *         "summary"="Assigns a Task to a messenger",
  *         "parameters"={
  *           {
  *             "in"="body",
- *             "schema"={"type"="object", "properties"={"username"={"type"="string"}}}
+ *             "name"="N/A",
+ *             "schema"={"type"="object", "properties"={"username"={"type"="string"}}},
+ *             "style"="form"
  *           }
  *         }
  *       }
@@ -124,7 +130,7 @@ use Symfony\Component\Validator\Constraints as Assert;
  *       "controller"=TaskUnassign::class,
  *       "denormalization_context"={"groups"={"task_operation"}},
  *       "access_control"="is_granted('ROLE_ADMIN') or (is_granted('ROLE_COURIER') and object.isAssignedTo(user))",
- *       "swagger_context"={
+ *       "openapi_context"={
  *         "summary"="Unassigns a Task from a messenger"
  *       }
  *     },
@@ -134,7 +140,7 @@ use Symfony\Component\Validator\Constraints as Assert;
  *       "controller"=TaskCancel::class,
  *       "denormalization_context"={"groups"={"task_operation"}},
  *       "access_control"="is_granted('ROLE_ADMIN')",
- *       "swagger_context"={
+ *       "openapi_context"={
  *         "summary"="Cancels a Task"
  *       }
  *     },
@@ -144,7 +150,7 @@ use Symfony\Component\Validator\Constraints as Assert;
  *       "controller"=TaskDuplicate::class,
  *       "denormalization_context"={"groups"={"task_operation"}},
  *       "access_control"="is_granted('ROLE_ADMIN')",
- *       "swagger_context"={
+ *       "openapi_context"={
  *         "summary"="Duplicates a Task"
  *       }
  *     },
@@ -153,7 +159,7 @@ use Symfony\Component\Validator\Constraints as Assert;
  *       "path"="/tasks/{id}/events",
  *       "controller"=TaskEvents::class,
  *       "security"="is_granted('view', object)",
- *       "swagger_context"={
+ *       "openapi_context"={
  *         "summary"="Retrieves events for a Task"
  *       }
  *     }
@@ -256,9 +262,14 @@ class Task implements TaggableInterface, OrganizationAwareInterface
 
     /**
      * @var Collection<int,TaskImage>
-     * @Groups({"task", "task_edit"})
+     * @Groups({"task_edit"})
      */
     private $images;
+
+    /**
+     * @var int
+     */
+    private $imageCount = 0;
 
     /**
      * @Groups({"task", "task_create", "task_edit"})
@@ -275,6 +286,12 @@ class Task implements TaggableInterface, OrganizationAwareInterface
      * @Groups({"task"})
      */
     private $recurrenceRule;
+
+    /**
+     * @var array
+     * @Groups({"task"})
+     */
+    private $metadata = [];
 
     public function __construct()
     {
@@ -584,6 +601,7 @@ class Task implements TaggableInterface, OrganizationAwareInterface
         }
 
         $this->images = $images;
+        $this->imageCount = count($this->images);
 
         return $this;
     }
@@ -591,6 +609,7 @@ class Task implements TaggableInterface, OrganizationAwareInterface
     public function addImage($image)
     {
         $this->images->add($image);
+        $this->imageCount = count($this->images);
 
         return $this;
     }
@@ -726,5 +745,32 @@ class Task implements TaggableInterface, OrganizationAwareInterface
     public function getRecurrenceRule(): ?RecurrenceRule
     {
         return $this->recurrenceRule;
+    }
+
+    /**
+     * @SerializedName("images")
+     * @Groups({"task"})
+     */
+    public function getImagesWithCache()
+    {
+        if (0 === $this->imageCount) {
+            return new ArrayCollection();
+        }
+
+        return $this->getImages();
+    }
+
+    public function setMetadata($key)
+    {
+        if (func_num_args() === 1 && is_array(func_get_arg(0))) {
+            $this->metadata = func_get_arg(0);
+        } elseif (func_num_args() === 2) {
+            $this->metadata[func_get_arg(0)] = func_get_arg(1);
+        }
+    }
+
+    public function getMetadata()
+    {
+        return $this->metadata;
     }
 }

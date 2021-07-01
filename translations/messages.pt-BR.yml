@@ -56,8 +56,6 @@ adminDashboard.stores.form.uploadImage: Enviar uma imagem
 adminDashboard.orders.title: Pedidos
 adminDashboard.orders.previousOrders: Pedidos anteriores
 adminDashboard.orders.showCanceled: Exibir pedidos cancelados
-adminDashboard.restaurants.title: Restaurantes
-adminDashboard.restaurants.createNew: Criar novo restaurante
 adminDashboard.restaurants.exclusive: Exclusivo
 adminDashboard.users.title: Usuários
 adminDashboard.users.roles: Papéis
@@ -222,17 +220,13 @@ restaurant.menus.activated: O cardápio « %menu_name% » foi ativado. Ele agora
 restaurant.closingForm.title: Adicionar fechamento temporário
 restaurant.closingForm.reason.label: Motivo
 restaurant.closingForm.dates.label: Fechado de/até
-restaurant.list.manage: Gerenciar
 restaurant.list.orders: Pedidos
 restaurant.list.refunds: Reembolsos
 restaurant.list.products: Produtos
 restaurant.list.product_options: Opções
-restaurant.list.menus: Cardápios
-restaurant.list.activeMenu: Cardápio ativo
 restaurant.list.planning: Calendário
 restaurant.list.settings: Configurações
 restaurant.list.norestaurant: Ainda não há restaurantes
-restaurant.list.createNewRestaurant: Criar novo restaurante
 restaurant.list.preparationTime: Tempo de preparo
 restaurant.list.stats: Estatísticas
 restaurant.list.depositRefund: Reembolso
@@ -467,10 +461,6 @@ form.settings.stripe_secret_key.help: "Cria uma conta Stripe para obter sua <a h
 form.settings.stripe_connect_client_id.label: Indetificador Stripe Connect
 form.settings.stripe_connect_client_id.help: "Obtenha seu identificador na <a href=\"\
   https://dashboard.stripe.com/account/applications/settings\">página de parâmetros</a>\n"
-form.settings.google_api_key.label: Chave de API Google
-form.settings.google_api_key.help: "Crie uma conta Google para obter sua <a href=\"\
-  https://developers.google.com/maps/documentation/javascript/get-api-key?hl=Fr\"\
-  >chave de API</a>\n"
 form.settings.latlng.label: Coordenadas geográficas
 form.settings.latlng.help: "Especifique sua latitude e longitude padrão. Você pode\
   \ obter em <a href=\"https://www.latlong.net/\">latlong.net</a>\n"
@@ -1000,3 +990,4 @@ localBusiness.form.business_address.label: Endereço comercial
 localBusiness.form.use_different_business_address.label: Utilize outro endereço comercial
 base.footer.terms: Termos de serviço
 base.footer.privacy: Privacidade
+products.on_demand_delivery.name: Entrega sob demanda

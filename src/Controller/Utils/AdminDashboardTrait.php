@@ -4,6 +4,9 @@ namespace AppBundle\Controller\Utils;
 
 use ApiPlatform\Core\Api\IriConverterInterface;
 use ApiPlatform\Core\Exception\InvalidArgumentException;
+use AppBundle\Entity\Address;
+use AppBundle\Entity\Hub;
+use AppBundle\Entity\LocalBusiness;
 use AppBundle\Entity\User;
 use AppBundle\Entity\RemotePushToken;
 use AppBundle\Entity\Store;
@@ -16,11 +19,13 @@ use AppBundle\Entity\Task\RecurrenceRule as TaskRecurrenceRule;
 use AppBundle\Form\TaskExportType;
 use AppBundle\Form\TaskGroupType;
 use AppBundle\Form\TaskUploadType;
+use AppBundle\Service\TagManager;
 use AppBundle\Service\TaskManager;
 use AppBundle\Utils\TaskImageNamer;
 use Cocur\Slugify\SlugifyInterface;
-use FOS\UserBundle\Model\UserInterface;
-use FOS\UserBundle\Model\UserManagerInterface;
+use Doctrine\ORM\Query\Expr;
+use Nucleos\UserBundle\Model\UserInterface;
+use Nucleos\UserBundle\Model\UserManagerInterface;
 use Hashids\Hashids;
 use League\Flysystem\Filesystem;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTManagerInterface;
@@ -62,10 +67,12 @@ trait AdminDashboardTrait
         TaskManager $taskManager,
         JWTManagerInterface $jwtManager,
         CentrifugoClient $centrifugoClient,
-        Redis $tile38)
+        Redis $tile38,
+        IriConverterInterface $iriConverter,
+        TagManager $tagManager)
     {
         return $this->dashboardFullscreenAction((new \DateTime())->format('Y-m-d'),
-            $request, $taskManager, $jwtManager, $centrifugoClient, $tile38);
+            $request, $taskManager, $jwtManager, $centrifugoClient, $tile38, $iriConverter, $tagManager);
     }
 
     /**
@@ -76,7 +83,9 @@ trait AdminDashboardTrait
         TaskManager $taskManager,
         JWTManagerInterface $jwtManager,
         CentrifugoClient $centrifugoClient,
-        Redis $tile38)
+        Redis $tile38,
+        IriConverterInterface $iriConverter,
+        TagManager $tagManager)
     {
         $hashids = new Hashids($this->getParameter('secret'), 8);
 
@@ -91,7 +100,6 @@ trait AdminDashboardTrait
         $taskExport->end = new \DateTime();
 
         $taskExportForm = $this->createForm(TaskExportType::class, $taskExport);
-        $taskGroupForm = $this->createForm(TaskGroupType::class);
 
         $taskExportForm->handleRequest($request);
         if ($taskExportForm->isSubmitted() && $taskExportForm->isValid()) {
@@ -108,28 +116,10 @@ trait AdminDashboardTrait
             return $response;
         }
 
-        $taskGroupForm->handleRequest($request);
-        if ($taskGroupForm->isSubmitted() && $taskGroupForm->isValid()) {
-
-            if ($taskGroupForm->getClickedButton() && 'delete' === $taskGroupForm->getClickedButton()->getName()) {
-
-                $taskGroup = $this->getDoctrine()
-                    ->getRepository(TaskGroup::class)
-                    ->find($taskGroupForm->get('id')->getData());
-
-                $taskManager->deleteGroup($taskGroup);
-
-                $this->getDoctrine()
-                    ->getManagerForClass(TaskGroup::class)
-                    ->flush();
-            }
-
-            return $this->redirectToDashboard($request);
-        }
-
         $allTasks = $this->getDoctrine()
             ->getRepository(Task::class)
-            ->findByDate($date);
+            ->findByDate($date)
+            ;
 
         $taskLists = $this->getDoctrine()
             ->getRepository(TaskList::class)
@@ -149,34 +139,19 @@ trait AdminDashboardTrait
                 'resource_class' => TaskList::class,
                 'operation_type' => 'item',
                 'item_operation_name' => 'get',
-                'groups' => ['task_collection', 'task', 'delivery', 'address', sprintf('address_%s', $this->getParameter('country_iso'))]
+                'groups' => ['task_collection']
             ]);
         }, $taskLists);
 
         $couriers = $this->getDoctrine()
             ->getRepository(User::class)
             ->createQueryBuilder('u')
-            ->select("u.username")
+            ->select('u.username')
             ->where('u.roles LIKE :roles')
             ->orderBy('u.username', 'ASC')
             ->setParameter('roles', '%ROLE_COURIER%')
             ->getQuery()
-            ->getResult();
-
-        $allTags = $this->getDoctrine()
-            ->getRepository(Tag::class)
-            ->findAll();
-
-        $normalizedTags = [];
-        foreach ($allTags as $tag) {
-            $normalizedTags[] = [
-                'name' => $tag->getName(),
-                'slug' => $tag->getSlug(),
-                'color' => $tag->getColor(),
-            ];
-        }
-
-        $positions = $this->loadPositions($tile38);
+            ->getArrayResult();
 
         $this->getDoctrine()->getManager()->getFilters()->enable('soft_deleteable');
 
@@ -203,22 +178,41 @@ trait AdminDashboardTrait
             ]);
         }, $stores);
 
+        $qb = $this->getDoctrine()
+            ->getRepository(Address::class)
+            ->createQueryBuilder('a');
+        $qb
+            ->select('a.id')
+            ->leftJoin(LocalBusiness::class, 'r', Expr\Join::WITH, 'r.address = a.id')
+            ->leftJoin(Hub::class,           'h', Expr\Join::WITH, 'h.address = a.id')
+            ->andWhere(
+                $qb->expr()->orX(
+                    $qb->expr()->isNotNull('r.id'),
+                    $qb->expr()->isNotNull('h.id')
+                )
+            );
+
+        $addressIris = array_map(
+            fn ($address) => $iriConverter->getItemIriFromResourceClass(Address::class, $address),
+            $qb->getQuery()->getArrayResult()
+        );
+
         return $this->render('admin/dashboard_iframe.html.twig', [
             'nav' => $request->query->getBoolean('nav', true),
             'date' => $date,
             'couriers' => $couriers,
-            'tasks' => $allTasksNormalized,
+            'all_tasks' => $allTasksNormalized,
             'task_lists' => $taskListsNormalized,
             'task_export_form' => $taskExportForm->createView(),
-            'task_group_form' => $taskGroupForm->createView(),
-            'tags' => $normalizedTags,
+            'tags' => $tagManager->getAllTags(),
             'jwt' => $jwtManager->create($this->getUser()),
             'centrifugo_token' => $centrifugoClient->generateConnectionToken($this->getUser()->getUsername(), (time() + 3600)),
             'centrifugo_tracking_channel' => sprintf('$%s_tracking', $this->getParameter('centrifugo_namespace')),
             'centrifugo_events_channel' => sprintf('%s_events#%s', $this->getParameter('centrifugo_namespace'), $this->getUser()->getUsername()),
-            'positions' => $positions,
+            'positions' => $this->loadPositions($tile38),
             'task_recurrence_rules' => $recurrenceRulesNormalized,
             'stores' => $storesNormalized,
+            'pickup_cluster_addresses' => $addressIris,
         ]);
     }
 
@@ -337,7 +331,7 @@ trait AdminDashboardTrait
             'resource_class' => TaskList::class,
             'operation_type' => 'item',
             'item_operation_name' => 'get',
-            'groups' => ['task_collection', 'task', 'delivery', 'address']
+            'groups' => ['task_collection']
         ]));
     }
 
@@ -366,7 +360,7 @@ trait AdminDashboardTrait
             'resource_class' => TaskList::class,
             'operation_type' => 'item',
             'item_operation_name' => 'get',
-            'groups' => ['task_collection', 'task']
+            'groups' => ['task_collection']
         ]);
 
         return new JsonResponse($taskListNormalized);
@@ -375,7 +369,10 @@ trait AdminDashboardTrait
     /**
      * @Route("/admin/tasks/{taskId}/images/{imageId}/download", name="admin_task_image_download")
      */
-    public function downloadTaskImage($taskId, $imageId, StorageInterface $storage, SlugifyInterface $slugify)
+    public function downloadTaskImageAction($taskId, $imageId,
+        StorageInterface $storage,
+        SlugifyInterface $slugify,
+        Filesystem $taskImagesFilesystem)
     {
         $image = $this->getDoctrine()->getRepository(TaskImage::class)->find($imageId);
 
@@ -388,12 +385,10 @@ trait AdminDashboardTrait
         // FIXME
         // It's not clean to use resolveUri()
         // but the problem is that resolvePath() returns the path with prefix,
-        // while $fs is alreay aware of the prefix
+        // while $taskImagesFilesystem is alreay aware of the prefix
         $imagePath = ltrim($storage->resolveUri($image, 'file'), '/');
 
-        $fs = $this->get('task_images_filesystem');
-
-        if (!$fs->has($imagePath)) {
+        if (!$taskImagesFilesystem->has($imagePath)) {
             throw new NotFoundHttpException(sprintf('Image at path "%s" not found', $imagePath));
         }
 
@@ -403,7 +398,7 @@ trait AdminDashboardTrait
             stream_copy_to_stream($fileStream, $outputStream);
         });
 
-        $response->headers->set('Content-Type', $fs->getMimetype($imagePath));
+        $response->headers->set('Content-Type', $taskImagesFilesystem->getMimetype($imagePath));
 
         $disposition = HeaderUtils::makeDisposition(
             HeaderUtils::DISPOSITION_ATTACHMENT,

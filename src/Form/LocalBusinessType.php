@@ -26,7 +26,6 @@ abstract class LocalBusinessType extends AbstractType
     protected $entityManager;
     protected $serializer;
     protected $country;
-    protected $loopeatEnabled;
     protected $debug;
 
     public function __construct(
@@ -35,7 +34,6 @@ abstract class LocalBusinessType extends AbstractType
         EntityManagerInterface $entityManager,
         SerializerInterface $serializer,
         string $country,
-        bool $loopeatEnabled = false,
         bool $debug = false)
     {
         $this->authorizationChecker = $authorizationChecker;
@@ -43,7 +41,6 @@ abstract class LocalBusinessType extends AbstractType
         $this->entityManager = $entityManager;
         $this->serializer = $serializer;
         $this->country = $country;
-        $this->loopeatEnabled = $loopeatEnabled;
         $this->debug = $debug;
     }
 
@@ -114,19 +111,13 @@ abstract class LocalBusinessType extends AbstractType
             function (FormEvent $event) {
 
                 $localBusiness = $event->getForm()->getData();
-                $address = $localBusiness->getAddress();
 
-                if (null === $localBusiness->getId()) {
+                // Copy shop name into address name
+                $localBusiness->getAddress()->setName($localBusiness->getName());
 
-                    $addressName = $address->getName();
-                    $addressTelephone = $address->getTelephone();
-
-                    if (empty($addressName)) {
-                        $address->setName($localBusiness->getName());
-                    }
-                    if (empty($addressTelephone)) {
-                        $address->setTelephone($localBusiness->getTelephone());
-                    }
+                $telephone = $localBusiness->getTelephone();
+                if (null !== $telephone) {
+                    $localBusiness->getAddress()->setTelephone($telephone);
                 }
             }
         );

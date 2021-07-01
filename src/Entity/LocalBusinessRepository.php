@@ -199,17 +199,25 @@ class LocalBusinessRepository extends EntityRepository
 
         usort($matches, $nextOpeningComparator);
 
-        $featured = array_filter($matches, function (LocalBusiness $lb) use ($now) {
-            return $lb->isFeatured() && $lb->isOpen($now);
+        $opened = array_filter($matches, function (LocalBusiness $lb) use ($now) {
+            return $lb->isOpen($now);
         });
-        $opened = array_filter($matches, function (LocalBusiness $lb) use ($now, $featured) {
-            return !in_array($lb, $featured, true) && $lb->isOpen($now);
-        });
+
+        $featuredComparator = function (LocalBusiness $a, LocalBusiness $b) {
+            if ($a->isFeatured() && $b->isFeatured()) {
+                return 0;
+            }
+
+            return $a->isFeatured() ? -1 : 1;
+        };
+
+        usort($opened, $featuredComparator);
+
         $closed = array_filter($matches, function (LocalBusiness $lb) use ($now) {
             return !$lb->isOpen($now);
         });
 
-        return array_merge($featured, $opened, $closed);
+        return array_merge($opened, $closed);
     }
 
     public function findByOption(ProductOptionInterface $option)
@@ -224,13 +232,38 @@ class LocalBusinessRepository extends EntityRepository
         return $qb->getQuery()->getResult();
     }
 
-    public function findOneByProduct($product)
+    private function createZeroWasteQueryBuilder()
     {
         $qb = $this->createQueryBuilder('r');
-        $qb->innerJoin('r.products', 'rp');
-        $qb->andWhere('rp.id = :product');
-        $qb->setParameter('product', $product);
+        $qb
+            ->andWhere(
+                'r.enabled = :enabled'
+            )
+            ->andWhere(
+                $qb->expr()->orX(
+                    $qb->expr()->eq('r.depositRefundEnabled', ':enabled'),
+                    $qb->expr()->eq('r.loopeatEnabled', ':enabled')
+                )
+            )
+            ->setParameter('enabled', true);
 
-        return $qb->getQuery()->getOneOrNullResult();
+        return $qb;
+    }
+
+    public function findZeroWaste()
+    {
+        return $this->createZeroWasteQueryBuilder()
+            ->getQuery()
+            ->getResult();
+    }
+
+    public function countZeroWaste()
+    {
+        $qb = $this->createZeroWasteQueryBuilder();
+        $qb
+            ->select('COUNT(r.id)');
+
+        return $qb->getQuery()
+            ->getSingleScalarResult();
     }
 }

@@ -46,6 +46,7 @@ services:
     volumes:
       # https://stackoverflow.com/questions/29181032/add-a-volume-to-docker-but-exclude-a-sub-folder
       - '.:/srv/coopcycle'
+      - 'webpack_php_cache:/srv/coopcycle/var/cache'
       - 'node_modules_webpack:/srv/coopcycle/node_modules/'
 
   osrm:
@@ -72,7 +73,9 @@ services:
       - stripe_mock
       - browserless
     environment:
-      - 'BEHAT_PARAMS={"extensions":{"Behat\\MinkExtension":{"base_url": "http://nginx_test:80"}}}'
+      # Make sure "base_url" has a trailing slash
+      # https://github.com/FriendsOfBehat/SymfonyExtension/issues/124
+      - 'BEHAT_PARAMS={"extensions":{"Behat\\MinkExtension":{"base_url": "http://nginx_test:80/"}}}'
       - GOOGLE_API_KEY
       - STRIPE_PUBLISHABLE_KEY
       - STRIPE_SECRET_KEY
@@ -80,8 +83,8 @@ services:
       - ALGOLIA_PLACES_API_KEY
       - ALGOLIA_PLACES_ADDRESS_TEMPLATE
     volumes:
-      - 'php_cache:/var/www/html/var/cache'
       - './:/var/www/html:cached'
+      - 'php_cache:/var/www/html/var/cache'
     cap_add:
       - SYS_ADMIN
 
@@ -137,7 +140,6 @@ services:
 
   browserless:
     image: browserless/chrome
-    restart: always
     environment:
       - DEBUG=browserless/chrome*
 
@@ -145,6 +147,11 @@ services:
     image: adrianrudnik/mjml-server
     ports:
       - 8889:80
+    environment:
+      - CORS=*
+      - MJML_KEEP_COMMENTS=true
+      - MJML_VALIDATION_LEVEL=strict
+      - MJML_MINIFY=false
 
   minio:
     image: minio/minio
@@ -219,7 +226,7 @@ services:
 
   # https://cube.dev/docs/getting-started-docker
   cube:
-    image: cubejs/cube:latest
+    image: cubejs/cube:alpine
     ports:
       - 4000:4000
     depends_on:
@@ -237,6 +244,20 @@ services:
     volumes:
       - ./cube:/cube/conf/schema
       - ./cube.js:/cube/conf/cube.js
+    logging:
+      driver: none
+
+  typesense:
+    image: typesense/typesense:0.19.0
+    ports:
+      - 8108:8108
+    environment:
+      - TYPESENSE_API_KEY
+      - TYPESENSE_DATA_DIR=/data
+    volumes:
+      - typesense_data:/data
+    logging:
+      driver: none
 
 volumes:
   node_modules_node:
@@ -244,3 +265,5 @@ volumes:
   pg_data:
   php_cache:
   minio_data:
+  typesense_data:
+  webpack_php_cache:

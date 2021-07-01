@@ -32,12 +32,7 @@ class StripeManager
     {
         $order = $payment->getOrder();
 
-        $vendor = $order->getVendor();
-        if (null === $vendor || $vendor->isHub()) {
-            return;
-        }
-
-        if ($payment->isEdenredWithCard()) {
+        if (!$order->hasVendor() || $order->isMultiVendor()) {
             return;
         }
 
@@ -57,17 +52,7 @@ class StripeManager
 
         $order = $payment->getOrder();
 
-        if (!$order->hasVendor()) {
-            return $options;
-        }
-
-        $vendor = $order->getVendor();
-
-        if ($vendor->isHub()) {
-            return $options;
-        }
-
-        if ($payment->isEdenredWithCard()) {
+        if (!$order->hasVendor() || $order->isMultiVendor()) {
             return $options;
         }
 
@@ -93,6 +78,8 @@ class StripeManager
             return $payload;
         }
 
+        // If it is a complementary payment,
+        // we do not take application fee
         if ($payment->isEdenredWithCard()) {
 
             return $payload;
@@ -223,116 +210,28 @@ class StripeManager
     }
 
     /**
-     * @return Stripe\Charge
-     */
-    public function authorize(PaymentInterface $payment)
-    {
-        $this->configure();
-
-        $order = $payment->getOrder();
-
-        $stripeParams = [
-            'amount' => $payment->getAmount(),
-            'currency' => strtolower($payment->getCurrencyCode()),
-            'source' => $this->resolveSource($payment),
-            'description' => sprintf('Order %s', $order->getNumber()),
-            // @see https://stripe.com/docs/api/charges/create#create_charge-capture
-            // Whether to immediately capture the charge. Defaults to true.
-            // When false, the charge issues an authorization (or pre-authorization),
-            // and will need to be captured later.
-            // Uncaptured charges expire in seven days.
-            'capture' => false,
-        ];
-
-        $stripeOptions = [];
-
-        // If the vendor is a hub, we don't use Stripe connect when authorizing transaction
-        // Instead, we use Transfers when capturing transaction
-        $vendor = $order->getVendor();
-        if (null !== $vendor && !$vendor->isHub()) {
-
-            $livemode = $this->settingsManager->isStripeLivemode();
-            $stripeAccount = $order->getRestaurant()->getStripeAccount($livemode);
-
-            if (!is_null($stripeAccount)) {
-
-                $restaurantPaysStripeFee = $order->getRestaurant()->getContract()->isRestaurantPaysStripeFee();
-                $applicationFee = $order->getFeeTotal();
-
-                if ($restaurantPaysStripeFee) {
-                    // needed only when using direct charges (the charge is linked to the restaurant's Stripe account)
-                    $payment->setStripeUserId($stripeAccount->getStripeUserId());
-                    $stripeOptions['stripe_account'] = $stripeAccount->getStripeUserId();
-                    $stripeParams['application_fee'] = $applicationFee;
-                } else {
-                    $stripeParams['destination'] = array(
-                        'account' => $stripeAccount->getStripeUserId(),
-                        'amount' => $order->getTotal() - $applicationFee
-                    );
-                }
-            }
-        }
-
-        return Stripe\Charge::create(
-            $stripeParams,
-            $stripeOptions
-        );
-    }
-
-    /**
-     * @return Stripe\Charge|Stripe\PaymentIntent
+     * @return Stripe\PaymentIntent
      */
     public function capture(PaymentInterface $payment)
     {
         $this->configure();
 
-        if (null !== $payment->getPaymentIntent()) {
-            // TODO Exception
-            $intent = Stripe\PaymentIntent::retrieve(
-                $payment->getPaymentIntent(),
-                $this->getStripeOptions($payment)
-            );
-
-            // Make sure the payment intent needs to be captured
-            // When using Giropay, it's not needed
-            if ($intent->capture_method === 'manual' && $intent->amount_capturable > 0) {
-                $intent->capture([
-                    'amount_to_capture' => $payment->getAmount()
-                ]);
-            }
-
-            if ($charge = $this->getChargeFromPaymentIntent($intent)) {
-                $this->createTransfersForHub($payment, $charge);
-            }
-
-            // TODO Return charge
-            return $intent;
-        }
-
-        $charge = Stripe\Charge::retrieve(
-            $payment->getCharge(),
+        // TODO Exception
+        $intent = Stripe\PaymentIntent::retrieve(
+            $payment->getPaymentIntent(),
             $this->getStripeOptions($payment)
         );
 
-        // When we are using sources (like giropay),
-        // the charge is already captured
-        if (!$charge->captured) {
-
-            $charge->capture();
-
-            // Creating transfers for a hub needs to
-            // be done here (after capture) to avoid error
-            // "Cannot use an uncaptured charge as a source_transaction"
-            $order = $payment->getOrder();
-
-            if (!$order->hasVendor()) {
-                return $charge;
-            }
-
-            $this->createTransfersForHub($payment, $charge);
+        // Make sure the payment intent needs to be captured
+        // When using Giropay, it's not needed
+        if ($intent->capture_method === 'manual' && $intent->amount_capturable > 0) {
+            $intent->capture([
+                'amount_to_capture' => $payment->getAmountForMethod('CARD')
+            ]);
         }
 
-        return $charge;
+        // TODO Return charge
+        return $intent;
     }
 
     /**
@@ -353,13 +252,9 @@ class StripeManager
             $stripeOptions['stripe_account'] = $stripeAccount;
         }
 
-        $args = [];
-
-        if (null !== $payment->getPaymentIntent()) {
-            $args['payment_intent'] = $payment->getPaymentIntent();
-        } else {
-            $args['charge'] = $payment->getCharge();
-        }
+        $args = [
+            'payment_intent' => $payment->getPaymentIntent()
+        ];
 
         if (null !== $amount) {
             $amount = (int) $amount;
@@ -371,52 +266,40 @@ class StripeManager
         return Stripe\Refund::create($args, $stripeOptions);
     }
 
-    /**
-     * @return Stripe\StripeObject|null
-     */
-    private function getChargeFromPaymentIntent(Stripe\PaymentIntent $intent): ?Stripe\StripeObject
-    {
-        // @see https://stripe.com/docs/api/payment_intents/object#payment_intent_object-charges
-        if (count($intent->charges->data) === 1) {
-            return current($intent->charges->data);
-        }
-
-        return null;
-    }
-
-    private function createTransfersForHub(PaymentInterface $payment, Stripe\StripeObject $charge)
+    public function createTransfersForHub(PaymentInterface $payment, Stripe\StripeObject $charge)
     {
         $order = $payment->getOrder();
 
-        if (!$order->hasVendor()) {
+        if (!$order->hasVendor() || !$order->isMultiVendor()) {
             return;
         }
 
-        $vendor = $order->getVendor();
+        $restaurants = $order->getRestaurants();
 
-        if ($vendor->isHub()) {
+        if (count($restaurants) > 0) {
 
-            $subVendors = $order->getVendors();
+            $livemode = $this->settingsManager->isStripeLivemode();
 
-            if (count($subVendors) > 0) {
+            foreach ($restaurants as $restaurant) {
 
-                $livemode = $this->settingsManager->isStripeLivemode();
+                $stripeAccount  = $restaurant->getStripeAccount($livemode);
 
-                foreach ($subVendors as $restaurant) {
+                // This may happen in dev environment
+                if (null === $stripeAccount) {
+                    continue;
+                }
 
-                    $stripeAccount = $restaurant->getStripeAccount($livemode);
-                    $transferAmount = $order->getTransferAmount($restaurant);
+                $transferAmount = $order->getTransferAmount($restaurant);
 
-                    if ($transferAmount > 0) {
-                        // @see https://stripe.com/docs/connect/charges-transfers
-                        Stripe\Transfer::create([
-                            'amount' => $transferAmount,
-                            'currency' => strtolower($payment->getCurrencyCode()),
-                            'destination' => $stripeAccount->getStripeUserId(),
-                            // @see https://stripe.com/docs/connect/charges-transfers#transfer-availability
-                            'source_transaction' => $charge->id,
-                        ]);
-                    }
+                if ($transferAmount > 0) {
+                    // @see https://stripe.com/docs/connect/charges-transfers
+                    Stripe\Transfer::create([
+                        'amount' => $transferAmount,
+                        'currency' => strtolower($payment->getCurrencyCode()),
+                        'destination' => $stripeAccount->getStripeUserId(),
+                        // @see https://stripe.com/docs/connect/charges-transfers#transfer-availability
+                        'source_transaction' => $charge->id,
+                    ]);
                 }
             }
         }

@@ -9,8 +9,9 @@ use AppBundle\Service\EmailManager;
 use AppBundle\Service\OrderManager;
 use AppBundle\Service\SettingsManager;
 use AppBundle\Service\StripeManager;
+use AppBundle\Sylius\Order\AdjustmentInterface;
 use Doctrine\ORM\EntityManagerInterface;
-use FOS\UserBundle\Model\UserManagerInterface;
+use Nucleos\UserBundle\Model\UserManagerInterface;
 use Hashids\Hashids;
 use Lexik\Bundle\JWTAuthenticationBundle\Encoder\JWTEncoderInterface;
 use Lexik\Bundle\JWTAuthenticationBundle\Exception\JWTDecodeFailureException;
@@ -18,6 +19,8 @@ use Psr\Log\LoggerInterface;
 use SimpleBus\SymfonyBridge\Bus\EventBus;
 use Stripe;
 use Stripe\Exception\ApiErrorException;
+use Sylius\Component\Order\Factory\AdjustmentFactoryInterface;
+use Sylius\Component\Order\Model\OrderInterface;
 use Sylius\Component\Payment\Model\PaymentInterface;
 use Sylius\Bundle\OrderBundle\NumberAssigner\OrderNumberAssignerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -35,17 +38,20 @@ class StripeController extends AbstractController
     private $secret;
     private $debug;
     private $entityManager;
+    private $adjustmentFactory;
     private $logger;
 
     public function __construct(
         string $secret,
         bool $debug,
         EntityManagerInterface $entityManager,
+        AdjustmentFactoryInterface $adjustmentFactory,
         LoggerInterface $logger)
     {
         $this->secret = $secret;
         $this->debug = $debug;
         $this->entityManager = $entityManager;
+        $this->adjustmentFactory = $adjustmentFactory;
         $this->logger = $logger;
     }
 
@@ -201,13 +207,13 @@ class StripeController extends AbstractController
                 );
             }
 
-        } catch(Stripe\Exception\UnexpectedValueException $e) {
+        } catch (Stripe\Exception\UnexpectedValueException $e) {
 
             $this->logger->error($e->getMessage());
 
             // Invalid payload.
             return new Response('', 400);
-        } catch(Stripe\Exception\SignatureVerificationException $e) {
+        } catch (Stripe\Exception\SignatureVerificationException $e) {
 
             $this->logger->error($e->getMessage());
 
@@ -222,24 +228,31 @@ class StripeController extends AbstractController
         }
 
         switch ($event->type) {
-            case 'payment_intent.succeeded':
+            case Stripe\Event::PAYMENT_INTENT_SUCCEEDED:
                 return $this->handlePaymentIntentSucceeded($event, $orderManager);
-            case 'payment_intent.payment_failed':
+            case Stripe\Event::PAYMENT_INTENT_PAYMENT_FAILED:
                 return $this->handlePaymentIntentPaymentFailed($event, $eventBus, $emailManager);
+            case Stripe\Event::CHARGE_CAPTURED:
+                return $this->handleChargeCaptured($event, $stripeManager);
+            case Stripe\Event::CHARGE_SUCCEEDED:
+                return $this->handleChargeSucceeded($event);
         }
 
         return new Response('', 200);
     }
 
     /**
+     * @param Stripe\PaymentIntent|string $paymentIntent
      * @return PaymentInterface|null
      */
-    private function findOneByPaymentIntent(Stripe\PaymentIntent $paymentIntent): ?PaymentInterface
+    private function findOneByPaymentIntent($paymentIntent): ?PaymentInterface
     {
+        $value = $paymentIntent instanceof Stripe\PaymentIntent ? $paymentIntent->id : $paymentIntent;
+
         $qb = $this->entityManager->getRepository(PaymentInterface::class)
             ->createQueryBuilder('p')
             ->andWhere('JSON_GET_FIELD_AS_TEXT(p.details, \'payment_intent\') = :payment_intent')
-            ->setParameter('payment_intent', $paymentIntent->id);
+            ->setParameter('payment_intent', $value);
 
         return $qb->getQuery()->getOneOrNullResult();
     }
@@ -303,6 +316,122 @@ class StripeController extends AbstractController
                 $emailManager->createOrderPaymentFailedMessage($order),
                 sprintf('%s <%s>', $order->getCustomer()->getFullName(), $order->getCustomer()->getEmail())
             );
+        }
+
+        return new Response('', 200);
+    }
+
+    private function handleChargeCaptured(Stripe\Event $event, StripeManager $stripeManager): Response
+    {
+        $charge = $event->data->object;
+
+        // Can happen when using Stripe CLI
+        if (empty($charge->payment_intent)) {
+            $this->logger->error(sprintf('Charge "%s" has no payment intent, skipping', $charge->id));
+
+            return new Response('', 200);
+        }
+
+        $this->logger->info(sprintf('Retrieving payment intent "%s"', $charge->payment_intent));
+
+        $payment = $this->findOneByPaymentIntent($charge->payment_intent);
+
+        if (null === $payment) {
+            $this->logger->error(sprintf('Payment Intent "%s" not found', $charge->payment_intent));
+
+            return new Response('', 200);
+        }
+
+        if (!$event->account) {
+            $stripeManager->createTransfersForHub($payment, $charge);
+        }
+
+        $stripeFee = $this->getStripeFee($event);
+
+        $this->logger->info(sprintf('Stripe fee  = %d', $stripeFee));
+
+        if ($stripeFee > 0) {
+            $this->addStripeFeeAdjustment($payment->getOrder(), $stripeFee);
+        }
+
+        return new Response('', 200);
+    }
+
+    private function getStripeFee(Stripe\Event $event)
+    {
+        $charge = $event->data->object;
+
+        $this->logger->info(sprintf('Retrieving balance transaction "%s" for charge "%s"',
+            $charge->balance_transaction, $charge->id));
+
+        $stripeOptions = [];
+        if ($event->account) {
+            $stripeOptions['stripe_account'] = $event->account;
+        }
+
+        $balanceTransaction =
+            Stripe\BalanceTransaction::retrieve($charge->balance_transaction, $stripeOptions);
+
+        $stripeFee = 0;
+        foreach ($balanceTransaction->fee_details as $feeDetail) {
+            if ('stripe_fee' === $feeDetail->type) {
+
+                return $feeDetail->amount;
+            }
+        }
+
+        return 0;
+    }
+
+    private function addStripeFeeAdjustment(OrderInterface $order, $stripeFee)
+    {
+        $order->removeAdjustments(AdjustmentInterface::STRIPE_FEE_ADJUSTMENT);
+
+        $stripeFeeAdjustment = $this->adjustmentFactory->createWithData(
+            AdjustmentInterface::STRIPE_FEE_ADJUSTMENT,
+            'Stripe fee',
+            $stripeFee,
+            $neutral = true
+        );
+        $order->addAdjustment($stripeFeeAdjustment);
+
+        $this->entityManager->flush();
+    }
+
+    private function handleChargeSucceeded(Stripe\Event $event): Response
+    {
+        $charge = $event->data->object;
+
+        // We handle this event *ONLY* if Giropay was used
+        if ($charge->payment_method_details->type !== 'giropay') {
+
+            return new Response('', 200);
+        }
+
+        $stripeFee = $this->getStripeFee($event);
+
+        $this->logger->info(sprintf('Stripe fee  = %d', $stripeFee));
+
+        if ($stripeFee > 0) {
+
+            // Can happen when using Stripe CLI
+            if (empty($charge->payment_intent)) {
+                $this->logger->error(sprintf('Charge "%s" has no payment intent, skipping', $charge->id));
+
+                return new Response('', 200);
+            }
+
+            $this->logger->info(sprintf('Retrieving payment intent "%s"', $charge->payment_intent));
+
+            $payment = $this->findOneByPaymentIntent($charge->payment_intent);
+
+            if (null === $payment) {
+                $this->logger->error(sprintf('Payment Intent "%s" not found', $charge->payment_intent));
+
+                return new Response('', 200);
+            }
+
+            $this->addStripeFeeAdjustment($payment->getOrder(), $stripeFee);
         }
 
         return new Response('', 200);

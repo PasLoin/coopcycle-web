@@ -20,8 +20,6 @@ use SimpleBus\Message\Recorder\RecordsMessages;
 use Stripe;
 use Sylius\Bundle\OrderBundle\NumberAssigner\OrderNumberAssignerInterface;
 use Sylius\Component\Payment\Model\PaymentInterface;
-use Symfony\Component\Messenger\Envelope;
-use Symfony\Component\Messenger\MessageBusInterface;
 use Prophecy\Argument;
 
 class CheckoutHandlerTest extends TestCase
@@ -43,18 +41,10 @@ class CheckoutHandlerTest extends TestCase
         $this->gatewayResolver = $this->prophesize(GatewayResolver::class);
         $this->edenred = $this->prophesize(EdenredClient::class);
 
-        $this->messageBus = $this->prophesize(MessageBusInterface::class);
-        $this->messageBus
-            ->dispatch(Argument::type('object'), Argument::type('array'))
-            ->will(function ($args) {
-                return new Envelope($args[0]);
-            });
-
         $this->gateway = new Gateway(
             $this->gatewayResolver->reveal(),
             $this->stripeManager->reveal(),
             $this->mercadopagoManager->reveal(),
-            $this->messageBus->reveal(),
             $this->edenred->reveal()
         );
 
@@ -63,34 +53,6 @@ class CheckoutHandlerTest extends TestCase
             $this->orderNumberAssigner->reveal(),
             $this->gateway
         );
-    }
-
-    public function testCheckoutLegacy()
-    {
-        $payment = new Payment();
-        $payment->setState(PaymentInterface::STATE_CART);
-
-        $charge = Stripe\Charge::constructFrom([
-            'id' => 'ch_123456',
-            'captured' => true,
-        ]);
-
-        $order = new Order();
-        $order->addPayment($payment);
-
-        $this->stripeManager
-            ->authorize($payment)
-            ->willReturn($charge);
-
-        $this->eventRecorder
-            ->record(Argument::type(CheckoutSucceeded::class))
-            ->shouldBeCalled();
-
-        $command = new Checkout($order, 'tok_123456');
-
-        call_user_func_array($this->handler, [$command]);
-
-        $this->assertEquals('ch_123456', $payment->getCharge());
     }
 
     public function testCheckoutWithPaymentIntent()
@@ -181,9 +143,6 @@ class CheckoutHandlerTest extends TestCase
 
         $this->stripeManager
             ->confirmIntent(Argument::type(Payment::class))
-            ->shouldNotBeCalled();
-        $this->stripeManager
-            ->authorize(Argument::type(Payment::class))
             ->shouldNotBeCalled();
 
         $this->eventRecorder

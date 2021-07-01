@@ -5,14 +5,17 @@ namespace AppBundle\Controller\Utils;
 use AppBundle\Entity\Delivery;
 use AppBundle\Entity\Sylius\Order;
 use AppBundle\Entity\Sylius\OrderRepository;
-use AppBundle\Entity\Sylius\OrderView;
 use AppBundle\Form\OrderExportType;
 use AppBundle\Service\OrderManager;
 use AppBundle\Sylius\Order\ReceiptGenerator;
+use AppBundle\Sylius\Taxation\TaxesHelper;
 use AppBundle\Utils\RestaurantStats;
 use Doctrine\ORM\EntityManagerInterface;
+use Knp\Component\Pager\PaginatorInterface;
 use League\Flysystem\Filesystem;
+use Sylius\Component\Order\Model\OrderInterface;
 use Sylius\Component\Payment\PaymentTransitions;
+use Sylius\Component\Resource\Repository\RepositoryInterface;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -36,7 +39,12 @@ trait OrderTrait
         return new JsonResponse($orderNormalized, 200);
     }
 
-    public function orderListAction(Request $request, TranslatorInterface $translator, EntityManagerInterface $entityManager)
+    public function orderListAction(Request $request,
+        TranslatorInterface $translator,
+        EntityManagerInterface $entityManager,
+        RepositoryInterface $taxRateRepository,
+        PaginatorInterface $paginator,
+        TaxesHelper $taxesHelper)
     {
         $response = new Response();
 
@@ -75,23 +83,21 @@ trait OrderTrait
                 $start->setTime(0, 0, 1);
                 $end->setTime(23, 59, 59);
 
-                $qb = $entityManager->getRepository(OrderView::class)
-                    ->createQueryBuilder('ov');
-
-                $qb = OrderRepository::addShippingTimeRangeClause($qb, 'ov', $start, $end);
-                $qb->addOrderBy('ov.shippingTimeRange', 'DESC');
-
                 $stats = new RestaurantStats(
+                    $entityManager,
+                    $start,
+                    $end,
+                    null,
+                    $paginator,
                     $this->getParameter('kernel.default_locale'),
-                    $qb,
-                    $this->get('sylius.repository.tax_rate'),
                     $translator,
+                    $taxesHelper,
                     $withVendorName = true,
                     $withMessenger
                 );
 
                 if (count($stats) === 0) {
-                    $this->addFlash('error', $this->get('translator')->trans('order.export.empty'));
+                    $this->addFlash('error', $translator->trans('order.export.empty'));
 
                     return $this->redirectToRoute($request->attributes->get('_route'));
                 }
@@ -129,9 +135,9 @@ trait OrderTrait
         return $this->render($request->attributes->get('template'), $parameters, $response);
     }
 
-    public function orderReceiptPreviewAction($id, Request $request, ReceiptGenerator $generator)
+    public function orderReceiptPreviewAction($id, Request $request, ReceiptGenerator $generator, OrderRepository $orderRepository)
     {
-        $order = $this->get('sylius.repository.order')->find($id);
+        $order = $orderRepository->find($id);
 
         $this->denyAccessUnlessGranted('view', $order);
 
@@ -142,9 +148,9 @@ trait OrderTrait
         ]);
     }
 
-    public function orderReceiptAction($orderNumber, Request $request, Filesystem $receiptsFilesystem)
+    public function orderReceiptAction($orderNumber, Request $request, Filesystem $receiptsFilesystem, OrderRepository $orderRepository)
     {
-        $order = $this->get('sylius.repository.order')->findOneBy([
+        $order = $orderRepository->findOneBy([
             'number'=> $orderNumber
         ]);
 
@@ -165,11 +171,14 @@ trait OrderTrait
         ]);
     }
 
-    public function generateOrderReceiptAction($orderNumber, Request $request, ReceiptGenerator $generator, EntityManagerInterface $entityManager)
+    public function generateOrderReceiptAction($orderNumber, Request $request,
+        ReceiptGenerator $generator,
+        EntityManagerInterface $entityManager,
+        OrderRepository $orderRepository)
     {
         $billingAddress = $request->request->get('billingAddress');
 
-        $order = $this->get('sylius.repository.order')->findOneBy([
+        $order = $orderRepository->findOneBy([
             'number'=> $orderNumber
         ]);
 

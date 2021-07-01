@@ -33,15 +33,13 @@ const getFormattedAddress = (result) => {
   // Calle de Toledo, Embajadores, Madrid, Comunidad de Madrid, 28001, España
   return [
     result.address.name,
-    `${result.address.postcode} ${result.address.city}`,
-    result.address.country
+    `${result.address.postcode} ${result.address.city || result.address.state}`
   ].join(', ')
 }
 
 const getSearchParams = (q, country, language) => ({
   key: getAccessToken(),
   q: q.substring(0, 200),
-  countrycodes: country,
   'accept-language': language,
   dedupe: '1',
   limit: '5',

@@ -9,6 +9,7 @@ import { filter, debounce, throttle } from 'lodash'
 import { withTranslation } from 'react-i18next'
 import _ from 'lodash'
 import axios from 'axios'
+import classNames from 'classnames'
 
 import '../i18n'
 import { getCountry, localeDetector } from '../i18n'
@@ -46,7 +47,17 @@ import {
   configure as configureGE
   } from './AddressAutosuggest/geocode-earth'
 
+import {
+  onSuggestionsFetchRequested as onSuggestionsFetchRequestedGOOG,
+  poweredBy as poweredByGOOG,
+  transformSuggestion as transformSuggestionGOOG,
+  geocode as geocodeGOOG,
+  configure as configureGOOG,
+  onSuggestionSelected as onSuggestionSelectedGOOG,
+  } from './AddressAutosuggest/google'
+
 import { storage, getFromCache } from './AddressAutosuggest/cache'
+import { getAdapter, getAdapterOptions } from './AddressAutosuggest/config'
 
 const theme = {
   ...defaultTheme,
@@ -111,6 +122,14 @@ const adapters = {
     geocode: geocodeGE,
     configure: configureGE,
   },
+  google: {
+    onSuggestionsFetchRequested: onSuggestionsFetchRequestedGOOG,
+    poweredBy: poweredByGOOG,
+    transformSuggestion: transformSuggestionGOOG,
+    geocode: geocodeGOOG,
+    configure: configureGOOG,
+    onSuggestionSelected: onSuggestionSelectedGOOG,
+  }
 }
 
 // WARNING
@@ -293,6 +312,17 @@ const renderSectionTitle = section => (
 
 const getSectionSuggestions = section => section.suggestions
 
+const SuggestionsContainer = ({ containerProps, children, poweredBy }) => (
+  <div { ...containerProps }>
+    { children }
+    <div className="address-autosuggest__suggestions-container__footer">
+      <div>
+        { poweredBy }
+      </div>
+    </div>
+  </div>
+)
+
 class AddressAutosuggest extends Component {
 
   constructor(props) {
@@ -301,33 +331,8 @@ class AddressAutosuggest extends Component {
     this.country = props.country || getCountry() || 'en'
     this.language = props.language || localeDetector()
 
-    let adapter
-    let adapterOptions = {
-      algolia: {},
-      'geocode-earth': {},
-      locationiq: {},
-    }
-    if (Object.prototype.hasOwnProperty.call(props, 'algolia')) {
-      adapter = 'algolia'
-      adapterOptions.algolia = props.algolia
-    } else if (Object.prototype.hasOwnProperty.call(props, 'geocodeEarth')) {
-      adapter = 'geocode-earth'
-      adapterOptions['geocode-earth'] = props.geocodeEarth
-    } else if (Object.prototype.hasOwnProperty.call(props, 'locationIQ')) {
-      adapter = 'locationiq'
-      adapterOptions.locationiq = props.locationIQ
-    } else {
-
-      const adapterEl = document.getElementById('autocomplete-adapter')
-      const algoliaEl = document.getElementById('algolia-places')
-      const geocodeEarthEl = document.getElementById('geocode-earth')
-      const locationIQEl = document.getElementById('locationiq')
-
-      adapter = (adapterEl && adapterEl.dataset.value) || 'algolia'
-      adapterOptions.algolia = (algoliaEl && { ...algoliaEl.dataset }) || {}
-      adapterOptions['geocode-earth'] = (geocodeEarthEl && { ...geocodeEarthEl.dataset }) || {}
-      adapterOptions.locationiq = (locationIQEl && { ...locationIQEl.dataset }) || {}
-    }
+    const adapter = getAdapter(props, document)
+    const adapterOptions = getAdapterOptions(props, document)
 
     const configure = localize('configure', adapter, this)
     configure(adapterOptions[adapter])
@@ -414,7 +419,7 @@ class AddressAutosuggest extends Component {
     })
 
     if (this.props.autofocus) {
-      setTimeout(() => this.autosuggest.input.focus(), 0)
+      setTimeout(() => this.autosuggest?.input.focus(), 150)
     }
   }
 
@@ -423,6 +428,10 @@ class AddressAutosuggest extends Component {
 
     if (this.props.reportValidity) {
       this.autosuggest.input.setCustomValidity('')
+    }
+
+    if (this.props.onClear) {
+      this.props.onClear()
     }
   }
 
@@ -541,23 +550,26 @@ class AddressAutosuggest extends Component {
   renderInputComponent(inputProps) {
 
     return (
-      <div className="address-autosuggest__input-container">
+      <div className={ classNames({
+        'address-autosuggest__input-container': true,
+        'has-error': this.props.error
+        })}>
         <div className="address-autosuggest__input-wrapper">
           <input { ...inputProps } />
+          { this.state.postcode && (
+            <div className="address-autosuggest__addon">
+              <span>{ this.state.postcode.postcode }</span>
+              <button className="address-autosuggest__close-button" onClick={ () => this.setState({ value: '', postcode: null }) }>
+                <i className="fa fa-times-circle"></i>
+              </button>
+            </div>
+          ) }
           { this.state.value && (
             <button className="address-autosuggest__close-button address-autosuggest__clear" onClick={ () => this.onClear() }>
               <i className="fa fa-times-circle"></i>
             </button>
           )}
         </div>
-        { this.state.postcode && (
-          <div className="address-autosuggest__addon">
-            <span>{ this.state.postcode.postcode }</span>
-            <button className="address-autosuggest__close-button" onClick={ () => this.setState({ value: '', postcode: null }) }>
-              <i className="fa fa-times-circle"></i>
-            </button>
-          </div>
-        ) }
       </div>
     )
   }
@@ -580,26 +592,23 @@ class AddressAutosuggest extends Component {
       }
 
       return createPortal((
-        <div { ... containerProps } style={ style }>
+        <SuggestionsContainer
+          containerProps={{
+            ...containerProps,
+            style
+          }}
+          poweredBy={ this.poweredBy() }>
           { children }
-          <div className="address-autosuggest__suggestions-container__footer">
-            <div>
-              { this.poweredBy() }
-            </div>
-          </div>
-        </div>
+        </SuggestionsContainer>
       ), document.body)
     }
 
     return (
-      <div { ...containerProps }>
+      <SuggestionsContainer
+        containerProps={ containerProps }
+        poweredBy={ this.poweredBy() }>
         { children }
-        <div className="address-autosuggest__suggestions-container__footer">
-          <div>
-            { this.poweredBy() }
-          </div>
-        </div>
-      </div>
+      </SuggestionsContainer>
     )
   }
 
@@ -668,6 +677,7 @@ AddressAutosuggest.defaultProps = {
   onAddressSelected: () => {},
   inputProps: {},
   autofocus: false,
+  error: false,
 }
 
 AddressAutosuggest.propTypes = {
@@ -687,20 +697,25 @@ AddressAutosuggest.propTypes = {
   attachToBody: PropTypes.bool,
   inputProps: PropTypes.object,
   autofocus: PropTypes.bool,
+  error: PropTypes.bool,
+  onClear: PropTypes.func,
 }
 
 export default withTranslation()(AddressAutosuggest)
 
 export const geocode = (text) => {
 
-  const el = document.getElementById('autocomplete-adapter')
-  const adapter = (el && el.dataset.value) || 'algolia'
+  const adapter = getAdapter({}, document)
+  const adapterOptions = getAdapterOptions({}, document)
+
+  const fakeThis = {
+    country: getCountry() || 'en'
+  }
+
+  const configure = localize('configure', adapter, fakeThis)
+  configure(adapterOptions[adapter])
 
   return new Promise((resolve) => {
-
-    const fakeThis = {
-      country: getCountry() || 'en'
-    }
 
     localize('geocode', adapter, fakeThis)(text, (getCountry() || 'en'), localeDetector())
       .then(address => {
@@ -717,7 +732,6 @@ export const geocode = (text) => {
               ...geocoded.data,
               geo: geocoded.data,
               geohash: ngeohash.encode(geocoded.data.latitude, geocoded.data.longitude, 11),
-              isPrecise: true,
               needsGeocoding: false,
             })
           })

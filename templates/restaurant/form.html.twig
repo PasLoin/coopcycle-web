@@ -3,7 +3,7 @@
 {% form_theme form 'form/restaurant.html.twig' %}
 
 {% block breadcrumb %}
-<li><a href="{{ path(restaurants_route) }}">{% trans %}adminDashboard.restaurants.title{% endtrans %}</a></li>
+<li><a href="{{ path(restaurants_route) }}">{% trans %}adminDashboard.shops.title{% endtrans %}</a></li>
 <li>{% if restaurant.id is not empty %}{{ restaurant.name }}{% else %}{% trans %}restaurant.form.createRestaurant{% endtrans %}{% endif %}</li>
 {% endblock %}
 
@@ -124,6 +124,13 @@
           </a>
         </li>
         {% endif %}
+        {% if form.vytalEnabled is defined %}
+        <li role="presentation">
+          <a role="tab" data-toggle="tab" href="#vytal" aria-controls="vytal">
+            {{ 'restaurant.form.section.vytal'|trans }}
+          </a>
+        </li>
+        {% endif %}
         {% if restaurant.id is not null %}
         <li role="presentation">
           <a role="tab" data-toggle="tab" href="#embed" aria-controls="embed">
@@ -164,6 +171,11 @@
           {% include "restaurant/form/_partials/loopeat.html.twig" with { form: form.loopeat } %}
         </div>
         {% endif %}
+        {% if form.vytalEnabled is defined %}
+        <div role="tabpanel" class="tab-pane" id="vytal">
+          {{ form_row(form.vytalEnabled) }}
+        </div>
+        {% endif %}
         {% if restaurant.id is not null %}
         <div role="tabpanel" class="tab-pane" id="embed">
           {% include "restaurant/form/_partials/embed.html.twig" %}
@@ -196,9 +208,7 @@
 <div id="restaurant-form-data"
   data-action-url="{{ oneup_uploader_endpoint('restaurant') }}"
   data-restaurant-id="{{ restaurant.id }}"
-  data-restaurant-image="{{ coopcycle_asset(restaurant, 'imageFile', 'restaurant_thumbnail') }}"
-  data-restaurant-delivery-perimeter-expression="{{ restaurant.deliveryPerimeterExpression|e('html_attr') }}"
-  data-zones="{{ zoneNames|json_encode|e('html_attr') }}"></div>
+  data-restaurant-image="{{ coopcycle_asset(restaurant, 'imageFile', 'restaurant_thumbnail') }}"></div>
 
 {% endblock %}
 

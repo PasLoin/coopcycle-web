@@ -21,8 +21,6 @@ adminDashboard.users.editUser: Modifica utente
 adminDashboard.users.roles: Ruoli
 adminDashboard.users.title: Utenti
 adminDashboard.restaurants.exclusive: Esclusivo
-adminDashboard.restaurants.createNew: Crea un nuovo ristorante
-adminDashboard.restaurants.title: Ristoranti
 adminDashboard.orders.showCanceled: Mostra gli ordini cancellati
 adminDashboard.orders.previousOrders: Ordini precedenti
 adminDashboard.orders.title: Ordini
@@ -325,9 +323,6 @@ form.settings.stripe_enable_livemode.help: Per abilitare la modalità « live »
 task.receipt.reference: 'Riferimento: <strong>%ref%</strong>'
 basics.hours: '%count% ora|%count% ore'
 basics.days: '%count% giorno|%count% giorni'
-form.settings.google_api_key.help: "Crea un Account Google per ottenere il tuo <a\
-  \ href=\"https://developers.google.com/maps/documentation/javascript/get-api-key?hl=Fr\"\
-  >chiave API</a>\n"
 basics.weeks: '%count% settimana|%count% settimane'
 basics.none: Nessuno
 form.api_app.name.label: Nome dell'app
@@ -561,7 +556,6 @@ form.settings.stripe_secret_key.help: "Crea un Account stripe per ottenere la tu
   \ href=\"https://stripe.com/docs/dashboard#api-keys\">chiave pubblicabile</a>\n"
 form.settings.stripe_connect_client_id.help: "Ottieni l'identificativo nella <a href=\"\
   https://dashboard.stripe.com/account/applications/settings\">pagina dei parametri</a>\n"
-form.settings.google_api_key.label: Chiavi API Google
 form.settings.latlng.label: Coordinate geografiche
 form.settings.latlng.help: "Specifica la latitudine e longitudine predefinita. La\
   \ puoi ottenere su <a href=\"https://www.latlong.net/\">latlong.net</a>\n"
@@ -836,15 +830,11 @@ restaurant.list.orders: Ordini
 restaurant.list.refunds: Rimborsi
 restaurant.list.products: Prodotti
 restaurant.list.product_options: Opzioni
-restaurant.list.menus: Menù
 restaurant.list.norestaurant: Non ci sono ancora ristoranti
-restaurant.list.createNewRestaurant: Crea un nuovo ristorante
 restaurant.closingForm.reason.label: Ragioni
 restaurant.closingForm.dates.label: Chiuso dalle/alle
-restaurant.list.manage: Gestione
 restaurant.list.preparationTime: Preparazione
 restaurant.closingForm.title: Aggiungi un orario di chiusura
-restaurant.list.activeMenu: Menù attivi
 restaurant.list.planning: Calendario
 restaurant.list.settings: Impostazioni
 restaurant.list.stats: Statistiche
@@ -963,3 +953,4 @@ form.menu_editor.name.help: Questo serve solo a te per distinguere i menù. Non 
   mostrato al cliente.
 restaurant.form.cuisines.label: Cucine
 restaurant.form.section.taxonomy: Tassonomia
+products.on_demand_delivery.name: Consegna su richiesta

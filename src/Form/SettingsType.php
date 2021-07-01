@@ -6,6 +6,8 @@ use AppBundle\Payment\GatewayResolver;
 use AppBundle\Service\SettingsManager;
 use AppBundle\Form\PaymentGateway\MercadopagoType;
 use AppBundle\Form\PaymentGateway\StripeType;
+use AppBundle\Form\Type\AutocompleteAdapterType;
+use AppBundle\Form\Type\GeocodingProviderType;
 use Doctrine\ORM\EntityRepository;
 use libphonenumber\NumberParseException;
 use libphonenumber\PhoneNumber;
@@ -38,6 +40,8 @@ class SettingsType extends AbstractType
     private $country;
     private $isDemo;
     private $debug;
+    private $googleEnabled;
+    private $cashEnabled;
 
     public function __construct(
         SettingsManager $settingsManager,
@@ -45,7 +49,9 @@ class SettingsType extends AbstractType
         GatewayResolver $gatewayResolver,
         string $country,
         bool $isDemo,
-        bool $debug)
+        bool $debug,
+        bool $googleEnabled,
+        bool $cashEnabled)
     {
         $this->settingsManager = $settingsManager;
         $this->phoneNumberUtil = $phoneNumberUtil;
@@ -53,6 +59,8 @@ class SettingsType extends AbstractType
         $this->country = $country;
         $this->isDemo = $isDemo;
         $this->debug = $debug;
+        $this->googleEnabled = $googleEnabled;
+        $this->cashEnabled = $cashEnabled;
     }
 
     private function createPlaceholder($value)
@@ -80,16 +88,6 @@ class SettingsType extends AbstractType
                 'help' => 'form.settings.phone_number.help',
                 'disabled' => $this->isDemo
             ])
-            ->add('enable_restaurant_pledges', CheckboxType::class, [
-                'label' => 'form.settings.enable_restaurant_pledges.label',
-                'required' => false,
-            ])
-            ->add('google_api_key', TextType::class, [
-                'label' => 'form.settings.google_api_key.label',
-                'help' => 'form.settings.google_api_key.help',
-                'help_html' => true,
-                'disabled' => $this->isDemo || $this->debug
-            ])
             ->add('latlng', TextType::class, [
                 'label' => 'form.settings.latlng.label',
                 'help' => 'form.settings.latlng.help',
@@ -103,11 +101,6 @@ class SettingsType extends AbstractType
             ])
             ->add('currency_code', CurrencyChoiceType::class, [
                 'label' => 'form.settings.currency_code.label'
-            ])
-            ->add('guest_checkout_enabled', CheckboxType::class, [
-                'required' => false,
-                'label' => 'form.settings.guest_checkout_enabled.label',
-                'help' => 'form.settings.guest_checkout_enabled.help'
             ])
             ->add('sms_enabled', CheckboxType::class, [
                 'required' => false,
@@ -127,6 +120,35 @@ class SettingsType extends AbstractType
                 'label' => 'form.settings.sms_gateway_config.label',
             ]);
 
+        // When cash on delivery is enabled, we want customers to register
+        if (!$this->cashEnabled) {
+            $builder->add('guest_checkout_enabled', CheckboxType::class, [
+                'required' => false,
+                'label' => 'form.settings.guest_checkout_enabled.label',
+                'help' => 'form.settings.guest_checkout_enabled.help'
+            ]);
+            $builder->get('guest_checkout_enabled')
+                ->addModelTransformer(new CallbackTransformer(
+                    function ($originalValue) {
+                        return filter_var($originalValue, FILTER_VALIDATE_BOOLEAN);
+                    },
+                    function ($submittedValue) {
+                        return $submittedValue ? '1' : '0';
+                    }
+                ))
+            ;
+        }
+
+        if ($this->googleEnabled) {
+            $builder
+                ->add('autocomplete_provider', AutocompleteAdapterType::class)
+                ->add('geocoding_provider', GeocodingProviderType::class)
+                ->add('google_api_key_custom', PasswordType::class, [
+                    'required' => false,
+                    'label' => 'form.settings.google_api_key_custom.label',
+                ]);
+        }
+
         $gateway = $this->gatewayResolver->resolve();
 
         switch ($gateway) {
@@ -139,28 +161,6 @@ class SettingsType extends AbstractType
                 $builder->add('stripe', StripeType::class, ['mapped' => false]);
                 break;
         }
-
-        $builder->get('enable_restaurant_pledges')
-            ->addModelTransformer(new CallbackTransformer(
-                function ($originalValue) {
-                    return filter_var($originalValue, FILTER_VALIDATE_BOOLEAN);
-                },
-                function ($submittedValue) {
-                    return $submittedValue ? 'yes' : 'no';
-                }
-            ))
-        ;
-
-        $builder->get('guest_checkout_enabled')
-            ->addModelTransformer(new CallbackTransformer(
-                function ($originalValue) {
-                    return filter_var($originalValue, FILTER_VALIDATE_BOOLEAN);
-                },
-                function ($submittedValue) {
-                    return $submittedValue ? '1' : '0';
-                }
-            ))
-        ;
 
         $builder->addEventListener(FormEvents::PRE_SET_DATA, function (FormEvent $event) {
 

@@ -55,13 +55,18 @@ class AddressBookType extends AbstractType
                 'choices' => $options['with_addresses'],
                 'choice_label' => 'streetAddress',
                 'choice_value' => function (Address $address = null) {
-                    return $address ? $this->iriConverter->getIriFromItem($address) : '';
+                    return $address && null !== $address->getId() ? $this->iriConverter->getIriFromItem($address) : '';
                 },
                 'choice_attr' => function(Address $choice, $key, $value) {
 
-                    return [
-                        'data-address' => $this->serializer->serialize($choice, 'jsonld')
-                    ];
+                    if ($choice->getId() !== null) {
+
+                        return [
+                            'data-address' => $this->serializer->serialize($choice, 'jsonld')
+                        ];
+                    }
+
+                    return [];
                 },
                 'label' => false,
                 'required' => false,
@@ -73,6 +78,14 @@ class AddressBookType extends AbstractType
                 'required' => false,
                 'mapped' => false,
             ]);
+
+        if ($options['with_remember_address']) {
+            $builder->add('rememberAddress', CheckboxType::class, [
+                'label' => 'form.adress_book.remember_address',
+                'required' => false,
+                'mapped' => false,
+            ]);
+        }
 
         $builder->addEventListener(FormEvents::POST_SET_DATA, function (FormEvent $event) use ($options) {
 
@@ -127,6 +140,7 @@ class AddressBookType extends AbstractType
             'data_class' => Address::class,
             'with_addresses' => [],
             'new_address_placeholder' => null,
+            'with_remember_address' => false,
         ));
     }
 

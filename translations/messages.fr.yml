@@ -51,8 +51,7 @@ adminDashboard.orders.previousOrders: Commandes précédentes
 adminDashboard.orders.showCanceled: Afficher les commandes annulées
 adminDashboard.orders.noOrders: Pas de commande pour l'instant
 adminDashboard.restaurants.exclusive: Exclusif
-adminDashboard.restaurants.title: Restaurants
-adminDashboard.restaurants.createNew: Créer un restaurant
+adminDashboard.shops.title: Boutiques
 adminDashboard.users.title: Utilisateurs
 adminDashboard.users.roles: Rôles
 adminDashboard.users.editUser: Modifier l'utilisateur
@@ -212,17 +211,15 @@ restaurant.menus.activated: Le menu « %menu_name% » a bien été activé. Il s
 restaurant.closingForm.title: Ajouter une fermeture temporaire
 restaurant.closingForm.reason.label: Motif
 restaurant.closingForm.dates.label: Fermeture de/à
-restaurant.list.manage: Gérer
 restaurant.list.orders: Commandes
 restaurant.list.refunds: Remboursements
 restaurant.list.products: Produits
 restaurant.list.product_options: Options
-restaurant.list.menus: Menus
-restaurant.list.activeMenu: Menu activé
+restaurant.list.catalogs: Catalogues
+restaurant.list.active_catalog: Catalogue activé
 restaurant.list.planning: Planning
 restaurant.list.settings: Paramètres
 restaurant.list.norestaurant: Pas de restaurant pour le moment
-restaurant.list.createNewRestaurant: Créer un restaurant
 restaurant.list.preparationTime: Préparation
 restaurant.list.stats: Statistiques
 restaurant.list.depositRefund: Consigne
@@ -458,10 +455,6 @@ form.settings.stripe_connect_client_id.label: Identifiant Stripe Connect
 form.settings.stripe_connect_client_id.help: "Récupérez l'identifiant Stripe Connect\
   \ sur la <a href=\"https://dashboard.stripe.com/account/applications/settings\"\
   >page des paramètres</a>\n"
-form.settings.google_api_key.label: Clé d'API Google
-form.settings.google_api_key.help: "Créez un compte Google pour récupérer votre <a\
-  \ href=\"https://developers.google.com/maps/documentation/javascript/get-api-key?hl=Fr\"\
-  >clé d'API</a>\n"
 form.settings.latlng.label: Coordonnées géographiques
 form.settings.latlng.help: "Spécifiez la latitude et la longitude par défaut. Vous\
   \ pouvez l'obtenir sur <a href=\"https://www.latlong.net/\">latlong.net</a>\n"
@@ -936,6 +929,7 @@ order.export.heading.stripe_fee: Frais Stripe
 order.export.heading.platform_fee: Frais Plateforme
 order.export.heading.net_revenue: Revenu net
 order.export.heading.completed_by: Livrée par
+order.export.heading.refund_total: Remboursements
 form.order_export.messenger.label: Inclure une colonne avec le coursier ayant livré
   la commande
 basics.show: Afficher
@@ -1126,7 +1120,7 @@ profile.dashboard_suggest: Vous cherchez à gérer vos commandes et vos livraiso
   <a href="%link%">Découvrez votre nouveau tableau de bord</a> ✨
 form.fulfillment_method.pre_ordering_allowed.label: Autoriser les pré-commandes
 form.fulfillment_method.pre_ordering_allowed.help: Si vous décochez cette case, les
-  client·es pourront ne pourront commander que pour le jour même.
+  client·es ne pourront commander que pour le jour même.
 form.fulfillment_method.options.range_duration.label: Durée des créneaux
 ordering_delay.disclaimer: Nous recevons actuellement beaucoup de commandes, les délais
   s'allongent !
@@ -1141,3 +1135,48 @@ food_establishment.WINERY: Caviste
 food_establishment.BREWERY: Brasserie
 order.export.empty: Il n'y a pas de commandes à exporter
 form.payment.method.name.label: Méthode de paiement
+deliveries.section.upcoming: À venir
+deliveries.section.past: Passées
+stores.address_book: Carnet d'adresses
+store.form.section.settings: Paramètres
+adminDashboard.hubs.title: Hubs
+adminDashboard.hubs.createNew: Créer un nouveau hub
+adminDashboard.hubs.help: Les hubs permettent de regrouper des boutiques partageant le même point de retrait, comme un marché par exemple.
+restaurant.form.edenred_merchant_id.label: Identifiant marchand Edenred
+restaurant.form.edenred_merchant_id.help: Laissez vide pour désactiver Edenred
+restaurants.mode.list: Afficher la liste
+restaurants.mode.map: Afficher la carte
+order.number: 'Votre commande porte le numéro <strong><span class="text-monospace">%number%</span></strong>'
+adminDashboard.stores.help: Créez des comptes client
+adminDashboard.pricing.help: Définissez des règles pour calculer le prix d'une livraison
+adminDashboard.embed.help: Créez des formulaires pour commander des livraisons
+adminDashboard.time_slots.help: Configurez des tranches horaires
+adminDashboard.package_sets.help: Configurez les types de marchandise à transporter
+adminDashboard.zones.help: Définissez des zones géographiques
+adminDashboard.tags.help: Associez des tags et des couleurs aux tâches
+adminDashboard.api.help: Créez des livraisons de facon automatisée
+checkout.suggestions.continue_shopping_hub: Vous pouvez continuer votre commande dans les autres boutiques <strong>%name%</strong>
+hub.disclaimer: Commandez dans plusieurs boutiques, et on vous livre en une seule fois !
+form.adress_book.remember_address: Se souvenir de cette adresse
+restaurant.list.tags.zerowaste: Zéro déchet
+homepage.zerowaste: Découvrez nos restaurants zéro déchet !
+restaurant.stats.view_simple: Affichage simple
+restaurant.stats.view_detailed: Affichage détaillé
+form.items_total_promotion.items_total.label: À partir de
+form.items_total_promotion.fixed_discount_amount.label: Appliquer une réduction de
+restaurant_promotion.items_total.help: Cela vous permet d'appliquer une réduction à partir d'un montant d'achat.
+  Votre marge sera réduite du montant de la réduction.
+  Cela ne <strong>diminuera pas</strong> les frais perçus par
+  la plate-forme.
+restaurant_promotion.items_total: À partir d'un montant d'achats
+restaurants.edenred_transactions.disclaimer: Cette page liste l'ensemble des commandes payées avec Edenred, en partie ou en totalité.
+  Pour ces commandes, l'ensemble de l'argent a été perçu par le restaurant.
+  Vous devez donc envoyer une facture à chaque restaurant, pour réclamer les commissions dûes.
+restaurants.edenred_transactions.edenred_amount: Montant payé avec Edenred
+restaurants.edenred_transactions.title: Transactions Edenred
+form.product.alcohol.label: Ce produit est une boisson alcoolisée
+form.product.alcohol.help: Cochez cette case seulement si ce produit est une boisson alcoolisée, comme une bouteille de vin.
+form.payment.edenred_disclaimer: Cette commande a été payée avec Edenred et un complément par carte bancaire.
+ Le remboursement se fera en priorité sur le montant payé par carte bancaire, et sur le montant Edenred le cas échéant.
+form.payment.refund_breakdown: Montant remboursable par carte %card%, montant remboursable par Edenred %edenred%
+products.on_demand_delivery.name: Livraison à la demande

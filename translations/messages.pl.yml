@@ -64,8 +64,7 @@ adminDashboard.menuCategories.categories: Kategorie
 embed.delivery.billing_address: Adres rozliczeniowy
 adminDashboard.stores.createNew: Dodaj nowy sklep
 adminDashboard.stores.title: Sklepy
-adminDashboard.restaurants.createNew: Dodaj nową restauracje
-adminDashboard.restaurants.title: Restauracje
+adminDashboard.shops.title: Restauracje
 adminDashboard.orders.showCanceled: Anulowane zamówienia
 adminDashboard.orders.previousOrders: Historia zamówień
 adminDashboard.orders.title: Zamówienia
@@ -248,17 +247,13 @@ restaurant.menus.activated: Manu « %menu_name% » zostało aktywowane. Teraz b�
 restaurant.closingForm.title: Dodaj tymczasowe zamknięcie
 restaurant.closingForm.reason.label: Powód
 restaurant.closingForm.dates.label: Zamknięte od/do
-restaurant.list.manage: Zarządzaj
 restaurant.list.orders: Zamówienia
 restaurant.list.refunds: Zwroty kosztów
 restaurant.list.products: Produkty
 restaurant.list.product_options: Opcje
-restaurant.list.menus: Lista menu
-restaurant.list.activeMenu: Aktywne menu
 restaurant.list.planning: Planowanie
 restaurant.list.settings: Ustawienia
 restaurant.list.norestaurant: Nie ma jeszcze żadnych restauracji
-restaurant.list.createNewRestaurant: Stwórz nową restaurację
 restaurant.list.preparationTime: Przygotowanie
 restaurant.list.stats: Statystyki
 restaurant.list.depositRefund: Zwrot kaucji
@@ -638,10 +633,6 @@ form.menu_item_modifier.price.label: Cena
 form.menu_item_modifier.name.label: Nazwa
 form.menu_item.price.label: Cena
 form.menu_item.name.label: Nazwa
-form.settings.google_api_key.help: "Stwórz konto Google, aby uzyskać swój <a href=\"\
-  https://developers.google.com/maps/documentation/javascript/get-api-key?hl=Fr\"\
-  >klucz API</a>\n"
-form.settings.google_api_key.label: Klucz API Google
 form.settings.stripe_connect_client_id.help: "Uzyskaj identyfikator na <a href=\"\
   https://dashboard.stripe.com/account/applications/settings\">stronie parametrów</a>\n"
 form.settings.stripe_connect_client_id.label: Identyfikator Połączenia Stripe
@@ -874,3 +865,4 @@ form.checkout_address.reusable_packaging_loopeat_enabled.label: Chcę użyć poj
 basics.updated_at: Zaktualizowane %date%
 order.notes: Informacje od klienta
 order.payments: Płatności
+products.on_demand_delivery.name: Dostawa na żądanie

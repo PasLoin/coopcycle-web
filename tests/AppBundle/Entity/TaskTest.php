@@ -10,7 +10,7 @@ use AppBundle\Entity\User;
 use AppBundle\Entity\TaskEvent;
 use AppBundle\Validator\Constraints\Task as TaskConstraint;
 use AppBundle\Validator\Constraints\TaskValidator;
-use Doctrine\Common\Persistence\ManagerRegistry;
+use Doctrine\Persistence\ManagerRegistry;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\UnitOfWork;
 use PHPUnit\Framework\TestCase;
@@ -146,6 +146,19 @@ class TaskTest extends TestCase
         $this->assertEquals('Beware of the dog', $clone->getComments());
         $this->assertEquals(new \DateTime('2019-08-18 08:00'), $clone->getDoneAfter());
         $this->assertEquals(new \DateTime('2019-08-18 12:00'), $clone->getDoneBefore());
+    }
+
+    public function testSetMetadata()
+    {
+        $task = new Task();
+
+        $task->setMetadata(['foo' => 'bar']);
+
+        $this->assertEquals(['foo' => 'bar'], $task->getMetadata());
+
+        $task->setMetadata('baz', 'bat');
+
+        $this->assertEquals(['foo' => 'bar', 'baz' => 'bat'], $task->getMetadata());
     }
 
     public function testValidation()

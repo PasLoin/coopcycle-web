@@ -2,34 +2,37 @@
 
 namespace AppBundle\Entity\Sylius;
 
+use AppBundle\Entity\LocalBusiness;
 use AppBundle\Entity\Sylius\Order;
-use AppBundle\Entity\Vendor;
 use Carbon\Carbon;
 use Doctrine\DBAL\Connection;
 use AppBundle\Sylius\Order\AdjustmentInterface;
 
 class OrderView
 {
+    private $restaurant;
+
     public $id;
     public $number;
-    public $fulfillmentMethod;
-    public $adjustments = [];
+    public $takeaway;
+
     public $shippingTimeRange;
-
-    public $vendor;
-    public $vendorType;
-    public $vendorName;
-
-    public $restaurant;
-    public $restaurantObj;
-
     public $total;
     public $itemsTotal;
 
-    private $itemsTaxTotal;
+    public $adjustments = [];
+    public $vendors = [];
 
+    private $itemsTaxTotal;
     private $adjustmentsTotalCache = [];
     private $adjustmentsTotalRecursivelyCache = [];
+
+    public $refunds = [];
+
+    public function __construct(?LocalBusiness $restaurant = null)
+    {
+        $this->restaurant = $restaurant;
+    }
 
     public function getId()
     {
@@ -43,7 +46,7 @@ class OrderView
 
     public function getFulfillmentMethod()
     {
-        return $this->fulfillmentMethod;
+        return $this->takeaway ? 'collection' : 'delivery';
     }
 
     public function getShippedAt(): ?\DateTime
@@ -127,74 +130,66 @@ class OrderView
 
     public function getRevenue(): int
     {
-        if ('hub' === $this->vendorType) {
-
-            foreach ($this->adjustments as $adjustment) {
-                if ($adjustment['type'] === AdjustmentInterface::TRANSFER_AMOUNT_ADJUSTMENT && ((int) $adjustment['origin_code']) === $this->restaurant) {
-                    return $adjustment['amount'];
+        if ($this->isMultiVendor() && null !== $this->restaurant) {
+            foreach ($this->vendors as $vendor) {
+                if ($vendor['restaurant_id'] === $this->restaurant->getId()) {
+                    return $vendor['transferAmount'];
                 }
             }
-
-            return 0;
         }
 
-        return $this->getTotal() - $this->getFeeTotal() - $this->getStripeFeeTotal();
+        return $this->getTotal() - $this->getFeeTotal() - $this->getStripeFeeTotal()
+            + $this->getRefundTotal();
     }
 
     public function hasVendor(): bool
     {
-        return null !== $this->vendor;
+        return count($this->vendors) > 0;
     }
 
-    public static function create(Connection $conn)
+    public function isMultiVendor(): bool
     {
-        $parts = [];
+        if (!$this->hasVendor()) {
 
-        // Can be useful to build a view of vendors
-        // SELECT v.id, COALESCE(h.name, r.name)
-        // FROM vendor v
-        // LEFT JOIN hub h ON v.hub_id = h.id
-        // LEFT JOIN restaurant r ON v.restaurant_id = r.id
+            return false;
+        }
 
-        $selects = [];
-        $selects[] = 'o.id';
-        $selects[] = 'o.number';
-        $selects[] = 'CASE WHEN o.takeaway THEN \'collection\' ELSE \'delivery\' END AS fulfillment_method';
-        $selects[] = 'v.id AS vendor_id';
-        $selects[] = 'CASE WHEN v.hub_id IS NOT NULL THEN \'hub\' WHEN v.restaurant_id IS NOT NULL THEN \'restaurant\' ELSE \'none\' END AS vendor_type';
-        $selects[] = 'COALESCE(h.name, r.name) AS vendor_name';
-        $selects[] = 'COALESCE(v.restaurant_id, hr.restaurant_id) AS restaurant_id';
-        $selects[] = 'o.items_total';
-        $selects[] = 'o.total';
-        $selects[] = 'o.shipping_time_range';
+        return count($this->vendors) > 1;
+    }
 
-        // This will load all the adjustments as a JSON array
-        // FIXME Adjustments are duplicated when there are multiple rows
-        // $selects[] = 'JSON_AGG(ROW_TO_JSON(a)) AS adjustments';
+    public function getVendorName(): string
+    {
+        if (!$this->hasVendor()) {
 
-        $parts[] = sprintf('SELECT %s', implode(', ', $selects));
+            return '';
+        }
 
-        $parts[] = 'FROM sylius_order o';
-        $parts[] = 'INNER JOIN sylius_order_item i ON (o.id = i.order_id)';
-        $parts[] = 'INNER JOIN sylius_product_variant va ON (va.id = i.variant_id)';
-        $parts[] = 'INNER JOIN sylius_product p ON (p.id = va.product_id)';
-        $parts[] = 'LEFT JOIN vendor v ON (o.vendor_id = v.id)';
-        $parts[] = 'LEFT JOIN hub h ON (v.hub_id = h.id)';
-        $parts[] = 'LEFT JOIN hub_restaurant hr ON (hr.hub_id = h.id)';
-        $parts[] = 'LEFT JOIN restaurant r ON (v.restaurant_id = r.id)';
-        $parts[] = 'LEFT JOIN restaurant_product rp ON (rp.product_id = p.id AND rp.restaurant_id = COALESCE(v.restaurant_id, hr.restaurant_id))';
-        // $parts[] = 'INNER JOIN sylius_adjustment a ON (a.order_id = o.id OR a.order_item_id = i.id)';
-        $parts[] = 'WHERE o.state = \'fulfilled\'';
-        // This allows to
-        // - retrieve orders without vendors
-        // - filter out restaurants without items for hub orders
-        $parts[] = 'AND (o.vendor_id IS NULL OR rp.product_id IS NOT NULL)';
-        $parts[] = 'GROUP BY o.id, o.number, v.id, h.id, COALESCE(v.restaurant_id, hr.restaurant_id), h.name, r.name';
-        // $parts[] = 'HAVING (v.hub_id is null OR (v.hub_id IS not null AND a1.amount is not null))';
+        if ($this->isMultiVendor()) {
 
-        $sql = implode(' ', $parts);
+            return $this->vendors[0]['hub_name'];
+        }
 
-        $conn->executeQuery('DROP VIEW IF EXISTS view_restaurant_order');
-        $conn->executeQuery(sprintf('CREATE VIEW view_restaurant_order AS %s', $sql));
+        return $this->vendors[0]['restaurant_name'];
+    }
+
+    public static function create(array $data, ?LocalBusiness $restaurant = null): self
+    {
+        $order = new self($restaurant);
+
+        $order->id                = $data['id'];
+        $order->number            = $data['number'];
+        $order->shippingTimeRange = $data['shippingTimeRange'];
+        $order->takeaway          = $data['takeaway'];
+        $order->itemsTotal        = $data['itemsTotal'];
+        $order->total             = $data['total'];
+
+        return $order;
+    }
+
+    public function getRefundTotal(): int
+    {
+        $total = array_reduce($this->refunds, fn ($total, $refund): int => $total + $refund['amount'], 0);
+
+        return $total > 0 ? $total * -1 : $total;
     }
 }

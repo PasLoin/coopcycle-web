@@ -33,7 +33,8 @@ use Webmozart\Assert\Assert;
  *       "access_control"="is_granted('ROLE_ADMIN') or user.getCustomer() == object",
  *       "denormalization_context"={"groups"={"customer_update"}},
  *     }
- *   }
+ *   },
+ *   collectionOperations={}
  * )
  */
 class Customer extends BaseCustomer implements CustomerInterface
@@ -291,5 +292,16 @@ class Customer extends BaseCustomer implements CustomerInterface
         }
 
         $this->edenredCredentials->setRefreshToken($refreshToken);
+    }
+
+    public function clearEdenredCredentials()
+    {
+        if (null === $this->edenredCredentials) {
+
+            return;
+        }
+
+        $this->edenredCredentials->setCustomer(null);
+        $this->edenredCredentials = null;
     }
 }

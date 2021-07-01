@@ -3,7 +3,6 @@
 namespace AppBundle\Command;
 
 use AppBundle\Entity\Cuisine;
-use AppBundle\Entity\Sylius\OrderView;
 use AppBundle\Entity\Sylius\TaxCategory;
 use AppBundle\Service\SettingsManager;
 use AppBundle\Service\StripeManager;
@@ -31,6 +30,7 @@ use Sylius\Component\Promotion\Model\PromotionAction;
 use Sylius\Component\Promotion\Repository\PromotionRepositoryInterface;
 use Sylius\Component\Taxation\Repository\TaxCategoryRepositoryInterface;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Logger\ConsoleLogger;
@@ -54,70 +54,10 @@ class SetupCommand extends Command
 
     private $locale;
 
-    private $locales = [
-        'an',
-        'ca',
-        'fr',
-        'en',
-        'es',
-        'de',
-        'it',
-        'pl',
-        'pt-BR'
-    ];
-
     private $channels = [
         'web' => 'Web',
         'app' => 'App',
         'pro' => 'Pro'
-    ];
-
-    private $onDemandDeliveryProductNames = [
-        'an' => 'Entrega baixo demanda',
-        'ca' => 'Lliurament a demanda',
-        'fr' => 'Livraison à la demande',
-        'en' => 'On demand delivery',
-        'es' => 'Entrega bajo demanda',
-        'de' => 'Lieferung auf Anfrage',
-        'it' => 'Consegna su richiesta',
-        'pl' => 'Dostawa na żądanie',
-        'pt-BR' => 'Entrega sob demanda'
-    ];
-
-    private $allergenAttributeNames = [
-        'an' => 'Alerchenos',
-        'ca' => 'Al·lèrgens',
-        'fr' => 'Allergènes',
-        'en' => 'Allergens',
-        'es' => 'Alérgenos',
-        'de' => 'Allergene',
-        'it' => 'Allergeni',
-        'pl' => 'Alergeny',
-        'pt-BR' => 'Alergenos'
-    ];
-
-    private $restrictedDietsAttributeNames = [
-        'an' => 'Dietas restrinchidas',
-        'ca' => 'Dietes restringides',
-        'fr' => 'Régimes restreints',
-        'en' => 'Restricted diets',
-        'es' => 'Dietas restringidas',
-        'de' => 'Eingeschränkte Ernährung',
-        'it' => 'Piani ristretti',
-        'pl' => 'Ograniczone diety',
-        'pt-BR' => 'Dietas restritas'
-    ];
-
-    private $freeDeliveryPromotionNames = [
-        'an' => 'Entrega de baldes',
-        'ca' => 'Lliurament gratuït',
-        'fr' => 'Livraison offerte',
-        'en' => 'Free delivery',
-        'es' => 'Entrega gratis',
-        'de' => 'Gratisversand',
-        'it' => 'Consegna gratuita',
-        'pl' => 'Darmowa dostawa',
-        'pt-BR' => 'Entrega grátis'
     ];
 
     private $currencies = [
@@ -131,6 +71,7 @@ class SetupCommand extends Command
         'ARS',
         'CRC',
         'AUD',
+        'MXN',
     ];
 
     public function __construct(
@@ -157,7 +98,8 @@ class SetupCommand extends Command
         SettingsManager $settingsManager,
         UrlGeneratorInterface $urlGenerator,
         string $locale,
-        string $country)
+        string $country,
+        string $localeRegex)
     {
         $this->productRepository = $productRepository;
         $this->productFactory = $productFactory;
@@ -199,6 +141,7 @@ class SetupCommand extends Command
 
         $this->locale = $locale;
         $this->country = $country;
+        $this->localeRegex = $localeRegex;
 
         parent::__construct();
     }
@@ -210,11 +153,17 @@ class SetupCommand extends Command
             ->setDescription('Setups some basic stuff.');
     }
 
+    protected function initialize(InputInterface $input, OutputInterface $output)
+    {
+        $this->locales = explode('|', $this->localeRegex);
+    }
+
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $output->writeln('<info>Setting up CoopCycle…</info>');
 
         $output->writeln('<info>Checking Sylius locales are present…</info>');
+
         foreach ($this->locales as $locale) {
             $this->createSyliusLocale($locale, $output);
         }
@@ -250,9 +199,6 @@ class SetupCommand extends Command
 
         $output->writeln('<info>Configuring Stripe webhook endpoint…</info>');
         $this->configureStripeWebhooks($output);
-
-        $output->writeln('<info>Creating view for order stats…</info>');
-        $this->createOrderStatsView($output);
 
         return 0;
     }
@@ -330,6 +276,11 @@ class SetupCommand extends Command
                 'name' => 'Edenred + Card',
                 'countries' => ['fr'],
             ],
+            [
+                'code' => 'CASH_ON_DELIVERY',
+                'name' => 'Cash on delivery',
+                'countries' => ['mx'],
+            ],
         ];
 
         foreach ($methods as $method) {
@@ -381,7 +332,7 @@ class SetupCommand extends Command
 
         foreach ($this->locales as $locale) {
 
-            $name = $this->onDemandDeliveryProductNames[$locale];
+            $name = $this->translator->trans('products.on_demand_delivery.name', [], 'messages', $locale);
 
             $product->setFallbackLocale($locale);
             $translation = $product->getTranslation($locale);
@@ -415,10 +366,12 @@ class SetupCommand extends Command
 
         foreach ($this->locales as $locale) {
 
+            $name = $this->translator->trans('form.product.allergens.label', [], 'messages', $locale);
+
             $attribute->setFallbackLocale($locale);
             $translation = $attribute->getTranslation($locale);
 
-            $translation->setName($this->allergenAttributeNames[$locale]);
+            $translation->setName($name);
         }
 
         $this->productAttributeManager->flush();
@@ -446,10 +399,12 @@ class SetupCommand extends Command
 
         foreach ($this->locales as $locale) {
 
+            $name = $this->translator->trans('form.product.restricted_diets.label', [], 'messages', $locale);
+
             $attribute->setFallbackLocale($locale);
             $translation = $attribute->getTranslation($locale);
 
-            $translation->setName($this->restrictedDietsAttributeNames[$locale]);
+            $translation->setName($name);
         }
 
         $this->productAttributeManager->flush();
@@ -461,8 +416,10 @@ class SetupCommand extends Command
 
         if (null === $promotion) {
 
+            $name = $this->translator->trans('promotions.heading.free_delivery', [], 'messages', $this->locale);
+
             $promotion = $this->promotionFactory->createNew();
-            $promotion->setName($this->freeDeliveryPromotionNames[$this->locale]);
+            $promotion->setName($name);
             $promotion->setCouponBased(true);
             $promotion->setCode('FREE_DELIVERY');
             $promotion->setPriority(1);
@@ -549,6 +506,9 @@ class SetupCommand extends Command
             'account.updated',
             'payment_intent.succeeded',
             'payment_intent.payment_failed',
+            'charge.captured',
+            'charge.succeeded',
+            'charge.updated',
             // Used for Giropay legacy integration
             'source.chargeable',
             'source.failed',
@@ -587,10 +547,5 @@ class SetupCommand extends Command
 
             $output->writeln('Stripe webhook endpoint created');
         }
-    }
-
-    private function createOrderStatsView(OutputInterface $output)
-    {
-        OrderView::create($this->doctrine->getConnection());
     }
 }

@@ -1,7 +1,9 @@
-{% extends "admin.html.twig" %}
+{% extends "deliveries.html.twig" %}
+
 {% form_theme form 'form/pricing_rule_set.html.twig' %}
 
 {% block breadcrumb %}
+{{ parent() }}
 <li><a href="{{ path('admin_deliveries_pricing') }}">{% trans %}adminDashboard.pricing.title{% endtrans %}</a></li>
 {% endblock %}
 
@@ -30,7 +32,7 @@
         id="rule-set"
         class="delivery-pricing-ruleset"
         data-prototype="{{ form_widget(form.rules.vars.prototype)|e }}"
-        data-zones="{{ zones|json_encode|e('html_attr') }}"
+        data-zones="{{ coopcycle_zone_names()|json_encode|e('html_attr') }}"
         data-packages="{{ packages|json_encode|e('html_attr') }}"
     >
         {% for rule in form.rules %}

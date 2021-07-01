@@ -13,14 +13,11 @@ use AppBundle\Entity\ReusablePackaging;
 use AppBundle\Entity\StripeAccount;
 use AppBundle\Entity\Sylius\Order;
 use AppBundle\Entity\Sylius\OrderRepository;
-use AppBundle\Entity\Sylius\OrderView;
 use AppBundle\Entity\Sylius\Product;
 use AppBundle\Entity\Sylius\ProductImage;
 use AppBundle\Entity\Sylius\ProductTaxon;
 use AppBundle\Entity\Sylius\TaxRate;
 use AppBundle\Entity\Sylius\TaxonRepository;
-use AppBundle\Entity\Vendor;
-use AppBundle\Entity\Zone;
 use AppBundle\Form\ClosingRuleType;
 use AppBundle\Form\MenuEditorType;
 use AppBundle\Form\MenuTaxonType;
@@ -32,10 +29,12 @@ use AppBundle\Form\RestaurantType;
 use AppBundle\Form\Restaurant\DepositRefundSettingsType;
 use AppBundle\Form\Restaurant\ReusablePackagingType;
 use AppBundle\Form\Sylius\Promotion\OfferDeliveryType;
+use AppBundle\Form\Sylius\Promotion\ItemsTotalBasedPromotionType;
 use AppBundle\Service\MercadopagoManager;
 use AppBundle\Service\SettingsManager;
 use AppBundle\Sylius\Order\AdjustmentInterface;
 use AppBundle\Sylius\Product\ProductInterface;
+use AppBundle\Sylius\Taxation\TaxesHelper;
 use AppBundle\Utils\MenuEditor;
 use AppBundle\Utils\PreparationTimeCalculator;
 use AppBundle\Utils\RestaurantStats;
@@ -47,11 +46,14 @@ use Doctrine\ORM\Query\Expr;
 use Doctrine\ORM\Tools\Pagination\Paginator;
 use Doctrine\Persistence\ObjectRepository;
 use Knp\Component\Pager\PaginatorInterface;
+use League\Csv\Writer as CsvWriter;
 use Lexik\Bundle\JWTAuthenticationBundle\Encoder\JWTEncoderInterface;
 use MercadoPago;
 use Ramsey\Uuid\Uuid;
 use Sylius\Component\Locale\Provider\LocaleProviderInterface;
 use Sylius\Component\Order\Model\OrderInterface;
+use Sylius\Component\Payment\Model\PaymentInterface;
+use Sylius\Component\Payment\Model\PaymentMethodInterface;
 use Sylius\Component\Product\Model\ProductTranslation;
 use Sylius\Component\Product\Repository\ProductOptionRepositoryInterface;
 use Sylius\Component\Resource\Factory\FactoryInterface;
@@ -70,13 +72,12 @@ use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Symfony\Component\Validator\ConstraintViolationList;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Symfony\Component\Security\Core\Authorization\AuthorizationCheckerInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Vich\UploaderBundle\Handler\UploadHandler;
 
 trait RestaurantTrait
 {
-    abstract protected function getRestaurantList(Request $request);
-
     abstract protected function getRestaurantRoutes();
 
     protected function getRestaurantRoute($name)
@@ -84,28 +85,6 @@ trait RestaurantTrait
         $routes = $this->getRestaurantRoutes();
 
         return $routes[$name];
-    }
-
-    /**
-     * @HideSoftDeleted
-     */
-    public function restaurantListAction(Request $request)
-    {
-        $routes = $request->attributes->get('routes');
-
-        [ $restaurants, $pages, $page ] = $this->getRestaurantList($request);
-
-        return $this->render($request->attributes->get('template'), [
-            'layout' => $request->attributes->get('layout'),
-            'restaurants' => $restaurants,
-            'pages' => $pages,
-            'page' => $page,
-            'dashboard_route' => $routes['dashboard'],
-            'menu_taxon_route' => $routes['menu_taxon'],
-            'menu_taxons_route' => $routes['menu_taxons'],
-            'restaurant_route' => $routes['restaurant'],
-            'products_route' => $routes['products']
-        ]);
     }
 
     protected function withRoutes($params, array $routes = [])
@@ -126,7 +105,11 @@ trait RestaurantTrait
         IriConverterInterface $iriConverter,
         TranslatorInterface $translator)
     {
-        $form = $this->createForm(RestaurantType::class, $restaurant);
+        $form = $this->createForm(RestaurantType::class, $restaurant, [
+            'loopeat_enabled' => $this->getParameter('loopeat_enabled'),
+            'edenred_enabled' => $this->getParameter('edenred_enabled'),
+            'vytal_enabled' => $this->getParameter('vytal_enabled'),
+        ]);
 
         // Associate Stripe account with restaurant
         if ($request->getSession()->getFlashBag()->has('stripe_account')) {
@@ -151,6 +134,7 @@ trait RestaurantTrait
 
         $wasLoopEatEnabled = $restaurant->isLoopeatEnabled();
         $wasDepositRefundEnabled = $restaurant->isDepositRefundEnabled();
+        $wasVytalEnabled = $restaurant->isVytalEnabled();
 
         $activationErrors = [];
         $formErrors = [];
@@ -194,6 +178,20 @@ trait RestaurantTrait
                     }
                 }
 
+                if (!$wasVytalEnabled && $restaurant->isVytalEnabled()) {
+
+                    if (!$restaurant->hasReusablePackagingWithName('Vytal')) {
+                        $reusablePackaging = new ReusablePackaging();
+                        $reusablePackaging->setName('Vytal');
+                        $reusablePackaging->setPrice(0);
+                        $reusablePackaging->setOnHold(0);
+                        $reusablePackaging->setOnHand(9999);
+                        $reusablePackaging->setTracked(false);
+
+                        $restaurant->addReusablePackaging($reusablePackaging);
+                    }
+                }
+
                 $this->getDoctrine()->getManagerForClass(LocalBusiness::class)->persist($restaurant);
                 $this->getDoctrine()->getManagerForClass(LocalBusiness::class)->flush();
 
@@ -225,11 +223,7 @@ trait RestaurantTrait
             $activationErrors = ValidationUtils::serializeValidationErrors($violations);
         }
 
-        $zones = $this->getDoctrine()->getRepository(Zone::class)->findAll();
-        $zoneNames = [];
-        foreach ($zones as $zone) {
-            array_push($zoneNames, $zone->getName());
-        }
+
 
         $loopeatAuthorizeUrl = '';
         if ($this->getParameter('loopeat_enabled') && $restaurant->isLoopeatEnabled()) {
@@ -265,7 +259,6 @@ trait RestaurantTrait
         $cuisines = $this->getDoctrine()->getRepository(Cuisine::class)->findAll();
 
         return $this->render($request->attributes->get('template'), $this->withRoutes([
-            'zoneNames' => $zoneNames,
             'restaurant' => $restaurant,
             'activationErrors' => $activationErrors,
             'formErrors' => $formErrors,
@@ -304,12 +297,15 @@ trait RestaurantTrait
         return $this->renderRestaurantForm($restaurant, $request, $validator, $jwtEncoder, $iriConverter, $translator);
     }
 
-    protected function renderRestaurantDashboard(
-        LocalBusiness $restaurant,
-        Request $request,
+    public function restaurantDashboardAction($restaurantId, Request $request,
         EntityManagerInterface $entityManager,
-        IriConverterInterface $iriConverter)
+        IriConverterInterface $iriConverter,
+        AuthorizationCheckerInterface $authorizationChecker)
     {
+        $restaurant = $this->getDoctrine()
+            ->getRepository(LocalBusiness::class)
+            ->find($restaurantId);
+
         $this->accessControl($restaurant);
 
         $date = new \DateTime('now');
@@ -335,47 +331,11 @@ trait RestaurantTrait
         $start->setTime(0, 0, 0);
         $end->setTime(23, 59, 59);
 
-        $qb = $entityManager->getRepository(Order::class)
-            ->createQueryBuilder('o')
-            ->join(Vendor::class, 'v', Expr\Join::WITH, 'o.vendor = v.id')
-            ->andWhere('v.restaurant = :restaurant')
-            ->andWhere('OVERLAPS(o.shippingTimeRange, CAST(:range AS tsrange)) = TRUE')
-            ->andWhere('o.state != :state')
-            ->setParameter('restaurant', $restaurant)
-            ->setParameter('range', sprintf('[%s, %s]', $start->format('Y-m-d H:i:s'), $end->format('Y-m-d H:i:s')))
-            ->setParameter('state', OrderInterface::STATE_CART);
-            ;
-
-        $orders = $qb->getQuery()->getResult();
-
-        //
-        // Add hub orders
-        //
-
-        $orderIds = array_map(fn(OrderInterface $r) => $r->getId(), $orders);
-
-        $qb = $entityManager->getRepository(OrderView::class)
-            ->createQueryBuilder('ov');
-
-        $qb = OrderRepository::addShippingTimeRangeClause($qb, 'ov', $start, $end);
-        $qb->select('ov.id');
-        $qb->andWhere('ov.restaurant = :restaurant');
-        if (count($orderIds) > 0) {
-            $qb->andWhere($qb->expr()->notIn('ov.id', $orderIds));
-        }
-        $qb->setParameter('restaurant', $restaurant->getId());
-
-        $hubOrderIds = array_map(fn(array $o) => $o['id'], $qb->getQuery()->getArrayResult());
-
-        if (count($hubOrderIds) > 0) {
-            $qb = $entityManager->getRepository(Order::class)
-                ->createQueryBuilder('o')
-                ->andWhere($qb->expr()->in('o.id', $hubOrderIds));
-
-            $hubOrders = $qb->getQuery()->getResult();
-
-            $orders = array_merge($orders, $hubOrders);
-        }
+        // FIXME
+        // Ideally, $authorizationChecker should be injected
+        // into OrderRepository directly, but it seems impossible with Sylius dependency injection
+        $orders = $entityManager->getRepository(Order::class)
+            ->findOrdersByRestaurantAndDateRange($restaurant, $start, $end, $authorizationChecker->isGranted('ROLE_ADMIN'));
 
         $routes = $request->attributes->get('routes');
 
@@ -398,17 +358,6 @@ trait RestaurantTrait
             'routes' => $routes,
             'date' => $date,
         ], $routes));
-    }
-
-    public function restaurantDashboardAction($restaurantId, Request $request,
-        EntityManagerInterface $entityManager,
-        IriConverterInterface $iriConverter)
-    {
-        $restaurant = $this->getDoctrine()
-            ->getRepository(LocalBusiness::class)
-            ->find($restaurantId);
-
-        return $this->renderRestaurantDashboard($restaurant, $request, $entityManager, $iriConverter);
     }
 
     public function restaurantMenuTaxonsAction($id, Request $request, FactoryInterface $taxonFactory)
@@ -733,11 +682,9 @@ trait RestaurantTrait
         $qb = $this->getDoctrine()
             ->getRepository(Product::class)
             ->createQueryBuilder('p');
+
         $qb->innerJoin(ProductTranslation::class, 't', Expr\Join::WITH, 't.translatable = p.id');
-        $qb->innerJoin(LocalBusiness::class, 'r', Expr\Join::WITH, '1 = 1');
-        $qb->innerJoin('r.products', 'rp');
-        $qb->andWhere('r.id = :restaurant');
-        $qb->andWhere('p.id = rp.id');
+        $qb->andWhere('p.restaurant = :restaurant');
         $qb->setParameter('restaurant', $restaurant);
 
         $products = $paginator->paginate(
@@ -982,8 +929,6 @@ trait RestaurantTrait
         $productOption = $productOptionFactory
             ->createNew();
 
-        $productOption->setRestaurant($restaurant);
-
         $routes = $request->attributes->get('routes');
 
         $form = $this->createForm(ProductOptionType::class, $productOption);
@@ -997,6 +942,8 @@ trait RestaurantTrait
             foreach ($productOption->getValues() as $optionValue) {
                 $optionValue->setCode(Uuid::uuid4()->toString());
             }
+
+            $restaurant->addProductOption($productOption);
 
             $entityManager->flush();
 
@@ -1195,7 +1142,9 @@ trait RestaurantTrait
     public function statsAction($id, Request $request,
         SlugifyInterface $slugify,
         TranslatorInterface $translator,
-        EntityManagerInterface $entityManager)
+        EntityManagerInterface $entityManager,
+        PaginatorInterface $paginator,
+        TaxesHelper $taxesHelper)
     {
         $tab = $request->query->get('tab', 'orders');
 
@@ -1207,33 +1156,7 @@ trait RestaurantTrait
 
         $routes = $request->attributes->get('routes');
 
-        $date = new \DateTime();
-
-        if ($request->query->has('month')) {
-            $month = $request->query->get('month');
-            if (1 === preg_match('/([0-9]{4})-([0-9]{2})/', $month, $matches)) {
-                $year = $matches[1];
-                $month = $matches[2];
-                $date->setDate($year, $month, 1);
-            }
-        }
-
-        $start = clone $date;
-        $end = clone $date;
-
-        $start->setDate($date->format('Y'), $date->format('m'), 1);
-        $start->setTime(0, 0, 1);
-
-        $end->setDate($date->format('Y'), $date->format('m'), $date->format('t'));
-        $end->setTime(23, 59, 59);
-
-        $qb = $entityManager->getRepository(OrderView::class)
-            ->createQueryBuilder('ov');
-
-        $qb = OrderRepository::addShippingTimeRangeClause($qb, 'ov', $start, $end);
-        $qb->andWhere('ov.restaurant = :restaurant');
-        $qb->setParameter('restaurant', $restaurant->getId());
-        $qb->addOrderBy('ov.shippingTimeRange', 'DESC');
+        [ $start, $end ] = $this->extractRange($request);
 
         $refundedOrders = $entityManager->getRepository(Order::class)
             ->findRefundedOrdersByRestaurantAndDateRange(
@@ -1243,10 +1166,14 @@ trait RestaurantTrait
             );
 
         $stats = new RestaurantStats(
+            $entityManager,
+            $start,
+            $end,
+            $restaurant,
+            $paginator,
             $this->getParameter('kernel.default_locale'),
-            $qb,
-            $entityManager->getRepository(TaxRate::class),
-            $translator
+            $translator,
+            $taxesHelper
         );
 
         if ($request->isMethod('POST')) {
@@ -1273,20 +1200,14 @@ trait RestaurantTrait
             $key
         );
 
-        $token = null;
-        $vendor = $entityManager->getRepository(Vendor::class)
-            ->findOneBy(['restaurant' => $restaurant]);
+        // https://github.com/lcobucci/jwt/issues/229
+        $now = new \DateTimeImmutable('@' . time());
 
-        if (null !== $vendor) {
-            // https://github.com/lcobucci/jwt/issues/229
-            $now = new \DateTimeImmutable('@' . time());
-
-            $token = $config->builder()
-                ->expiresAt($now->modify('+1 hour'))
-                ->withClaim('database', $this->getParameter('database_name'))
-                ->withClaim('vendor_id', $vendor->getId())
-                ->getToken($config->signer(), $config->signingKey());
-        }
+        $token = $config->builder()
+            ->expiresAt($now->modify('+1 hour'))
+            ->withClaim('database', $this->getParameter('database_name'))
+            ->withClaim('vendor_id', $restaurant->getId())
+            ->getToken($config->signer(), $config->signingKey());
 
         return $this->render('restaurant/stats.html.twig', $this->withRoutes([
             'layout' => $request->attributes->get('layout'),
@@ -1296,8 +1217,43 @@ trait RestaurantTrait
             'start' => $start,
             'end' => $end,
             'tab' => $tab,
-            'cube_token' => (null !== $vendor && null !== $token) ? $token->toString() : null,
+            'cube_token' => $token->toString(),
+            'picker_type' => $request->query->has('date') ? 'date' : 'month',
+            'with_details' => $request->query->getBoolean('details', false),
         ]));
+    }
+
+    private function extractRange(Request $request)
+    {
+        $date = new \DateTime($request->query->get('date'));
+
+        $type = $request->query->has('date') ? 'date' : 'month';
+
+        if ($request->query->has('month')) {
+            $month = $request->query->get('month');
+            if (1 === preg_match('/([0-9]{4})-([0-9]{2})/', $month, $matches)) {
+                $year = $matches[1];
+                $month = $matches[2];
+                $date->setDate($year, $month, 1);
+            }
+        }
+
+        $start = clone $date;
+        $end = clone $date;
+
+        $start->setTime(0, 0, 1);
+        $end->setTime(23, 59, 59);
+
+        if ($type === 'month') {
+            $start->setDate($date->format('Y'), $date->format('m'), 1);
+            // Last day of month
+            $end->setDate($date->format('Y'), $date->format('m'), $date->format('t'));
+        }
+
+        return [
+            $start,
+            $end
+        ];
     }
 
     public function newRestaurantReusablePackagingAction($id, Request $request, TranslatorInterface $translator)
@@ -1395,36 +1351,67 @@ trait RestaurantTrait
 
             $type = $request->query->get('type');
 
-            if ($type === 'offer_delivery') {
+            switch ($type) {
+                case 'offer_delivery':
 
-                $form = $this->createForm(OfferDeliveryType::class, null, [
-                    'local_business' => $restaurant
-                ]);
+                    $form = $this->createForm(OfferDeliveryType::class, null, [
+                        'local_business' => $restaurant
+                    ]);
 
-                $form->handleRequest($request);
-                if ($form->isSubmitted() && $form->isValid()) {
+                    $form->handleRequest($request);
+                    if ($form->isSubmitted() && $form->isValid()) {
 
-                    $promotion = $form->getData();
+                        $promotion = $form->getData();
 
-                    $restaurant->addPromotion($promotion);
+                        $restaurant->addPromotion($promotion);
 
-                    $this->getDoctrine()
-                        ->getManagerForClass(LocalBusiness::class)->flush();
+                        $this->getDoctrine()
+                            ->getManagerForClass(LocalBusiness::class)->flush();
 
-                    // $this->addFlash(
-                    //     'notice',
-                    //     $translator->trans('global.changesSaved')
-                    // );
+                        // $this->addFlash(
+                        //     'notice',
+                        //     $translator->trans('global.changesSaved')
+                        // );
 
-                    return $this->redirectToRoute($routes['promotions'], ['id' => $id]);
-                }
+                        return $this->redirectToRoute($routes['promotions'], ['id' => $id]);
+                    }
 
-                return $this->render('restaurant/promotion.html.twig', $this->withRoutes([
-                    'layout' => $request->attributes->get('layout'),
-                    'restaurant' => $restaurant,
-                    'form' => $form->createView(),
-                    'promotion_type' => $type,
-                ]));
+                    return $this->render('restaurant/promotion.html.twig', $this->withRoutes([
+                        'layout' => $request->attributes->get('layout'),
+                        'restaurant' => $restaurant,
+                        'form' => $form->createView(),
+                        'promotion_type' => $type,
+                    ]));
+
+                case 'items_total':
+                    $form = $this->createForm(ItemsTotalBasedPromotionType::class, null, [
+                        'local_business' => $restaurant
+                    ]);
+
+                    $form->handleRequest($request);
+                    if ($form->isSubmitted() && $form->isValid()) {
+
+                        $promotion = $form->getData();
+
+                        $restaurant->addPromotion($promotion);
+
+                        $this->getDoctrine()
+                            ->getManagerForClass(LocalBusiness::class)->flush();
+
+                        // $this->addFlash(
+                        //     'notice',
+                        //     $translator->trans('global.changesSaved')
+                        // );
+
+                        return $this->redirectToRoute($routes['promotions'], ['id' => $id]);
+                    }
+
+                    return $this->render('restaurant/promotion.html.twig', $this->withRoutes([
+                        'layout' => $request->attributes->get('layout'),
+                        'restaurant' => $restaurant,
+                        'form' => $form->createView(),
+                        'promotion_type' => $type,
+                    ]));
             }
         }
 
@@ -1474,5 +1461,121 @@ trait RestaurantTrait
         $this->getDoctrine()->getManagerForClass(Product::class)->flush();
 
         return new Response('', 204);
+    }
+
+    public function edenredTransactionsAction(
+        SlugifyInterface $slugify,
+        Request $request)
+    {
+        $qb = $this->getDoctrine()->getRepository(PaymentInterface::class)
+            ->createQueryBuilder('p');
+
+        $qb->join(OrderInterface::class, 'o', Expr\Join::WITH, 'p.order = o.id');
+        $qb->join(PaymentMethodInterface::class, 'pm', Expr\Join::WITH, 'p.method = pm.id');
+
+        $edenredWithCard = 'EDENRED+CARD';
+
+        $qb->andWhere('pm.code = :code');
+        $qb->andWhere('o.state = :state');
+
+        $qb->setParameter('code', $edenredWithCard);
+        $qb->setParameter('state', OrderInterface::STATE_FULFILLED);
+
+        $month = new \DateTime('now');
+        if ($request->query->has('month')) {
+            $month = new \DateTime($request->query->get('month'));
+        }
+
+        $start = new \DateTime(
+            sprintf('first day of %s', $month->format('F Y'))
+        );
+        $end = new \DateTime(
+            sprintf('last day of %s', $month->format('F Y'))
+        );
+
+        $start->setTime(0, 0, 0);
+        $end->setTime(23, 59, 59);
+
+        $qb = OrderRepository::addShippingTimeRangeClause($qb, 'o', $start, $end);
+
+        $qb->orderBy('o.shippingTimeRange', 'DESC');
+
+        $hash = new \SplObjectStorage();
+
+        $payments = $qb->getQuery()->getResult();
+
+        foreach ($payments as $payment) {
+
+            $restaurant = $payment->getOrder()->getRestaurant();
+
+            if (!$hash->contains($restaurant)) {
+                $hash->attach($restaurant, []);
+            }
+
+            $hash->attach($restaurant, array_merge($hash[$restaurant], [ $payment ]));
+        }
+
+        if ($request->isMethod('POST') && $request->request->has('restaurant')) {
+
+            $restaurantId = $request->request->getInt('restaurant');
+
+            $exported = $this->getDoctrine()->getRepository(LocalBusiness::class)
+                ->find($restaurantId);
+
+            if (null === $exported) {
+
+                throw $this->createNotFoundException();
+            }
+
+            $filename = sprintf('edenred-%s-%s.csv',
+                $month->format('Y-m'),
+                $slugify->slugify($exported->getName())
+            );
+
+            $csv = CsvWriter::createFromString('');
+
+            $numberFormatter = \NumberFormatter::create($request->getLocale(), \NumberFormatter::DECIMAL);
+            $numberFormatter->setAttribute(\NumberFormatter::MIN_FRACTION_DIGITS, 2);
+            $numberFormatter->setAttribute(\NumberFormatter::MAX_FRACTION_DIGITS, 2);
+
+            $heading = [
+                'Order number',
+                'Completed at',
+                'Total amount',
+                'Edenred amount',
+                'Platform fee',
+            ];
+
+            $records = [];
+            foreach ($hash[$exported] as $payment) {
+
+                $order = $payment->getOrder();
+
+                $records[] = [
+                    $order->getNumber(),
+                    $order->getShippingTimeRange()->getLower()->format('Y-m-d'),
+                    $numberFormatter->format($order->getTotal() / 100),
+                    $numberFormatter->format($payment->getAmountForMethod('EDENRED') / 100),
+                    $numberFormatter->format($order->getFeeTotal() / 100),
+                ];
+            }
+
+            $csv->insertOne($heading);
+            $csv->insertAll($records);
+
+            $response = new Response($csv->getContent());
+            $response->headers->set('Content-Disposition', $response->headers->makeDisposition(
+                ResponseHeaderBag::DISPOSITION_ATTACHMENT,
+                $filename
+            ));
+
+            return $response;
+        }
+
+        return $this->render('restaurant/edenred_transactions.html.twig', $this->withRoutes([
+            'layout' => $request->attributes->get('layout'),
+            'month' => $month,
+            'payments' => $hash,
+        ]));
     }
 }

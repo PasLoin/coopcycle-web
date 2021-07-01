@@ -93,4 +93,16 @@ class Settings
     public $mercadopago_app_id;
 
     public $guest_checkout_enabled;
+
+    public $autocomplete_provider;
+
+    /**
+     * @Assert\Expression(
+     *   "this.autocomplete_provider != 'google' or this.geocoding_provider != 'google' or value != ''",
+     *   message="This value should not be blank."
+     * )
+     */
+    public $google_api_key_custom;
+
+    public $geocoding_provider;
 }

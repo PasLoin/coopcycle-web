@@ -30,11 +30,14 @@
 .restaurant-item {
 
   position: relative;
-  color: #212121;
-  &:hover {
-    color: lighten(#212121, 10%);
-  }
   margin-bottom: $line-height-computed;
+
+  &, & > a {
+    color: #212121;
+    &:hover {
+      color: lighten(#212121, 10%);
+    }
+  }
 
   &--disabled > * {
     opacity: 0.6;
@@ -59,6 +62,15 @@
     font-weight: 700;
   }
 
+  &__cuisines {
+    & > a {
+      color: #777777;
+      &:hover {
+        color: lighten(#777777, 10%);
+      }
+    }
+  }
+
   &__time-range {
     font-size: $font-size-small;
     background: #E5E5E5;
@@ -80,4 +92,29 @@
 
 .restaurant-item:hover img {
   opacity: 0.8;
+}
+
+.restaurant-supports-edenred {
+
+  $originalWidth: 413.24px;
+  $originalHeight: 265.47px;
+
+  background-image: url('../../../assets/svg/Edenred_Logo.svg');
+  background-repeat: no-repeat;
+  display: block;
+  width: ($originalWidth / 6);
+  height: ($originalHeight / 6);
+}
+
+.restaurant-supports-vytal {
+
+    $vytalWidth: 964px;
+    $vytalHeight: 893px;
+
+    background-image: url('../../../assets/logos/vytal_logo_green.png');
+    background-repeat: no-repeat;
+    background-size: cover;
+    display: block;
+    width: ($vytalWidth / 15);
+    height: ($vytalHeight / 15);
 }

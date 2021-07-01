@@ -3,6 +3,7 @@
 namespace AppBundle\Controller;
 
 use ApiPlatform\Core\Api\IriConverterInterface;
+use AppBundle\Annotation\HideSoftDeleted;
 use AppBundle\Controller\Utils\AccessControlTrait;
 use AppBundle\Controller\Utils\AdminDashboardTrait;
 use AppBundle\Controller\Utils\DeliveryTrait;
@@ -18,6 +19,7 @@ use AppBundle\Entity\Delivery\PricingRuleSet;
 use AppBundle\Entity\Hub;
 use AppBundle\Entity\Invitation;
 use AppBundle\Entity\LocalBusiness;
+use AppBundle\Entity\LocalBusinessRepository;
 use AppBundle\Entity\Organization;
 use AppBundle\Entity\OrganizationConfig;
 use AppBundle\Entity\PackageSet;
@@ -25,11 +27,11 @@ use AppBundle\Entity\Restaurant\Pledge;
 use AppBundle\Entity\Store;
 use AppBundle\Entity\Sylius\Customer;
 use AppBundle\Entity\Sylius\Order;
+use AppBundle\Entity\Sylius\OrderVendor;
 use AppBundle\Entity\Sylius\OrderRepository;
 use AppBundle\Entity\Tag;
 use AppBundle\Entity\Task;
 use AppBundle\Entity\TimeSlot;
-use AppBundle\Entity\Vendor;
 use AppBundle\Entity\Zone;
 use AppBundle\Form\AddOrganizationType;
 use AppBundle\Form\AttachToOrganizationType;
@@ -52,11 +54,11 @@ use AppBundle\Form\PricingRuleSetType;
 use AppBundle\Form\RestaurantAdminType;
 use AppBundle\Form\SettingsType;
 use AppBundle\Form\StripeLivemodeType;
+use AppBundle\Form\Type\TimeSlotChoiceType;
 use AppBundle\Form\Sylius\Promotion\CreditNoteType;
 use AppBundle\Form\TimeSlotType;
 use AppBundle\Form\UpdateProfileType;
 use AppBundle\Form\ZoneCollectionType;
-use AppBundle\Mailer\FOSUserBundleMailer;
 use AppBundle\Service\ActivityManager;
 use AppBundle\Service\DeliveryManager;
 use AppBundle\Service\EmailManager;
@@ -74,9 +76,10 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Tools\Pagination\Paginator;
 use Doctrine\ORM\Query\Expr;
-use FOS\UserBundle\Model\UserManagerInterface;
-use FOS\UserBundle\Util\TokenGeneratorInterface;
-use FOS\UserBundle\Util\CanonicalizerInterface;
+use Nucleos\UserBundle\Model\UserManagerInterface;
+use Nucleos\UserBundle\Util\TokenGeneratorInterface;
+use Nucleos\UserBundle\Util\CanonicalizerInterface;
+use Nucleos\ProfileBundle\Mailer\Mail\RegistrationMail;
 use GuzzleHttp\Client as HttpClient;
 use Knp\Component\Pager\PaginatorInterface;
 use Ramsey\Uuid\Uuid;
@@ -92,7 +95,10 @@ use Sylius\Component\Resource\Factory\FactoryInterface;
 use Sylius\Component\Taxation\Resolver\TaxRateResolverInterface;
 use Sylius\Component\Taxation\Repository\TaxCategoryRepositoryInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Bridge\Twig\Mime\BodyRenderer;
+use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
 use Symfony\Component\Form\Extension\Core\Type\EmailType;
+use Symfony\Component\Form\FormInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -102,6 +108,7 @@ use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
+use Twig\Environment as TwigEnvironment;
 
 class AdminController extends AbstractController
 {
@@ -175,7 +182,7 @@ class AdminController extends AbstractController
             ->andWhere('o.state != :state')
             ->setParameter('state', OrderInterface::STATE_CART)
             ->orderBy('LOWER(o.shippingTimeRange)', 'DESC')
-            ->setFirstResult(($request->query->get('p', 1) - 1) * self::ITEMS_PER_PAGE)
+            ->setFirstResult(($request->query->getInt('p', 1) - 1) * self::ITEMS_PER_PAGE)
             ->setMaxResults(self::ITEMS_PER_PAGE)
             ;
 
@@ -297,7 +304,7 @@ class AdminController extends AbstractController
                 }
 
                 if ('fulfill' === $form->getClickedButton()->getName()) {
-                    if ($order->isFoodtech()) {
+                    if ($order->hasVendor()) {
                         throw new BadRequestHttpException(sprintf('Order #%d should not be fulfilled directly', $order->getId()));
                     }
 
@@ -347,7 +354,7 @@ class AdminController extends AbstractController
 
         $date = new \DateTime($date);
 
-        $orders = $this->orderRepository->findByDate($date);
+        $orders = $this->orderRepository->findOrdersByDate($date);
 
         $ordersNormalized = $this->get('serializer')->normalize($orders, 'jsonld', [
             'resource_class' => Order::class,
@@ -605,7 +612,7 @@ class AdminController extends AbstractController
             ->getQuery()->getSingleScalarResult();
 
         $pages = ceil($countAll / self::ITEMS_PER_PAGE);
-        $page = $request->query->get('p', 1);
+        $page = $request->query->getInt('p', 1);
 
         $offset = self::ITEMS_PER_PAGE * ($page - 1);
 
@@ -669,14 +676,16 @@ class AdminController extends AbstractController
             return $response;
         }
 
-        $qb = $this->getDoctrine()
+        $sections = $this->getDoctrine()
             ->getRepository(Delivery::class)
-            ->createQueryBuilder('d');
+            ->getSections();
+
+        $qb = $sections['past'];
 
         // Allow filtering by store & restaurant with KnpPaginator
         $qb->leftJoin(Store::class, 's', Expr\Join::WITH, 's.id = d.store');
         $qb->leftJoin(Order::class, 'o', Expr\Join::WITH, 'o.id = d.order');
-        $qb->leftJoin(Vendor::class, 'v', Expr\Join::WITH, 'o.vendor = v.id');
+        $qb->leftJoin(OrderVendor::class, 'v', Expr\Join::WITH, 'o.id = v.order');
         $qb->leftJoin(LocalBusiness::class, 'r', Expr\Join::WITH, 'v.restaurant = r.id');
 
         $deliveries = $paginator->paginate(
@@ -693,6 +702,8 @@ class AdminController extends AbstractController
         );
 
         return $this->render('admin/deliveries.html.twig', [
+            'today' => $sections['today']->getQuery()->getResult(),
+            'upcoming' => $sections['upcoming']->getQuery()->getResult(),
             'deliveries' => $deliveries,
             'routes' => $this->getDeliveryRoutes(),
             'stores' => $this->getDoctrine()->getRepository(Store::class)->findBy([], ['name' => 'ASC']),
@@ -708,7 +719,9 @@ class AdminController extends AbstractController
             'pick'      => 'admin_delivery_pick',
             'deliver'   => 'admin_delivery_deliver',
             'view'      => 'admin_delivery',
-            'store_new' => 'admin_store_delivery_new'
+            'store_new' => 'admin_store_delivery_new',
+            'store_addresses' => 'admin_store_addresses',
+            'download_images' => 'admin_store_delivery_download_images',
         ];
     }
 
@@ -818,22 +831,14 @@ class AdminController extends AbstractController
             return  $this->redirectToRoute('admin_tags');
         }
 
-        $tags = $this->getDoctrine()->getRepository(Tag::class)->findAll();
-
         if ($request->query->has('format')) {
             if ('json' === $request->query->get('format')) {
-                $data = array_map(function (Tag $tag) {
-                    return [
-                        'id' => $tag->getId(),
-                        'name' => $tag->getName(),
-                        'slug' => $tag->getSlug(),
-                        'color' => $tag->getColor(),
-                    ];
-                }, $tags);
 
-                return new JsonResponse($data);
+                return new JsonResponse($tagManager->getAllTags());
             }
         }
+
+        $tags = $this->getDoctrine()->getRepository(Tag::class)->findAll();
 
         return $this->render('admin/tags.html.twig', [
             'tags' => $tags
@@ -859,12 +864,6 @@ class AdminController extends AbstractController
 
         foreach ($ruleSet->getRules() as $rule) {
             $originalRules->add($rule);
-        }
-
-        $zones = $this->getDoctrine()->getRepository(Zone::class)->findAll();
-        $zoneNames = [];
-        foreach ($zones as $zone) {
-            array_push($zoneNames, $zone->getName());
         }
 
         $packageSets = $this->getDoctrine()->getRepository(PackageSet::class)->findAll();
@@ -899,12 +898,16 @@ class AdminController extends AbstractController
 
             $em->flush();
 
-            return $this->redirectToRoute('admin_deliveries_pricing');
+            $this->addFlash(
+                'notice',
+                $this->translator->trans('global.changesSaved')
+            );
+
+            return $this->redirectToRoute('admin_deliveries_pricing_ruleset', ['id' => $ruleSet->getId()]);
         }
 
         return $this->render('admin/pricing_rule_set.html.twig', [
             'form' => $form->createView(),
-            'zones' => $zoneNames,
             'packages' => $packageNames,
         ]);
     }
@@ -1557,24 +1560,24 @@ class AdminController extends AbstractController
     /**
      * @Route("/admin/emails", name="admin_email_preview")
      */
-    public function emailsPreviewAction(Request $request, FOSUserBundleMailer $mailer)
+    public function emailsPreviewAction(Request $request, TwigEnvironment $twig)
     {
-        $method = 'sendConfirmationEmailMessage';
-        if ($request->query->has('method')) {
-            $method = $request->query->get('method');
-        }
+        $bodyRenderer = new BodyRenderer($twig);
 
-        $this->getUser()->setConfirmationToken('123456');
+        $message = new RegistrationMail();
 
-        $mailer->enableLogging();
+        $url  = $this->generateUrl(
+            'nucleos_profile_registration_confirm',
+            ['token' => '123456'],
+        );
 
-        call_user_func_array([$mailer, $method], [$this->getUser()]);
-
-        $messages = $mailer->getMessages();
-        $message = current($messages);
+        $message->setUser($this->getUser());
+        $message->setConfirmationUrl($url);
 
         // An email must have a "To", "Cc", or "Bcc" header."
         $message->to('dev@coopcycle.org');
+
+        $bodyRenderer->render($message);
 
         $response = new Response();
         $response->setContent((string) $message->getHtmlBody());
@@ -1669,7 +1672,9 @@ class AdminController extends AbstractController
 
     private function renderTimeSlotForm(Request $request, TimeSlot $timeSlot, EntityManagerInterface $objectManager)
     {
-        $form = $this->createForm(TimeSlotType::class, $timeSlot);
+        $form = $this->createForm(TimeSlotType::class, $timeSlot, [
+            'validation_groups' => ['last_mile']
+        ]);
 
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
@@ -1699,6 +1704,35 @@ class AdminController extends AbstractController
         $timeSlot = new TimeSlot();
 
         return $this->renderTimeSlotForm($request, $timeSlot, $objectManager);
+    }
+
+    /**
+     * @Route("/admin/settings/time-slots/preview", name="admin_time_slot_preview")
+     */
+    public function timeSlotPreviewAction(Request $request, EntityManagerInterface $objectManager)
+    {
+        $timeSlot = new TimeSlot();
+
+        $form = $this->createForm(TimeSlotType::class, $timeSlot);
+
+        $form->handleRequest($request);
+
+        if ($form->isSubmitted()) {
+
+            $timeSlot = $form->getData();
+
+            $form = $this->createFormBuilder()
+                ->add('example', TimeSlotChoiceType::class, [
+                    'time_slot' => $timeSlot,
+                ])
+                ->getForm();
+
+            return $this->render('admin/time_slot_preview.html.twig', [
+                'form' => $form->createView(),
+            ]);
+        }
+
+        return new Response('', 200);
     }
 
     /**
@@ -1928,15 +1962,10 @@ class AdminController extends AbstractController
         );
     }
 
-    public function hubAction($id, Request $request)
+    private function handleHubForm(Hub $hub, Request $request)
     {
-        $hub = $this->getDoctrine()->getRepository(Hub::class)->find($id);
-
-        if (!$hub) {
-            throw $this->createNotFoundException(sprintf('Hub #%d does not exist', $id));
-        }
-
         $form = $this->createForm(HubType::class, $hub);
+
         if ($request->isMethod('POST') && $form->handleRequest($request)->isValid()) {
             $this->getDoctrine()->getManager()->persist($hub);
             $this->getDoctrine()->getManager()->flush();
@@ -1946,11 +1975,128 @@ class AdminController extends AbstractController
                 $this->translator->trans('global.changesSaved')
             );
 
-            return $this->redirectToRoute('admin_hub', ['id' => $id]);
+            return $this->redirectToRoute('admin_hub', ['id' => $hub->getId()]);
         }
 
         return $this->render('admin/hub.html.twig', [
             'form' => $form->createView(),
+        ]);
+    }
+
+    public function newHubAction(Request $request)
+    {
+        $hub = new Hub();
+
+        return $this->handleHubForm($hub, $request);
+    }
+
+    public function hubAction($id, Request $request)
+    {
+        $hub = $this->getDoctrine()->getRepository(Hub::class)->find($id);
+
+        if (!$hub) {
+            throw $this->createNotFoundException(sprintf('Hub #%d does not exist', $id));
+        }
+
+        return $this->handleHubForm($hub, $request);
+    }
+
+    public function hubsAction(Request $request)
+    {
+        $hubs = $this->getDoctrine()->getRepository(Hub::class)->findAll();
+
+        return $this->render('admin/hubs.html.twig', [
+            'hubs' => $hubs,
+        ]);
+    }
+
+    /**
+     * @HideSoftDeleted
+     */
+    public function restaurantListAction(Request $request, SettingsManager $settingsManager)
+    {
+        $routes = $request->attributes->get('routes');
+
+        $pledgeCount = $this->getDoctrine()
+            ->getRepository(Pledge::class)
+            ->createQueryBuilder('p')
+            ->select('COUNT(p.id)')
+            ->where('p.state = :state_new')
+            ->setParameter('state_new', 'new')
+            ->getQuery()
+            ->getSingleScalarResult()
+            ;
+
+        $pledgesEnabled = filter_var(
+            $settingsManager->get('enable_restaurant_pledges'),
+            FILTER_VALIDATE_BOOLEAN
+        );
+
+        $pledgeForm = $this->createFormBuilder([
+            'enable_restaurant_pledges' => $pledgesEnabled,
+        ])
+        ->add('enable_restaurant_pledges', CheckboxType::class, [
+            'label' => 'form.settings.enable_restaurant_pledges.label',
+            'required' => false,
+        ])
+        ->getForm();
+
+        $pledgeForm->handleRequest($request);
+
+        if ($pledgeForm->isSubmitted() && $pledgeForm->isValid()) {
+
+            $enabled = $pledgeForm->get('enable_restaurant_pledges')->getData();
+
+            $settingsManager->set('enable_restaurant_pledges', $enabled ? 'yes' : 'no');
+            $settingsManager->flush();
+
+            $this->addFlash(
+                'notice',
+                $this->translator->trans('global.changesSaved')
+            );
+
+            return $this->redirectToRoute('admin_restaurants');
+        }
+
+        [ $restaurants, $pages, $page ] = $this->getRestaurantList($request);
+
+        return $this->render($request->attributes->get('template'), [
+            'layout' => $request->attributes->get('layout'),
+            'restaurants' => $restaurants,
+            'pages' => $pages,
+            'page' => $page,
+            'dashboard_route' => $routes['dashboard'],
+            'menu_taxon_route' => $routes['menu_taxon'],
+            'menu_taxons_route' => $routes['menu_taxons'],
+            'restaurant_route' => $routes['restaurant'],
+            'products_route' => $routes['products'],
+            'pledge_count' => $pledgeCount,
+            'pledge_form' => $pledgeForm->createView(),
+        ]);
+    }
+
+    public function metricsAction(LocalBusinessRepository $localBusinessRepository, Request $request)
+    {
+        // https://cube.dev/docs/security
+        $key = \Lcobucci\JWT\Signer\Key\InMemory::plainText($_SERVER['CUBEJS_API_SECRET']);
+        $config = \Lcobucci\JWT\Configuration::forSymmetricSigner(
+            new \Lcobucci\JWT\Signer\Hmac\Sha256(),
+            $key
+        );
+
+        // https://github.com/lcobucci/jwt/issues/229
+        $now = new \DateTimeImmutable('@' . time());
+
+        $token = $config->builder()
+                ->expiresAt($now->modify('+1 hour'))
+                ->withClaim('database', $this->getParameter('database_name'))
+                ->getToken($config->signer(), $config->signingKey());
+
+        $zeroWasteCount = $localBusinessRepository->countZeroWaste();
+
+        return $this->render('admin/metrics.html.twig', [
+            'cube_token' => $token->toString(),
+            'zero_waste' => $zeroWasteCount > 0,
         ]);
     }
 }

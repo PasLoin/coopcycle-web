@@ -54,8 +54,7 @@ adminDashboard.stores.form.uploadImage: Carregueu una imatge
 adminDashboard.orders.title: Comandes
 adminDashboard.orders.previousOrders: Comandes anteriors
 adminDashboard.orders.showCanceled: Mostra les comandes cancel·lades
-adminDashboard.restaurants.title: Restaurants
-adminDashboard.restaurants.createNew: Crea un nou restaurant
+adminDashboard.shops.title: Botigues
 adminDashboard.restaurants.exclusive: Exclusiu
 adminDashboard.users.title: Usuaris
 adminDashboard.users.roles: Funcions
@@ -161,17 +160,13 @@ restaurant.menus.activated: S'ha activat la carta « % menu_name% ». Ara es mos
 restaurant.closingForm.title: Afegiu un tancament temporal
 restaurant.closingForm.reason.label: Raó
 restaurant.closingForm.dates.label: Tancar de / a
-restaurant.list.manage: Gestiona
 restaurant.list.orders: Comandes
 restaurant.list.refunds: Devolucions
 restaurant.list.products: Productes
 restaurant.list.product_options: Opcions
-restaurant.list.menus: Menús
-restaurant.list.activeMenu: Menú actiu
 restaurant.list.planning: Planificació
 restaurant.list.settings: Configuració
 restaurant.list.norestaurant: Encara no hi ha restaurants
-restaurant.list.createNewRestaurant: Crea un nou restaurant
 restaurant.list.preparationTime: Preparació
 restaurant.list.stats: Estadístiques
 restaurant.product_options.help: "Aquesta secció li permet configurar elements addicionals\
@@ -365,10 +360,6 @@ form.settings.stripe_connect_client_id.label: Stripe Connect identificador
 form.settings.stripe_connect_client_id.help: "Obteniu l'identificador a la secció\
   \ <a href=\"https://dashboard.stripe.com/account/applications/settings\">pàgina\
   \ de paràmetres</a>\n"
-form.settings.google_api_key.label: Clau de l’API de Google
-form.settings.google_api_key.help: "Creeu un compte de Google per obtenir-ne <a href=\"\
-  https://developers.google.com/maps/documentation/javascript/get-api-key?hl=Fr\"\
-  >API key</a>\n"
 form.settings.latlng.label: Coordenades geogràfiques
 form.settings.latlng.help: "Especifiqueu la latitud i la longitud predeterminades.\
   \ Podeu continuar <a href=\"https://www.latlong.net/\">latlong.net</a>\n"
@@ -1138,3 +1129,4 @@ form.mercadopago_livemode.disable_and_enable_maintenance.label: Utilitzar el mod
 form.mercadopago_livemode.disable.alert: En mode « test », les targetes de crèdit
   no seran carregades.
 form.settings.mercadopago.title: Mercado Pago
+products.on_demand_delivery.name: Lliurament a demanda

@@ -7,6 +7,7 @@ use AppBundle\Sylius\Customer\CustomerInterface;
 use AppBundle\Sylius\Order\AdjustmentInterface;
 use AppBundle\Sylius\Order\OrderInterface;
 use GuzzleHttp\Client as BaseClient;
+use GuzzleHttp\Exception\BadResponseException;
 use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\HandlerStack;
 use Psr\Log\LoggerInterface;
@@ -47,23 +48,45 @@ class Client extends BaseClient
 
     public function getBalance(Customer $customer): int
     {
-        $userInfo = $this->authentication->userInfo($customer);
+        try {
 
-        $credentials = $customer->getEdenredCredentials();
+            $userInfo = $this->authentication->userInfo($customer);
 
-        // https://documenter.getpostman.com/view/10405248/TVewaQQX#82e953fc-9110-4246-8a78-aba888b70b31
-        $response = $this->request('GET', sprintf('/v1/users/%s', $userInfo['username']), [
-            'headers' => [
-                'Authorization' => sprintf('Bearer %s', $credentials->getAccessToken()),
-                'X-Client-Id' => $this->paymentClientId,
-                'X-Client-Secret' => $this->paymentClientSecret,
-            ],
-            'oauth_credentials' => $credentials,
-        ]);
+            $credentials = $customer->getEdenredCredentials();
 
-        $data = json_decode((string) $response->getBody(), true);
+            // https://documenter.getpostman.com/view/10405248/TVewaQQX#82e953fc-9110-4246-8a78-aba888b70b31
+            $response = $this->request('GET', sprintf('/v1/users/%s', $userInfo['username']), [
+                'headers' => [
+                    'Authorization' => sprintf('Bearer %s', $credentials->getAccessToken()),
+                    'X-Client-Id' => $this->paymentClientId,
+                    'X-Client-Secret' => $this->paymentClientSecret,
+                ],
+                'oauth_credentials' => $credentials,
+            ]);
 
-        return $data['data']['available_amount'] ?? 0;
+            $data = json_decode((string) $response->getBody(), true);
+
+            return $data['data']['available_amount'] ?? 0;
+
+        } catch (BadResponseException $e) {
+            // This means the refresh token has expired
+            if (401 === $e->getResponse()->getStatusCode()) {
+                $this->logger->error('Refresh token has expired, clearing credentials');
+                $customer->clearEdenredCredentials();
+            }
+        } catch (RequestException $e) {
+            $this->logger->error(sprintf(
+                'Could not get customer balance: "%s"',
+                (string) $e->getResponse()->getBody()
+            ));
+
+            // We do *NOT* rethrow the exception,
+            // we just return a balance of zero.
+            // This way, if the Edenred server has problems,
+            // it doesn't break the checkout.
+        }
+
+        return 0;
     }
 
     /**
@@ -75,7 +98,7 @@ class Client extends BaseClient
         $order = $payment->getOrder();
 
         $body = [
-            "mid" => $order->getVendor()->getEdenredMerchantId(),
+            "mid" => $order->getRestaurant()->getEdenredMerchantId(),
             "order_ref" => $order->getNumber(),
             "amount" => $payment->getAmountForMethod('EDENRED'),
             "capture_mode" => "manual",
@@ -160,10 +183,12 @@ class Client extends BaseClient
 
         $total = $order->getTotal();
 
-        $deliveryFee = $order->getAdjustmentsTotal(AdjustmentInterface::DELIVERY_ADJUSTMENT);
-        $packagingFee = $order->getAdjustmentsTotal(AdjustmentInterface::REUSABLE_PACKAGING_ADJUSTMENT);
-
-        $notPayableAmount = $deliveryFee + $packagingFee;
+        $notPayableAmount = array_sum([
+            $order->getAdjustmentsTotal(AdjustmentInterface::DELIVERY_ADJUSTMENT),
+            $order->getAdjustmentsTotal(AdjustmentInterface::REUSABLE_PACKAGING_ADJUSTMENT),
+            $order->getAdjustmentsTotal(AdjustmentInterface::TIP_ADJUSTMENT),
+            $order->getAlcoholicItemsTotal(),
+        ]);
         $payableAmount = $total - $notPayableAmount;
 
         $balance = $this->getBalance($order->getCustomer());
@@ -210,7 +235,45 @@ class Client extends BaseClient
             return $responseData['data']['cancel_id'];
         } catch (RequestException $e) {
             $this->logger->error(sprintf(
-                'Could not authorize transaction: "%s"',
+                'Could not cancel transaction: "%s"',
+                (string) $e->getResponse()->getBody()
+            ));
+
+            throw $e;
+        }
+    }
+
+    public function refund(PaymentInterface $payment, $amount = null)
+    {
+        $order = $payment->getOrder();
+
+        $body = [
+            'amount' => $amount ?? $payment->getAmountForMethod('EDENRED'),
+            'tstamp' => (new \DateTime())->format(\DateTime::ATOM),
+        ];
+
+        Assert::isInstanceOf($order->getCustomer(), CustomerInterface::class);
+
+        $credentials = $order->getCustomer()->getEdenredCredentials();
+
+        // https://documenter.getpostman.com/view/2761627/TVejiB3m#bf335b3c-d9fc-4249-93fe-1bbdedc1a9cd
+        try {
+
+            $response = $this->request('POST', sprintf('/v1/transactions/%s/actions/refund', $payment->getEdenredAuthorizationId()), [
+                'headers' => [
+                    'Authorization' => sprintf('Bearer %s', $credentials->getAccessToken()),
+                    'X-Client-Id' => $this->paymentClientId,
+                    'X-Client-Secret' => $this->paymentClientSecret,
+                ],
+                'json' => $body,
+                'oauth_credentials' => $credentials,
+            ]);
+
+            return true;
+
+        } catch (RequestException $e) {
+            $this->logger->error(sprintf(
+                'Could not refund transaction: "%s"',
                 (string) $e->getResponse()->getBody()
             ));
 

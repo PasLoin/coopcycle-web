@@ -20,7 +20,7 @@ services:
     public: false
     arguments:
       $doctrine: '@doctrine.orm.default_entity_manager'
-      $userManager: '@fos_user.user_manager'
+      $userManager: '@nucleos_user.user_manager'
       $tokenManager: '@lexik_jwt_authentication.jwt_manager'
       $routing: '@routing_service'
       $settingsManager: '@coopcycle.settings_manager'
@@ -81,6 +81,7 @@ services:
       $taxCategoryFactory: '@sylius.factory.tax_category'
       $locale: '%env(COOPCYCLE_LOCALE)%'
       $country: "%country_iso%"
+      $localeRegex: "%locale_regex%"
     tags:
       - { name: 'console.command', command: 'coopcycle:setup' }
 
@@ -148,3 +149,11 @@ services:
       $localeRegex: "%locale_regex%"
     tags:
       - { name: 'console.command', command: 'coopcycle:translations:copy' }
+
+  AppBundle\Command\EdenredCommand:
+    tags:
+      - { name: 'console.command', command: 'coopcycle:edenred:capture' }
+
+  AppBundle\Command\AnonymizeCommand:
+    tags:
+      - { name: 'console.command', command: 'coopcycle:anonymize' }

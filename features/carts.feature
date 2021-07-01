@@ -31,7 +31,8 @@ Feature: Carts
         "violations":[
           {
             "propertyPath":"state",
-            "message":@string@
+            "message":@string@,
+            "code":null
           }
         ]
       }
@@ -584,14 +585,14 @@ Feature: Carts
             "adjustments":{
               "menu_item_modifier":[
                 {
-                  "id":@integer@,
+                  "id":@string@,
                   "label":"1 × Pepperoni",
                   "amount":0
                 }
               ],
               "tax":[
                 {
-                  "id":@integer@,
+                  "id":@string@,
                   "label":"TVA 10%",
                   "amount":@integer@
                 }
@@ -683,14 +684,14 @@ Feature: Carts
             "adjustments":{
               "menu_item_modifier":[
                 {
-                  "id":@integer@,
+                  "id":@string@,
                   "label":"1 × Pepperoni",
                   "amount":0
                 }
               ],
               "tax":[
                 {
-                  "id":@integer@,
+                  "id":@string@,
                   "label":"TVA 10%",
                   "amount":@integer@
                 }
@@ -782,14 +783,14 @@ Feature: Carts
             "adjustments":{
               "menu_item_modifier":[
                 {
-                  "id":1,
+                  "id":@string@,
                   "label":"1 × Pepperoni",
                   "amount":0
                 }
               ],
               "tax":[
                 {
-                  "id":@integer@,
+                  "id":@string@,
                   "label":"TVA 10%",
                   "amount":@integer@
                 }
@@ -1530,16 +1531,17 @@ Feature: Carts
     And the JSON should match:
       """
       {
-         "@context":"/api/contexts/ConstraintViolationList",
-         "@type":"ConstraintViolationList",
-         "hydra:title":"An error occurred",
-         "hydra:description":@string@,
-         "violations":[
-            {
-               "propertyPath":"shippingAddress.telephone",
-               "message":@string@
-            }
-         ]
+        "@context":"/api/contexts/ConstraintViolationList",
+        "@type":"ConstraintViolationList",
+        "hydra:title":"An error occurred",
+        "hydra:description":@string@,
+        "violations":[
+          {
+             "propertyPath":"shippingAddress.telephone",
+             "message":@string@,
+             "code":@string@
+          }
+        ]
       }
       """
 
@@ -1623,7 +1625,8 @@ Feature: Carts
         "violations":[
           {
             "propertyPath":"takeaway",
-            "message":@string@
+            "message":@string@,
+            "code":@string@
           }
         ]
       }
@@ -1703,7 +1706,8 @@ Feature: Carts
         "violations":[
           {
             "propertyPath":"total",
-            "message":@string@
+            "message":@string@,
+            "code":null
           }
         ]
       }

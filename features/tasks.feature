@@ -167,24 +167,7 @@ Feature: Tasks
         "@context":"/api/contexts/Task",
         "@id":"/api/tasks",
         "@type":"hydra:Collection",
-        "hydra:member":[
-          {
-            "@id":"@string@.startsWith('/api/task_events')",
-            "@type":"TaskEvent",
-            "name":"task:created",
-            "data":[],
-            "createdAt":"@string@.isDateTime()"
-          },
-          {
-            "@id":"@string@.startsWith('/api/task_events')",
-            "@type":"TaskEvent",
-            "name":"task:assigned",
-            "data":{
-              "username":"bob"
-            },
-            "createdAt":"@string@.isDateTime()"
-          }
-        ],
+        "hydra:member":@array@,
         "hydra:totalItems":2,
         "hydra:search":{
           "@type":"hydra:IriTemplate",
@@ -389,7 +372,8 @@ Feature: Tasks
         "doorstep":false,
         "orgName": "",
         "ref":null,
-        "recurrenceRule": null
+        "recurrenceRule": null,
+        "metadata": []
       }
       """
 
@@ -677,7 +661,8 @@ Feature: Tasks
         "doorstep":false,
         "orgName": "",
         "ref":null,
-        "recurrenceRule": null
+        "recurrenceRule": null,
+        "metadata": []
       }
       """
 
@@ -753,7 +738,8 @@ Feature: Tasks
         "doorstep":false,
         "orgName": "",
         "ref":null,
-        "recurrenceRule": null
+        "recurrenceRule": null,
+        "metadata": []
       }
       """
 
@@ -859,19 +845,28 @@ Feature: Tasks
             "id":@integer@,
             "type":"DROPOFF",
             "status":"TODO",
-            "address":@...@,
+            "address":{"@*@":"@*@"},
             "after":"2018-12-01T10:30:00+01:00",
             "before":"2018-12-01T11:00:00+01:00",
             "doneAfter":"2018-12-01T10:30:00+01:00",
             "doneBefore":"2018-12-01T11:00:00+01:00",
-            "comments":null,
+            "comments":"",
             "updatedAt":"@string@.isDateTime()",
             "isAssigned":true,
             "assignedTo":"sarah",
             "previous":null,
             "next":null,
             "group":null,
-            "tags":[]
+            "tags":[],
+            "doorstep":false,
+            "orgName":"",
+            "images":[],
+            "ref": null,
+            "recurrenceRule":null,
+            "metadata":{
+              "foo":"bar",
+              "baz":"bat"
+            }
           },
           {
             "@id":"/api/tasks/2",
@@ -879,19 +874,25 @@ Feature: Tasks
             "id":@integer@,
             "type":"DROPOFF",
             "status":"TODO",
-            "address":@...@,
-            "after":"2018-12-01T11:30:00+01:00",
-            "before":"2018-12-01T12:00:00+01:00",
-            "doneAfter":"2018-12-01T11:30:00+01:00",
-            "doneBefore":"2018-12-01T12:00:00+01:00",
-            "comments":null,
+            "address":{"@*@":"@*@"},
+            "after":"2018-11-30T11:30:00+01:00",
+            "before":"2018-12-02T12:00:00+01:00",
+            "doneAfter":"2018-11-30T11:30:00+01:00",
+            "doneBefore":"2018-12-02T12:00:00+01:00",
+            "comments":"",
             "updatedAt":"@string@.isDateTime()",
             "isAssigned":true,
             "assignedTo":"sarah",
             "previous":null,
             "next":null,
             "group":null,
-            "tags":[]
+            "tags":[],
+            "doorstep":false,
+            "orgName":"",
+            "images":[],
+            "ref": null,
+            "recurrenceRule":null,
+            "metadata":[]
           }
         ],
         "hydra:totalItems":2,
@@ -903,7 +904,20 @@ Feature: Tasks
           "@type":"hydra:IriTemplate",
           "hydra:template":"/api/tasks{?date,assigned}",
           "hydra:variableRepresentation":"BasicRepresentation",
-          "hydra:mapping":@array@
+          "hydra:mapping":[
+            {
+              "@type":"IriTemplateMapping",
+              "variable":"date",
+              "property":"date",
+              "required":false
+            },
+            {
+              "@type":"IriTemplateMapping",
+              "variable":"assigned",
+              "property":"assigned",
+              "required":false
+            }
+          ]
         }
       }
       """
@@ -1138,7 +1152,8 @@ Feature: Tasks
         "violations":[
           {
             "propertyPath":"type",
-            "message":@string@
+            "message":@string@,
+            "code":null
           }
         ]
       }
@@ -1402,7 +1417,8 @@ Feature: Tasks
         "violations":[
           {
             "propertyPath":"tasks[1]",
-            "message":@string@
+            "message":@string@,
+            "code":null
           }
         ]
       }
@@ -1435,7 +1451,8 @@ Feature: Tasks
         "violations":[
           {
             "propertyPath":"tasks[1].ref",
-            "message":@string@
+            "message":@string@,
+            "code":@string@
           }
         ]
       }
@@ -1511,12 +1528,14 @@ Feature: Tasks
          "hydra:description":@string@,
          "violations":[
             {
-               "propertyPath":"address.geo",
-               "message":@string@
+              "propertyPath":"address.geo",
+              "message":@string@,
+              "code":@string@
             },
             {
-               "propertyPath":"address.streetAddress",
-               "message":@string@
+              "propertyPath":"address.streetAddress",
+              "message":@string@,
+              "code":@string@
             }
          ]
       }

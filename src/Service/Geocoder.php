@@ -4,10 +4,13 @@ namespace AppBundle\Service;
 
 use AppBundle\Entity\Address;
 use AppBundle\Entity\Base\GeoCoordinates;
+use AppBundle\Utils\GeoUtils;
 use Geocoder\Geocoder as GeocoderInterface;
 use Geocoder\Location;
+use Geocoder\Model\Bounds;
 use Geocoder\Provider\Addok\Addok as AddokProvider;
 use Geocoder\Provider\Chain\Chain as ChainProvider;
+use Geocoder\Provider\GoogleMaps\GoogleMaps as GoogleMapsProvider;
 use Geocoder\Provider\OpenCage\OpenCage as OpenCageProvider;
 use Geocoder\Provider\OpenCage\Model\OpenCageAddress;
 use Geocoder\Query\GeocodeQuery;
@@ -69,15 +72,27 @@ class Geocoder
                 }
             }
 
+            $geocodingProvider = $this->settingsManager->get('geocoding_provider');
+            $geocodingProvider = $geocodingProvider ?? 'opencage';
+
             // Add OpenCage provider only if api key is configured
-            if (!empty($this->openCageApiKey)) {
+            if ('opencage' === $geocodingProvider && !empty($this->openCageApiKey)) {
                 $providers[] = $this->createOpenCageProvider();
+            } elseif ('google' === $geocodingProvider) {
+                $providers[] = $this->createGoogleMapsProvider();
             }
 
             $this->geocoder = new StatefulGeocoder(new ChainProvider($providers), $this->locale);
         }
 
         return $this->geocoder;
+    }
+
+    private function createGoogleMapsProvider()
+    {
+        $region = strtoupper($this->country);
+
+        return new GoogleMapsProvider(new Client(), $region, $this->settingsManager->get('google_api_key_custom'));
     }
 
     private function createOpenCageProvider()
@@ -109,8 +124,18 @@ class Geocoder
      */
     public function geocode($value)
     {
+        // The value of the bounds parameter should be specified as two coordinate points
+        // forming the south-west and north-east corners of a bounding box (min lon, min lat, max lon, max lat).
+        // @see https://opencagedata.com/api#forward-opt
+        // @see https://opencagedata.com/bounds-finder
+        [ $latitude, $longitude ] = explode(',', $this->settingsManager->get('latlng'));
+        $viewbox = GeoUtils::getViewbox(floatval($latitude), floatval($longitude), 50);
+        [ $lngMax, $latMax, $lngMin, $latMin ] = $viewbox;
+        $bounds = new Bounds($latMax, $lngMin, $latMin, $lngMax);
+
         $query = GeocodeQuery::create($value)
-            ->withData('proximity', $this->settingsManager->get('latlng'));
+            ->withData('proximity', $this->settingsManager->get('latlng'))
+            ->withBounds($bounds);
 
         $results = $this->getGeocoder()->geocodeQuery(
             $query
@@ -135,7 +160,11 @@ class Geocoder
 
     public function reverse(float $latitude, float $longitude)
     {
-        $results = $this->getGeocoder()->reverse($latitude, $longitude);
+        $query = ReverseQuery::fromCoordinates($latitude, $longitude);
+
+        $results = $this->getGeocoder()->reverseQuery(
+            $query
+        );
 
         if (count($results) > 0) {
             $result = $results->first();
@@ -154,14 +183,19 @@ class Geocoder
 
     private function formatAddress(Location $location)
     {
-        if ('addok' === $location->getProvidedBy()) {
-            // If it's addok, we use French formatting
-            return sprintf('%s %s, %s %s',
-                $location->getStreetNumber(), $location->getStreetName(), $location->getPostalCode(), $location->getLocality());
+        switch ($location->getProvidedBy()) {
+            case 'addok':
+                // If it's addok, we use French formatting
+                return sprintf('%s %s, %s %s',
+                    $location->getStreetNumber(), $location->getStreetName(), $location->getPostalCode(), $location->getLocality());
+
+            case 'opencage':
+                Assert::isInstanceOf($location, OpenCageAddress::class);
+
+                return $location->getFormattedAddress();
         }
 
-        Assert::isInstanceOf($location, OpenCageAddress::class);
-
-        return $location->getFormattedAddress();
+        return sprintf('%s %s, %s %s',
+            $location->getStreetName(), $location->getStreetNumber(), $location->getPostalCode(), $location->getLocality());
     }
 }

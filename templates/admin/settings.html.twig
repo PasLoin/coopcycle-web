@@ -30,12 +30,20 @@
       {{ form_row(form.brand_name) }}
       {{ form_row(form.administrator_email) }}
       {{ form_row(form.phone_number) }}
-      {{ form_row(form.enable_restaurant_pledges) }}
+    </div>
+  </div>
+
+  <div class="alert alert-warning">
+    <i class="fa fa-paint-brush"></i> {% trans %}adminDashboard.customize.title{% endtrans %}
+    <div class="pull-right">
+      <a href="{{ path('admin_customize') }}">{{ 'basics.edit'|trans }}</a>
     </div>
   </div>
 
   {{ form_row(form.subject_to_vat) }}
+  {% if form.guest_checkout_enabled is defined %}
   {{ form_row(form.guest_checkout_enabled) }}
+  {% endif %}
 
   <div class="alert alert-danger">
     <i class="fa fa-warning"></i> {{ 'form.maintenance.enable.label'|trans }}
@@ -106,6 +114,26 @@
     </div>
 
   </div>
+
+  <h4>{% trans %}form.settings.addresses.title{% endtrans %}</h4>
+
+  {{ form_row(form.latlng) }}
+
+  {% if form.autocomplete_provider is defined %}
+    {{ form_row(form.autocomplete_provider) }}
+  {% endif %}
+
+  {% if form.geocoding_provider is defined %}
+    {{ form_row(form.geocoding_provider) }}
+  {% endif %}
+
+  {% if form.google_api_key_custom is defined %}
+    {% set is_google_api_key_visible =
+      (form.autocomplete_provider.vars.data == 'google' or form.geocoding_provider.vars.data == 'google') %}
+    <div class="{{ not is_google_api_key_visible ? 'd-none' : '' }}" data-autocomplete-provider="google">
+    {{ form_row(form.google_api_key_custom) }}
+    </div>
+  {% endif %}
 
   <hr>
 
@@ -479,6 +507,23 @@
         $('#settings_sms_options').collapse('toggle');
       }
     });
+
+    // Address autocomplete
+
+    var onProviderChange = function() {
+
+      var autocompleteVal = $('#settings_autocomplete_provider').val();
+      var geocodingVal = $('#settings_geocoding_provider').val();
+
+      if (autocompleteVal === 'google' || geocodingVal === 'google') {
+        $('[data-autocomplete-provider="google"]').removeClass('d-none');
+      } else {
+        $('[data-autocomplete-provider="google"]').addClass('d-none');
+      }
+    };
+
+    $('#settings_autocomplete_provider').on('change', onProviderChange);
+    $('#settings_geocoding_provider').on('change', onProviderChange);
 
   })();
 

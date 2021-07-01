@@ -4,6 +4,7 @@ namespace AppBundle\Service;
 
 use AppBundle\Utils\Settings;
 use Craue\ConfigBundle\Util\Config as CraueConfig;
+use Craue\ConfigBundle\CacheAdapter\CacheAdapterInterface as CraueCache;
 use Doctrine\Persistence\ManagerRegistry;
 use libphonenumber\NumberParseException;
 use libphonenumber\PhoneNumberUtil;
@@ -41,6 +42,7 @@ class SettingsManager
         'mercadopago_live_publishable_key',
         'mercadopago_test_access_token',
         'mercadopago_live_access_token',
+        'google_api_key_custom',
     ];
 
     private static $boolean = [
@@ -53,6 +55,7 @@ class SettingsManager
 
     public function __construct(
         CraueConfig $craueConfig,
+        CraueCache $craueCache,
         string $configEntityName,
         ManagerRegistry $doctrine,
         PhoneNumberUtil $phoneNumberUtil,
@@ -62,6 +65,7 @@ class SettingsManager
         GatewayResolver $gatewayResolver)
     {
         $this->craueConfig = $craueConfig;
+        $this->craueCache = $craueCache;
         $this->configEntityName = $configEntityName;
         $this->doctrine = $doctrine;
         $this->phoneNumberUtil = $phoneNumberUtil;
@@ -213,6 +217,14 @@ class SettingsManager
         }
     }
 
+    public function supportsCardPayments()
+    {
+        $supportsStripe = $this->canEnableStripeTestmode() || $this->canEnableStripeLivemode();
+        $supportsMercadopago = $this->canEnableMercadopagoTestmode() || $this->canEnableMercadopagoLivemode();
+
+        return $supportsStripe || $supportsMercadopago;
+    }
+
     public function canSendSms()
     {
         if (!$this->get('sms_enabled')) {
@@ -256,43 +268,36 @@ class SettingsManager
         return false;
     }
 
-    public function set($name, $value, $section = null)
+    public function set($name, $value)
     {
-        $className = $this->configEntityName;
+        try {
 
-        $params = [
-            'name' => $name,
-        ];
+            $this->craueConfig->set($name, $value);
 
-        if (!empty($section)) {
-            $params['section'] = $section;
-        }
+        } catch (\RuntimeException $e) {
 
-        $setting = $this->doctrine
-            ->getRepository($className)
-            ->findOneBy($params);
+            $className = $this->configEntityName;
 
-        if (!$setting) {
+            $entityManager = $this->doctrine
+                ->getManagerForClass($className);
 
+            // Create the setting if it does not exist
             $setting = new $className();
             $setting->setName($name);
-            $setting->setSection($section ?? 'general');
+            $setting->setValue($value);
 
-            $this->doctrine
-                ->getManagerForClass($className)
-                ->persist($setting);
+            // Avoid flushing changes for all objects
+            $entityManager->persist($setting);
+            $entityManager->getUnitOfWork()->commit($setting);
+
+            $this->craueConfig->set($name, $value);
         }
-
-        if (isset($this->cache[$name])) {
-            unset($this->cache[$name]);
-        }
-
-        $setting->setValue($value);
     }
 
     public function flush()
     {
         $this->doctrine->getManagerForClass($this->configEntityName)->flush();
+        $this->craueCache->clear();
     }
 
     public function isFullyConfigured()

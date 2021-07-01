@@ -148,7 +148,7 @@ class LocalBusiness extends BaseLocalBusiness implements
      *
      * @Assert\Type(type="string")
      * @ApiProperty(iri="http://schema.org/name")
-     * @Groups({"restaurant", "order", "restaurant_seo"})
+     * @Groups({"restaurant", "order", "restaurant_seo", "restaurant_simple"})
      */
     protected $name;
 
@@ -187,7 +187,7 @@ class LocalBusiness extends BaseLocalBusiness implements
     /**
      * @var Address
      *
-     * @Groups({"restaurant", "order", "restaurant_seo"})
+     * @Groups({"restaurant", "order", "restaurant_seo", "restaurant_simple"})
      */
     protected $address;
 
@@ -244,6 +244,10 @@ class LocalBusiness extends BaseLocalBusiness implements
     protected $mercadopagoAccounts;
 
     protected $edenredMerchantId;
+
+    protected $hub;
+
+    protected $vytalEnabled = false;
 
     public function __construct()
     {
@@ -801,5 +805,45 @@ class LocalBusiness extends BaseLocalBusiness implements
     public function setEdenredMerchantId($edenredMerchantId)
     {
         $this->edenredMerchantId = $edenredMerchantId;
+    }
+
+    public function supportsEdenred(): bool
+    {
+        return null !== $this->getEdenredMerchantId();
+    }
+
+    public function getHub(): ?Hub
+    {
+        return $this->hub;
+    }
+
+    public function setHub(?Hub $hub)
+    {
+        $this->hub = $hub;
+    }
+
+    public function belongsToHub(): bool
+    {
+        return null !== $this->hub;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isVytalEnabled()
+    {
+        return $this->vytalEnabled;
+    }
+
+    /**
+     * @param bool $enabled
+     *
+     * @return self
+     */
+    public function setVytalEnabled($enabled)
+    {
+        $this->vytalEnabled = $enabled;
+
+        return $this;
     }
 }

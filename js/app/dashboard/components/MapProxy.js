@@ -3,8 +3,10 @@ import L from 'leaflet'
 import 'leaflet-polylinedecorator'
 import 'leaflet.markercluster'
 import 'leaflet-area-select'
+import 'leaflet-swoopy'
 import React from 'react'
 import { render } from 'react-dom'
+
 import MapHelper from '../../MapHelper'
 import LeafletPopupContent from './LeafletPopupContent'
 import CourierPopupContent from './CourierPopupContent'
@@ -15,7 +17,11 @@ const tagsColor = tags => {
   return tag.color
 }
 
-const taskColor = task => {
+const taskColor = (task, selected) => {
+
+  if (selected) {
+    return '#EEB516'
+  }
 
   if (task.group && task.group.tags.length > 0) {
     return tagsColor(task.group.tags)
@@ -80,6 +86,10 @@ export default class MapProxy {
     this.taskPopups = new Map()
     this.taskConnectCircles = new Map()
 
+    this.pickupGroupMarkers = new Map()
+    this.pickupGroupPopups = new Map()
+    this.pickupGroupIcons = new Map()
+
     this.courierMarkers = new Map()
     this.courierPopups = new Map()
     this.courierLayerGroup = new L.LayerGroup()
@@ -93,9 +103,36 @@ export default class MapProxy {
     this.tasksLayerGroup = new L.LayerGroup()
     this.tasksLayerGroup.addTo(this.map)
 
+    this.swoopyLayerGroup = L.layerGroup()
+    this.swoopyLayerGroup.addTo(this.map)
+
     this.clusterGroup = L.markerClusterGroup({
       showCoverageOnHover: false,
     })
+
+    this.pickupClusterGroup = L.markerClusterGroup({
+      showCoverageOnHover: false,
+      spiderfyOnMaxZoom: false,
+      zoomToBoundsOnClick: false,
+      maxClusterRadius: (zoom) => {
+        if (zoom >= 14) {
+
+          return 0
+        }
+
+        return 50
+      },
+    })
+    this.pickupClusterGroup.on('clusterclick', (a) => {
+      L.popup({
+        offset: [ 0, -15 ],
+        className: 'leaflet-popup-pickup-group'
+      })
+        .setLatLng(a.latlng)
+        .setContent(options.onPickupClusterClick(a))
+        .openOn(this.map)
+    })
+    this.pickupClusterGroup.addTo(this.map)
 
     this.onTaskMouseDown = options.onTaskMouseDown
     this.onTaskMouseOver = options.onTaskMouseOver
@@ -128,16 +165,16 @@ export default class MapProxy {
 
   }
 
-  addTask(task, markerColor) {
+  addTask(task, selected = false, isRestaurantAddress = false) {
 
-    let marker = this.taskMarkers.get(task['id'])
+    let marker = this.taskMarkers.get(task['@id'])
 
-    const color = markerColor || taskColor(task)
+    const color = taskColor(task, selected)
     const iconName = taskIcon(task)
     const coords = [task.address.geo.latitude, task.address.geo.longitude]
     const latLng = L.latLng(task.address.geo.latitude, task.address.geo.longitude)
 
-    let popupComponent = this.taskPopups.get(task['id'])
+    let popupComponent = this.taskPopups.get(task['@id'])
 
     if (!marker) {
 
@@ -148,8 +185,8 @@ export default class MapProxy {
       popupComponent = React.createRef()
 
       const cb = () => {
-        this.taskMarkers.set(task['id'], marker)
-        this.taskPopups.set(task['id'], popupComponent)
+        this.taskMarkers.set(task['@id'], marker)
+        this.taskPopups.set(task['@id'], popupComponent)
       }
 
       render(<LeafletPopupContent
@@ -161,8 +198,6 @@ export default class MapProxy {
         .setContent(el)
 
       marker.bindPopup(popup)
-
-      marker.options.task = task['@id']
 
     } else {
 
@@ -192,6 +227,8 @@ export default class MapProxy {
 
     }
 
+    L.Util.setOptions(marker, { task })
+
     marker.off('mouseover').on('mouseover', () => this.onTaskMouseOver(task))
     marker.off('mouseout').on('mouseout', () => this.onTaskMouseOut(task))
     marker.off('mousedown').on('mousedown', e => {
@@ -201,17 +238,21 @@ export default class MapProxy {
       this.onTaskMouseDown(task)
     })
 
-    this.tasksLayerGroup.addLayer(marker)
-    this.clusterGroup.addLayer(marker)
+    if (task.type === 'PICKUP' && isRestaurantAddress) {
+      this.pickupClusterGroup.addLayer(marker)
+    } else {
+      this.tasksLayerGroup.addLayer(marker)
+      this.clusterGroup.addLayer(marker)
+    }
   }
 
   enableConnect(task, active = false) {
-    let circle = this.taskConnectCircles.get(task['id'])
+    let circle = this.taskConnectCircles.get(task['@id'])
     if (!circle) {
       // Use CircleMarker to keep size independent of zoom level
       // @see https://stackoverflow.com/a/24335153
       circle = L.circleMarker(this.toLatLng(task), { radius: 4, opacity: 1.0, fillOpacity: 1.0 })
-      this.taskConnectCircles.set(task['id'], circle)
+      this.taskConnectCircles.set(task['@id'], circle)
     }
     if (active) {
       circle.setStyle({
@@ -232,17 +273,18 @@ export default class MapProxy {
   }
 
   disableConnect(task) {
-    let circle = this.taskConnectCircles.get(task['id'])
+    let circle = this.taskConnectCircles.get(task['@id'])
     if (circle && this.map.hasLayer(circle)) {
       circle.removeFrom(this.map)
     }
   }
 
   hideTask(task) {
-    const marker = this.taskMarkers.get(task['id'])
+    const marker = this.taskMarkers.get(task['@id'])
     if (marker) {
       this.tasksLayerGroup.removeLayer(marker)
       this.clusterGroup.removeLayer(marker)
+      this.pickupClusterGroup.removeLayer(marker)
     }
   }
 
@@ -337,19 +379,16 @@ export default class MapProxy {
     layerGroup.addLayer(decorator)
   }
 
-  showPolyline(username) {
-    this.getPolylineLayerGroup(username).addTo(this.map)
+  showPolyline(username, style = 'normal') {
+    if (style === 'as_the_crow_flies') {
+      this.getPolylineAsTheCrowFliesLayerGroup(username).addTo(this.map)
+    } else {
+      this.getPolylineLayerGroup(username).addTo(this.map)
+    }
   }
 
   hidePolyline(username) {
     this.getPolylineLayerGroup(username).removeFrom(this.map)
-  }
-
-  showPolylineAsTheCrowFlies(username) {
-    this.getPolylineAsTheCrowFliesLayerGroup(username).addTo(this.map)
-  }
-
-  hidePolylineAsTheCrowFlies(username) {
     this.getPolylineAsTheCrowFliesLayerGroup(username).removeFrom(this.map)
   }
 
@@ -374,10 +413,19 @@ export default class MapProxy {
         username={ username }
         lastSeen={ lastSeen } />, popupContent, cb)
 
-      marker.bindPopup(popupContent, {
-        offset: [ 3, 70 ],
-        minWidth: 150,
-      })
+      const tooltip = L.tooltip({
+        offset: [ 0, -15 ],
+        direction: 'top'
+      }).setContent(popupContent)
+
+      marker.bindTooltip(tooltip)
+      marker
+        .on('tooltipopen', () => {
+          this.showPolyline(username, 'as_the_crow_flies')
+        })
+        .on('tooltipclose', () => {
+          this.hidePolyline(username)
+        })
 
       marker.setOpacity(offline ? 0.5 : 1)
 
@@ -426,5 +474,35 @@ export default class MapProxy {
       task.address.geo.latitude,
       task.address.geo.longitude
     ]
+  }
+
+  pointToNext(task, clusterLatLng) {
+
+    if (!task.next) {
+      return
+    }
+
+    const thisMarker = this.taskMarkers.get(task['@id'])
+    const nextMarker = this.taskMarkers.get(task.next)
+
+    if (!thisMarker || !nextMarker) {
+      return
+    }
+
+    this.swoopyLayerGroup.clearLayers()
+
+    const swoopy = L.swoopyArrow(clusterLatLng, nextMarker.getLatLng(), {
+      color: '#3498DB',
+      weight: 3,
+      arrowId: '#custom_arrow',
+      opacity: 0.9,
+      factor: 0.7,
+    })
+
+    swoopy.addTo(this.swoopyLayerGroup)
+  }
+
+  hideNext() {
+    this.swoopyLayerGroup.clearLayers()
   }
 }

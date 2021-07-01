@@ -320,6 +320,7 @@ dashboard_delivery:
       layout: 'dashboard.html.twig'
       routes:
           success: dashboard
+          back: dashboard
   methods:  [ GET, POST ]
 
 dashboard_stores:
@@ -342,6 +343,7 @@ dashboard_store:
             store_deliveries: dashboard_store_deliveries
             store_address_new: dashboard_store_address_new
             store_address: dashboard_store_address
+            store_addresses: dashboard_store_addresses
     methods:  [ GET, POST ]
 
 dashboard_store_deliveries:
@@ -363,8 +365,15 @@ dashboard_store_delivery_new:
             stores: dashboard_stores
             store: dashboard_store
             success: dashboard_store_deliveries
+            back: dashboard
         show_left_menu: false
     methods:  [ GET, POST ]
+
+dashboard_store_delivery_download_images:
+    path: /dashboard/stores/{storeId}/deliveries/{deliveryId}/images/download
+    defaults:
+        _controller: AppBundle\Controller\DashboardController::downloadDeliveryImagesAction
+    methods:  [ GET ]
 
 dashboard_store_address_new:
     path: /dashboard/stores/{id}/addresses/new
@@ -374,6 +383,7 @@ dashboard_store_address_new:
         routes:
             stores: dashboard_stores
             store: dashboard_store
+            store_addresses: dashboard_store_addresses
     methods:  [ GET, POST ]
 
 dashboard_store_address:
@@ -384,6 +394,20 @@ dashboard_store_address:
         routes:
             stores: dashboard_stores
             store: dashboard_store
+            store_addresses: dashboard_store_addresses
+    methods:  [ GET, POST ]
+
+dashboard_store_addresses:
+    path: /dashboard/stores/{id}/addresses
+    defaults:
+        _controller: AppBundle\Controller\DashboardController::storeAddressesAction
+        layout: 'dashboard.html.twig'
+        routes:
+            stores: dashboard_stores
+            store: dashboard_store
+            store_address_new: dashboard_store_address_new
+            store_address: dashboard_store_address
+            store_addresses: dashboard_store_addresses
     methods:  [ GET, POST ]
 
 profile_redirect_to_dashboard:

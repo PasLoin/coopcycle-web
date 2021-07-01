@@ -15,7 +15,7 @@ use Doctrine\DBAL\Exception\TableNotFoundException;
 use Faker;
 use Fidry\AliceDataFixtures\LoaderInterface;
 use Fidry\AliceDataFixtures\Persistence\PurgeMode;
-use FOS\UserBundle\Util\UserManipulator;
+use Nucleos\UserBundle\Util\UserManipulator;
 use Geocoder\Provider\Addok\Addok as AddokProvider;
 use Geocoder\Provider\Chain\Chain as ChainProvider;
 use Geocoder\Provider\Photon\Photon as PhotonProvider;
@@ -32,7 +32,7 @@ use Sylius\Component\Resource\Repository\RepositoryInterface;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Lock\Factory as LockFactory;
+use Symfony\Component\Lock\LockFactory;
 use Symfony\Component\Lock\Store\FlockStore;
 use Sylius\Component\Taxation\Model\TaxCategoryInterface;
 
@@ -258,10 +258,15 @@ class InitDemoCommand extends Command
         if ('fr' === $this->country) {
             $providers[] = AddokProvider::withBANServer($httpAdapter);
         }
+
+        // Make sure we use a language supported by Photon
+        // "language es is not supported, supported languages are: default, en, fr, de, it"
+        $geocoderLocale = in_array($this->defaultLocale, ['en', 'fr', 'de', 'it']) ? $this->defaultLocale : 'en';
+
         $providers[] = PhotonProvider::withKomootServer($httpAdapter);
 
         $statefulGeocoder =
-            new StatefulGeocoder(new ChainProvider($providers), $this->defaultLocale);
+            new StatefulGeocoder(new ChainProvider($providers), $geocoderLocale);
 
         $this->geocoder->setGeocoder($statefulGeocoder);
 

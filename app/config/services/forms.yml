@@ -8,7 +8,9 @@ services:
     arguments:
       $countryCode: '%country_iso%'
 
-  AppBundle\Spreadsheet\DeliverySpreadsheetParser: ~
+  AppBundle\Spreadsheet\DeliverySpreadsheetParser:
+    arguments:
+      $countryCode: '%country_iso%'
 
   AppBundle\Spreadsheet\ProductSpreadsheetParser: ~
 
@@ -84,6 +86,8 @@ services:
       $country: '%country_iso%'
       $isDemo: '%is_demo%'
       $debug: '%kernel.debug%'
+      $googleEnabled: '%env(bool:GOOGLE_ENABLED)%'
+      $cashEnabled: '%env(bool:CASH_ON_DELIVERY_ENABLED)%'
     tags: [ form.type ]
 
   AppBundle\Form\TaskType:
@@ -94,14 +98,12 @@ services:
   AppBundle\Form\RestaurantType:
     arguments:
       $country: '%country_iso%'
-      $loopeatEnabled: '%loopeat_enabled%'
       $debug: '%kernel.debug%'
     tags: [ form.type ]
 
   AppBundle\Form\StoreType:
     arguments:
       $country: '%country_iso%'
-      $loopeatEnabled: '%loopeat_enabled%'
     tags: [ form.type ]
 
   AppBundle\Form\MenuEditor\TaxonProductType:
@@ -178,7 +180,14 @@ services:
       $promotionRuleFactory: '@sylius.factory.promotion_rule'
     tags: [ form.type ]
 
+  AppBundle\Form\Sylius\Promotion\ItemsTotalBasedPromotionType:
+    arguments:
+      $promotionRuleFactory: '@sylius.factory.promotion_rule'
+    tags: [ form.type ]
+
   AppBundle\Form\Checkout\CheckoutPaymentType:
+    arguments:
+      $cashEnabled: '%env(bool:CASH_ON_DELIVERY_ENABLED)%'
     tags: [ form.type ]
 
   AppBundle\Form\Type\PriceWithTaxType:
@@ -219,4 +228,17 @@ services:
     tags: [ form.type ]
 
   AppBundle\Form\Checkout\ChargeStripeSourceType:
+    tags: [ form.type ]
+
+  AppBundle\Form\Type\AutocompleteAdapterType:
+    arguments:
+      $autocompleteAdapter: '%env(COOPCYCLE_AUTOCOMPLETE_ADAPTER)%'
+      $algoliaApiKey: '%env(ALGOLIA_PLACES_API_KEY)%'
+      $locationIqAccessToken: '%env(LOCATIONIQ_ACCESS_TOKEN)%'
+      $geocodeEarthApiKey: '%env(GEOCODE_EARTH_API_KEY)%'
+    tags: [ form.type ]
+
+  AppBundle\Form\Type\GeocodingProviderType:
+    arguments:
+      $opencageApiKey: '%env(OPENCAGE_API_KEY)%'
     tags: [ form.type ]
