@@ -29,7 +29,11 @@ class DeliveryInputDataTransformer implements DataTransformerInterface
      */
     public function transform($data, string $to, array $context = [])
     {
-        $delivery = Delivery::createWithTasks($data->pickup, $data->dropoff);
+        if (is_array($data->tasks) && count($data->tasks) > 0) {
+            $delivery = Delivery::createWithTasks(...$data->tasks);
+        } else {
+            $delivery = Delivery::createWithTasks($data->pickup, $data->dropoff);
+        }
 
         if ($data->store && $data->store instanceof Store) {
             $delivery->setStore($data->store);
@@ -45,10 +49,8 @@ class DeliveryInputDataTransformer implements DataTransformerInterface
             }
         }
 
-        $distance = $this->routing->getDistance(
-            $delivery->getPickup()->getAddress()->getGeo(),
-            $delivery->getDropoff()->getAddress()->getGeo()
-        );
+        $coords = array_map(fn ($task) => $task->getAddress()->getGeo(), $delivery->getTasks());
+        $distance = $this->routing->getDistance(...$coords);
 
         $delivery->setDistance(ceil($distance));
         $delivery->setWeight($data->weight ?? null);

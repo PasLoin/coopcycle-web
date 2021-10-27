@@ -31,6 +31,7 @@ use AppBundle\OpeningHours\OpenCloseInterface;
 use AppBundle\OpeningHours\OpenCloseTrait;
 use AppBundle\Sylius\Product\ProductInterface;
 use AppBundle\Validator\Constraints\IsActivableRestaurant as AssertIsActivableRestaurant;
+use Cocur\Slugify\Slugify;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Gedmo\SoftDeleteable\Traits\SoftDeleteableEntity;
@@ -248,6 +249,8 @@ class LocalBusiness extends BaseLocalBusiness implements
     protected $hub;
 
     protected $vytalEnabled = false;
+
+    protected $cashOnDeliveryEnabled = false;
 
     public function __construct()
     {
@@ -843,6 +846,81 @@ class LocalBusiness extends BaseLocalBusiness implements
     public function setVytalEnabled($enabled)
     {
         $this->vytalEnabled = $enabled;
+
+        return $this;
+    }
+
+    public static function getKeyForType($type)
+    {
+        $slugify = new Slugify();
+
+        if (Store::isValid($type)) {
+            foreach (Store::values() as $value) {
+                if ($value->getValue() === $type) {
+
+                    return $slugify->slugify($value->getKey());
+                }
+            }
+        }
+
+        foreach (FoodEstablishment::values() as $value) {
+            if ($value->getValue() === $type) {
+
+                return $slugify->slugify($value->getKey());
+            }
+        }
+    }
+
+    public static function getTransKeyForType($type)
+    {
+        if (Store::isValid($type)) {
+            foreach (Store::values() as $value) {
+                if ($value->getValue() === $type) {
+
+                    return sprintf('store.%s', $value->getKey());
+                }
+            }
+        }
+
+        foreach (FoodEstablishment::values() as $value) {
+            if ($value->getValue() === $type) {
+
+                return sprintf('food_establishment.%s', $value->getKey());
+            }
+        }
+    }
+
+    public static function getTypeForKey($key)
+    {
+        $slugify = new Slugify();
+
+        foreach (Store::values() as $value) {
+            $typesByKey[$slugify->slugify($value->getKey())] = $value->getValue();
+        }
+
+        foreach (FoodEstablishment::values() as $value) {
+            $typesByKey[$slugify->slugify($value->getKey())] = $value->getValue();
+        }
+
+        return $typesByKey[$key] ?? null;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isCashOnDeliveryEnabled()
+    {
+        return $this->cashOnDeliveryEnabled;
+    }
+
+    /**
+     * @param bool $enabled
+     *
+     * @return self
+     */
+    public function setCashOnDeliveryEnabled($enabled)
+    {
+        $this->cashOnDeliveryEnabled = $enabled;
 
         return $this;
     }
