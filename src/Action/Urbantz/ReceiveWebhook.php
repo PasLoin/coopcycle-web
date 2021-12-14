@@ -37,6 +37,7 @@ class ReceiveWebhook
             switch ($event) {
                 case UrbantzWebhook::TASKS_ANNOUNCED:
                     $data->deliveries[] = $this->onTaskAnnounced($task);
+                    $data->hub = $task['hub'];
                     break;
                 case UrbantzWebhook::TASK_CHANGED:
                     if ($delivery = $this->onTaskChanged($task)) {
@@ -98,6 +99,25 @@ class ReceiveWebhook
         $delivery->getDropoff()->setBefore(
             Carbon::parse($task['timeWindow']['stop'])->tz($tz)->toDateTime()
         );
+
+        $comments = '';
+
+        if (isset($task['hubName'])) {
+            $comments .= "{$task['hubName']}\n\n";
+        }
+
+        if (isset($task['dimensions'])) {
+            if (isset($task['dimensions']['bac'])) {
+                $comments .= "{$task['dimensions']['bac']} × bac(s)\n";
+            }
+            if (isset($task['dimensions']['weight'])) {
+                $comments .= "{$task['dimensions']['weight']} kg\n";
+            }
+        }
+
+        if (!empty($comments)) {
+            $delivery->getPickup()->setComments($comments);
+        }
 
         // IMPORTANT
         // This is what will be used to set the external tracking id

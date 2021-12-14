@@ -631,12 +631,21 @@ services:
       - { name: monolog.logger, channel: coopcycle.search }
       - { name: doctrine.event_subscriber }
 
+  AppBundle\Doctrine\EventSubscriber\DeliverySubscriber:
+    tags:
+      - { name: doctrine.event_subscriber }
+
   AppBundle\Api\EventSubscriber\SubresourceDenyAccessListener:
     arguments:
         $denyAccessListener: '@api_platform.security.listener.request.deny_access'
     tags: [ 'kernel.event_subscriber' ]
 
   AppBundle\Api\EventSubscriber\DeliverySubscriber:
+    tags: [ 'kernel.event_subscriber' ]
+
+  AppBundle\Api\EventSubscriber\TaskImportQueueSubscriber:
+    arguments:
+        $secret: '%secret%'
     tags: [ 'kernel.event_subscriber' ]
 
   AppBundle\Api\EventSubscriber\SoftDeletedSubscriber:
@@ -735,6 +744,11 @@ services:
     public: true
     arguments:
       $country: "%country_iso%"
+
+  AppBundle\Action\GoogleSignIn:
+    public: true
+    arguments:
+      $appId: "%env(GOOGLE_SIGN_IN_CLIENT_ID)%"
 
   AppBundle\EventListener\RestaurantFilterConfigurator:
     tags:
@@ -1051,6 +1065,7 @@ services:
         - br
         - cr
         - mx
+      $forceStripe: "%env(bool:FORCE_STRIPE)%"
 
   AppBundle\Payment\Gateway: ~
 

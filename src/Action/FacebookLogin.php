@@ -7,13 +7,14 @@ use Lexik\Bundle\JWTAuthenticationBundle\Event\AuthenticationSuccessEvent;
 use Lexik\Bundle\JWTAuthenticationBundle\Events;
 use Lexik\Bundle\JWTAuthenticationBundle\Response\JWTAuthenticationSuccessResponse;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 use Symfony\Contracts\HttpClient\Exception\HttpExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 class FacebookLogin
 {
@@ -26,12 +27,14 @@ class FacebookLogin
         UserManagerInterface $userManager,
         JWTTokenManagerInterface $jwtManager,
         EventDispatcherInterface $dispatcher,
-        HttpClientInterface $facebookClient)
+        HttpClientInterface $facebookClient,
+        LoggerInterface $logger)
     {
         $this->userManager = $userManager;
         $this->jwtManager = $jwtManager;
         $this->dispatcher = $dispatcher;
         $this->facebookClient = $facebookClient;
+        $this->logger = $logger;
     }
 
     /**
@@ -48,8 +51,6 @@ class FacebookLogin
         if (!empty($content)) {
             $data = json_decode($content, true);
         }
-
-        $content = [];
 
         try {
 
@@ -73,7 +74,7 @@ class FacebookLogin
             $user = $this->userManager->findUserByEmail($email);
 
             if (null === $user) {
-                throw new AccessDeniedException();
+                throw new AccessDeniedHttpException();
             }
 
             $jwt = $this->jwtManager->create($user);
@@ -88,7 +89,8 @@ class FacebookLogin
             return $response;
 
         } catch (HttpExceptionInterface | TransportExceptionInterface $e) {
-            throw new AccessDeniedException();
+            $this->logger->error($e->getMessage());
+            throw new AccessDeniedHttpException();
         }
     }
 }

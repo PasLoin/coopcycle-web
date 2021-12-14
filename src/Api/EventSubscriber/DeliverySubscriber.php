@@ -6,7 +6,6 @@ use AppBundle\Entity\Store;
 use AppBundle\Message\DeliveryCreated;
 use AppBundle\Security\TokenStoreExtractor;
 use AppBundle\Service\DeliveryManager;
-use AppBundle\Service\RoutingInterface;
 use Doctrine\Persistence\ManagerRegistry;
 use ApiPlatform\Core\EventListener\EventPriorities;
 use Lexik\Bundle\JWTAuthenticationBundle\Security\Authentication\Token\JWTUserToken;
@@ -16,7 +15,6 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ViewEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
-use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
@@ -25,8 +23,6 @@ final class DeliverySubscriber implements EventSubscriberInterface
 {
     private $doctrine;
     private $storeExtractor;
-    private $routing;
-    private $messageBus;
 
     private static $matchingRoutes = [
         'api_deliveries_get_item',
@@ -38,14 +34,10 @@ final class DeliverySubscriber implements EventSubscriberInterface
     public function __construct(
         ManagerRegistry $doctrine,
         TokenStoreExtractor $storeExtractor,
-        RoutingInterface $routing,
-        MessageBusInterface $messageBus,
         DeliveryManager $deliveryManager)
     {
         $this->doctrine = $doctrine;
         $this->storeExtractor = $storeExtractor;
-        $this->routing = $routing;
-        $this->messageBus = $messageBus;
         $this->deliveryManager = $deliveryManager;
     }
 
@@ -57,7 +49,6 @@ final class DeliverySubscriber implements EventSubscriberInterface
                 ['setDefaults', EventPriorities::PRE_VALIDATE],
                 ['handleCheckResponse', EventPriorities::POST_VALIDATE],
                 ['addToStore', EventPriorities::POST_WRITE],
-                ['sendNotification', EventPriorities::POST_WRITE],
             ],
         ];
     }
@@ -97,21 +88,6 @@ final class DeliverySubscriber implements EventSubscriberInterface
 
         $store->addDelivery($delivery);
         $this->doctrine->getManagerForClass(Store::class)->flush();
-    }
-
-    public function sendNotification(ViewEvent $event)
-    {
-        $request = $event->getRequest();
-
-        if ('api_deliveries_post_collection' !== $request->attributes->get('_route')) {
-            return;
-        }
-
-        $delivery = $event->getControllerResult();
-
-        $this->messageBus->dispatch(
-            new DeliveryCreated($delivery)
-        );
     }
 
     // FIXME

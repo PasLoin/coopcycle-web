@@ -6,6 +6,9 @@ use AppBundle\Api\Dto\StripeOutput;
 use AppBundle\Entity\Sylius\Order;
 use AppBundle\Service\OrderManager;
 use AppBundle\Service\StripeManager;
+use AppBundle\Service\MercadopagoManager;
+use AppBundle\Payment\GatewayResolver;
+use AppBundle\Sylius\Order\OrderInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -29,6 +32,8 @@ class Pay
         StripeManager $stripeManager,
         OrderNumberAssignerInterface $orderNumberAssigner,
         PaymentMethodRepositoryInterface $paymentMethodRepository,
+        GatewayResolver $gatewayResolver,
+        MercadopagoManager $mercadopagoManager,
         bool $cashEnabled = false,
         LoggerInterface $logger = null)
     {
@@ -37,6 +42,8 @@ class Pay
         $this->stripeManager = $stripeManager;
         $this->orderNumberAssigner = $orderNumberAssigner;
         $this->paymentMethodRepository = $paymentMethodRepository;
+        $this->gatewayResolver = $gatewayResolver;
+        $this->mercadopagoManager = $mercadopagoManager;
         $this->cashEnabled = $cashEnabled;
         $this->logger = $logger ?? new NullLogger();
     }
@@ -47,6 +54,13 @@ class Pay
         $content = $request->getContent();
         if (!empty($content)) {
             $body = json_decode($content, true);
+        }
+
+        if ($data->isFree()) {
+            $this->orderManager->checkout($data);
+            $this->entityManager->flush();
+
+            return $data;
         }
 
         if (!isset($body['paymentMethodId']) && !isset($body['paymentIntentId']) && !isset($body['cashOnDelivery'])) {
@@ -76,6 +90,35 @@ class Pay
             }
 
             return $data;
+        }
+
+        switch ($this->gatewayResolver->resolve()) {
+            case 'mercadopago':
+                $payment->setMercadopagoPaymentId($body['paymentId']);
+
+                $mpPayment = $this->mercadopagoManager->getPayment($payment);
+
+                if (!$mpPayment) {
+                    throw new BadRequestHttpException(sprintf('Mercadopago payment with id %s not found', $body['paymentId']));
+                } else if ($mpPayment->status !== 'approved') {
+                    throw new BadRequestHttpException(sprintf('Mercadopago payment with id %s is not approved. Status: %s', $body['paymentId'], $mpPayment->status));
+                }
+
+                $payment->setMercadopagoPaymentStatus($mpPayment->status);
+                $payment->setMercadopagoPaymentMethod($mpPayment->payment_method_id);
+                $payment->setMercadopagoInstallments($mpPayment->installments);
+
+                $paymentMethod = $this->paymentMethodRepository->findOneByCode($body['paymentMethodId']);
+                $payment->setMethod($paymentMethod);
+
+                $this->orderManager->checkout($data);
+                $this->entityManager->flush();
+
+                if (PaymentInterface::STATE_FAILED === $payment->getState()) {
+                    throw new BadRequestHttpException($payment->getLastError());
+                }
+
+                return $data;
         }
 
         if (isset($body['paymentIntentId'])) {

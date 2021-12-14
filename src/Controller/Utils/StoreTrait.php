@@ -34,7 +34,6 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
-use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Vich\UploaderBundle\Storage\StorageInterface;
 
@@ -225,8 +224,7 @@ trait StoreTrait
         DeliveryManager $deliveryManager,
         OrderFactory $orderFactory,
         EntityManagerInterface $entityManager,
-        TranslatorInterface $translator,
-        MessageBusInterface $messageBus)
+        TranslatorInterface $translator)
     {
         $routes = $request->attributes->get('routes');
 
@@ -239,9 +237,9 @@ trait StoreTrait
         $delivery = $store->createDelivery();
 
         $form = $this->createDeliveryForm($delivery, [
-            'with_dropoff_recipient_details' => true,
             'with_dropoff_doorstep' => true,
             'with_remember_address' => true,
+            'with_address_props' => true,
         ]);
 
         $form->handleRequest($request);
@@ -279,10 +277,6 @@ trait StoreTrait
                 $entityManager->persist($delivery);
                 $entityManager->flush();
 
-                $messageBus->dispatch(
-                    new DeliveryCreated($delivery)
-                );
-
                 // TODO Add flash message
 
                 return $this->redirectToRoute($routes['success'], ['id' => $id]);
@@ -306,7 +300,10 @@ trait StoreTrait
         foreach ($form->get('tasks') as $form) {
             $addressForm = $form->get('address');
             $rememberAddress = $addressForm->has('rememberAddress') && $addressForm->get('rememberAddress')->getData();
-            if ($rememberAddress) {
+            $duplicateAddress = $addressForm->has('duplicateAddress') && $addressForm->get('duplicateAddress')->getData();
+            // If the user has specified to duplicate address,
+            // we *DON'T* add it to the address book
+            if ($rememberAddress && !$duplicateAddress) {
                 $task = $form->getData();
                 $store->addAddress($task->getAddress());
             }
