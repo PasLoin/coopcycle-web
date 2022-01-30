@@ -131,7 +131,6 @@ services:
         arguments:
             - '%loopeat_partner_secret%'
     tags:
-      - { name: csa_guzzle.client }
       - { name: monolog.logger, channel: loopeat }
 
   AppBundle\LoopEat\Context:
@@ -184,7 +183,6 @@ services:
     arguments:
       $promotionRuleFactory: '@sylius.factory.promotion_rule'
       $promotionFactory: '@sylius.factory.promotion'
-      $browserlessClient: '@csa_guzzle.client.browserless'
 
   AppBundle\EventListener\LocaleListener:
     arguments: ['%env(COOPCYCLE_LOCALE)%']
@@ -531,9 +529,7 @@ services:
         arguments:
             - '%secret%'
 
-  AppBundle\Service\Routing\Osrm:
-    arguments:
-      $client: '@csa_guzzle.client.osrm'
+  AppBundle\Service\Routing\Osrm: ~
 
   routing_service:
     public: true
@@ -549,11 +545,9 @@ services:
     tags: [ 'api_platform.filter' ]
 
   AppBundle\Api\Filter\TaskFilter:
-    arguments: [ '@doctrine', '@request_stack', '@?logger', { tokenStorage: '@security.token_storage' } ]
     tags: [ 'api_platform.filter' ]
 
   AppBundle\Api\Filter\AssignedFilter:
-    arguments: [ '@doctrine', '@request_stack', '@?logger', { tokenStorage: '@security.token_storage' } ]
     tags: [ 'api_platform.filter' ]
 
   AppBundle\Api\Filter\DeliveryOrderFilter:
@@ -583,6 +577,7 @@ services:
       $country: "%country_iso%"
       $foodtechEnabled: "%foodtech_enabled%"
       $b2bEnabled: "%b2b_enabled%"
+      $forceStripe: "%env(bool:FORCE_STRIPE)%"
 
   AppBundle\Service\EmailManager:
     arguments:
@@ -758,6 +753,7 @@ services:
     parent: 'api_platform.doctrine.orm.collection_data_provider'
     arguments:
       $restaurantFilter: '@coopcycle.utils.restaurant_filter'
+      $timingRegistry: '@AppBundle\Service\TimingRegistry'
     tags:
       - { name: 'api_platform.collection_data_provider', priority: 2 }
     autoconfigure: false
@@ -821,10 +817,6 @@ services:
     arguments:
       $annotation: '%restaurant_menu_cache_annotation%'
 
-  AppBundle\EventSubscriber\EmbedSubscriber:
-    arguments:
-      $debug: '%kernel.debug%'
-
   AppBundle\EventListener\Upload\UploadListener:
     arguments:
       $mappingFactory: '@vich_uploader.property_mapping_factory'
@@ -834,38 +826,9 @@ services:
     tags:
       - { name: kernel.event_listener, event: oneup_uploader.post_persist, method: onUpload }
 
-  AppBundle\Security\Firewall\TokenBearerListener:
-    arguments:
-      - '@security.token_storage'
-      - '@security.authentication.manager'
-      - '@lexik_jwt_authentication.jwt_token_authenticator'
-      - '@sensio_framework_extra.psr7.http_message_factory'
-
-  AppBundle\Security\Authentication\Provider\TokenBearerProvider:
-    arguments:
-      $userProvider: ~
-      $resourceServer: '@league.oauth2.server.resource_server'
-      $jwtTokenAuthenticator: '@lexik_jwt_authentication.jwt_token_authenticator'
-      $providerKey: ~
-    public: false
-
   AppBundle\Security\ApiKeyManager: ~
 
-  AppBundle\Security\Firewall\CartSessionListener:
-    arguments:
-      - '@security.token_storage'
-      - '@security.authentication.manager'
-      - '@lexik_jwt_authentication.jwt_token_authenticator'
-    public: false
-
-  AppBundle\Security\Authentication\Provider\CartSessionProvider:
-    arguments:
-      $jwtTokenAuthenticator: '@lexik_jwt_authentication.jwt_token_authenticator'
-    public: false
-
-  AppBundle\Mjml\MjmlServerRenderer:
-    arguments:
-      $client: '@csa_guzzle.client.mjml_server'
+  AppBundle\Mjml\MjmlServerRenderer: ~
 
   AppBundle\Api\DataTransformer\DeliveryInputDataTransformer: ~
   AppBundle\Api\DataTransformer\PricingRuleEvaluateInputDataTransformer: ~
@@ -955,7 +918,6 @@ services:
 
   AppBundle\Sylius\Order\ReceiptGenerator:
     arguments:
-      $httpClient: '@csa_guzzle.client.browserless'
       $filesystem: '@receipts_filesystem'
       $taxRateRepository: '@sylius.repository.tax_rate'
       $locale: '%env(COOPCYCLE_LOCALE)%'
@@ -1156,9 +1118,7 @@ services:
       - '%env(SONIC_PORT)%'
       - 30
 
-  AppBundle\Service\RouteOptimizer:
-    arguments:
-      $client: '@csa_guzzle.client.vroom'
+  AppBundle\Service\RouteOptimizer: ~
 
   phpcent\Client:
     arguments:
@@ -1178,7 +1138,6 @@ services:
       $clientId: "%env(EDENRED_AUTHENTICATION_CLIENT_ID)%"
       $clientSecret: "%env(EDENRED_AUTHENTICATION_CLIENT_SECRET)%"
     tags:
-      - { name: csa_guzzle.client }
       - { name: monolog.logger, channel: edenred }
 
   AppBundle\Edenred\RefreshTokenHandler:
@@ -1195,7 +1154,6 @@ services:
       $paymentClientId: '%env(EDENRED_PAYMENT_CLIENT_ID)%'
       $paymentClientSecret: '%env(EDENRED_PAYMENT_CLIENT_SECRET)%'
     tags:
-      - { name: csa_guzzle.client }
       - { name: monolog.logger, channel: edenred }
 
   AppBundle\Service\Geofencing:
@@ -1210,3 +1168,15 @@ services:
       # $legacyTaxes: '%env(bool:COOPCYCLE_LEGACY_TAXES)%'
 
   AppBundle\Api\DataPersister\UrbantzWebhookDataPersister: ~
+
+  AppBundle\Security\BearerTokenAuthenticator:
+    abstract: true
+
+  AppBundle\Security\CartSessionAuthenticator:
+    abstract: true
+
+  # https://symfony.com/doc/5.4/session/database.html#store-sessions-in-a-key-value-database-redis
+  Symfony\Component\HttpFoundation\Session\Storage\Handler\RedisSessionHandler:
+    arguments:
+      - '@snc_redis.session'
+      - { 'prefix': '%database_name%:session:' }

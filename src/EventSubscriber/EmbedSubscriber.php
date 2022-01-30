@@ -2,7 +2,6 @@
 
 namespace AppBundle\EventSubscriber;
 
-use AppBundle\Controller\EmbedController;
 use Symfony\Component\HttpFoundation\Session\Storage\SessionStorageInterface;
 use Symfony\Component\HttpFoundation\Session\Storage\NativeSessionStorage;
 use Symfony\Component\HttpFoundation\Cookie;
@@ -14,12 +13,10 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 class EmbedSubscriber implements EventSubscriberInterface
 {
     private $storage;
-    private $debug;
 
-    public function __construct(SessionStorageInterface $storage, bool $debug)
+    public function __construct(SessionStorageInterface $storage)
     {
         $this->storage = $storage;
-        $this->debug = $debug;
     }
 
     /**
@@ -28,28 +25,26 @@ class EmbedSubscriber implements EventSubscriberInterface
      */
     public function setCookieSameSiteNoneSecure(RequestEvent $event)
     {
-        if ($this->debug) {
-            return;
+        // Make sure to set a default value for cookie_samesite
+        if ($this->storage instanceof NativeSessionStorage) {
+            $this->storage->setOptions([
+                'cookie_samesite' => Cookie::SAMESITE_LAX,
+            ]);
         }
 
-        if (!$event->isMasterRequest()) {
+        if (!$event->isMainRequest()) {
             return;
         }
 
         $request = $event->getRequest();
 
-        if (!$request->attributes->has('_controller')) {
-            return;
-        }
-
-        $controller = $request->attributes->get('_controller');
-
-        [$class, $method] = explode('::', $controller, 2);
-
-        if ($request->query->has('embed') || $class === EmbedController::class) {
-            // @see Symfony\Component\HttpKernel\EventListener\SessionListener
+        if ($request->query->has('embed')) {
+            // @see Symfony\Component\HttpKernel\EventListener\AbstractSessionListener
             if ($this->storage instanceof NativeSessionStorage) {
                 $this->storage->setOptions([
+                    // We also change the name of the session cookie,
+                    // to make sure it will not be recycled
+                    'name' => sprintf('%s_EMBED', $this->storage->getName()),
                     'cookie_samesite' => Cookie::SAMESITE_NONE,
                     'cookie_secure' => true,
                 ]);

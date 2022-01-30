@@ -18,6 +18,7 @@ use AppBundle\Entity\RemotePushToken;
 use AppBundle\Entity\Store;
 use AppBundle\Entity\Store\Token as StoreToken;
 use AppBundle\Entity\Task;
+use AppBundle\Entity\Urbantz\Hub as UrbantzHub;
 use AppBundle\Service\SettingsManager;
 use AppBundle\Sylius\Order\OrderInterface;
 use AppBundle\Entity\Sylius\Product;
@@ -860,6 +861,34 @@ class FeatureContext implements Context, SnippetAcceptingContext
     }
 
     /**
+     * @Given the restaurant with name :restaurantName has an OAuth client named :clientName
+     */
+    public function createOauthClientForRestaurant($restaurantName, $clientName)
+    {
+        $restaurant = $this->doctrine->getRepository(LocalBusiness::class)->findOneByName($restaurantName);
+
+        $identifier = hash('md5', random_bytes(16));
+        $secret = hash('sha512', random_bytes(32));
+
+        $client = new OAuthClient($identifier, $secret);
+        $client->setActive(true);
+
+        $clientCredentials = new Grant(OAuth2Grants::CLIENT_CREDENTIALS);
+        $client->setGrants($clientCredentials);
+
+        $ordersScope = new Scope('orders');
+        $client->setScopes($ordersScope);
+
+        $apiApp = new ApiApp();
+        $apiApp->setOauth2Client($client);
+        $apiApp->setName($clientName);
+        $apiApp->setShop($restaurant);
+
+        $this->doctrine->getManagerForClass(ApiApp::class)->persist($apiApp);
+        $this->doctrine->getManagerForClass(ApiApp::class)->flush();
+    }
+
+    /**
      * @Given the OAuth client with name :name has an access token
      */
     public function createAccessTokenForOauthClient($name)
@@ -873,7 +902,7 @@ class FeatureContext implements Context, SnippetAcceptingContext
 
         $body = [
             'grant_type' => 'client_credentials',
-            'scope' => 'tasks deliveries'
+            'scope' => null !== $apiApp->getShop() ? 'orders' : 'tasks deliveries',
         ];
 
         $request = $this->httpMessageFactory->createRequest(
@@ -1218,5 +1247,20 @@ class FeatureContext implements Context, SnippetAcceptingContext
 
         $this->doctrine->getManagerForClass(RefreshToken::class)->persist($tok);
         $this->doctrine->getManagerForClass(RefreshToken::class)->flush();
+    }
+
+    /**
+     * @Given the store with name :name is associated with Urbantz hub :hub
+     */
+    public function theStoreWithNameIsAssociatedWithUrbantzHub($storeName, $hub)
+    {
+        $store = $this->doctrine->getRepository(Store::class)->findOneByName($storeName);
+
+        $urbantzHub = new UrbantzHub();
+        $urbantzHub->setStore($store);
+        $urbantzHub->setHub($hub);
+
+        $this->doctrine->getManagerForClass(UrbantzHub::class)->persist($urbantzHub);
+        $this->doctrine->getManagerForClass(UrbantzHub::class)->flush();
     }
 }

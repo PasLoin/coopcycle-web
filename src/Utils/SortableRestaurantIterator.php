@@ -3,50 +3,105 @@
 namespace AppBundle\Utils;
 
 use AppBundle\Entity\LocalBusiness;
+use AppBundle\Service\TimingRegistry;
 use Carbon\Carbon;
 
 class SortableRestaurantIterator extends \ArrayIterator
 {
-    public function __construct($array = [])
+    public function __construct($array, TimingRegistry $timingRegistry)
     {
-        // 0 - featured & opened restaurants
-        // 1 - opened restaurants
-        // 2 - closed restaurants
-        // 3 - disabled restaurants
+        $this->timingRegistry = $timingRegistry;
 
-        $now = Carbon::now();
+        $this->now = Carbon::now();
 
-        $nextOpeningComparator = function (LocalBusiness $a, LocalBusiness $b) use ($now) {
-
-            $aNextOpening = $a->getNextOpeningDate($now);
-            $bNextOpening = $b->getNextOpeningDate($now);
-
-            $compareNextOpening = $aNextOpening === $bNextOpening ?
-                0 : ($aNextOpening < $bNextOpening ? -1 : 1);
-
-            return $compareNextOpening;
-        };
-
-        usort($array, $nextOpeningComparator);
-
-        $opened = array_filter($array, function (LocalBusiness $lb) use ($now) {
-            return $lb->isOpen($now);
+        $featured = array_filter($array, function (LocalBusiness $lb) {
+            return $this->isFeatured($lb);
         });
 
-        $featuredComparator = function (LocalBusiness $a, LocalBusiness $b) {
-            if ($a->isFeatured() && $b->isFeatured()) {
-                return 0;
-            }
-
-            return $a->isFeatured() ? -1 : 1;
-        };
-
-        usort($opened, $featuredComparator);
-
-        $closed = array_filter($array, function (LocalBusiness $lb) use ($now) {
-            return !$lb->isOpen($now);
+        $notFeatured = array_filter($array, function (LocalBusiness $lb) {
+            return !$this->isFeatured($lb);
         });
 
-        parent::__construct(array_merge($opened, $closed));
+        usort($featured,    [$this, 'nextSlotComparator']);
+        usort($notFeatured, [$this, 'nextSlotComparator']);
+
+        parent::__construct(array_merge($featured, $notFeatured));
+    }
+
+    private function hasRange($timeInfo)
+    {
+        return !empty($timeInfo)
+            && isset($timeInfo['range'])
+            && is_array($timeInfo['range'])
+            && count($timeInfo['range']) === 2;
+    }
+
+    private function isFeatured(LocalBusiness $lb)
+    {
+        $timeInfo = $this->timingRegistry->getForObject($lb);
+        $hasRange = $this->hasRange($timeInfo);
+
+        if (!$hasRange) {
+
+            return false;
+        }
+
+        $start = Carbon::parse($timeInfo['range'][0]);
+
+        if ($start->diffInHours($this->now) > 3) {
+
+            return false;
+        }
+
+        return $lb->isFeatured();
+    }
+
+    public function nextSlotComparator(LocalBusiness $a, LocalBusiness $b)
+    {
+        $aTimeInfo = $this->timingRegistry->getForObject($a);
+        $bTimeInfo = $this->timingRegistry->getForObject($b);
+
+        if (empty($aTimeInfo) && empty($bTimeInfo)) {
+
+            return 0;
+        }
+
+        if (empty($aTimeInfo)) {
+
+            return 1;
+        }
+
+        if (empty($bTimeInfo)) {
+
+            return -1;
+        }
+
+        $aHasRange = isset($aTimeInfo['range']) && is_array($aTimeInfo['range']) && count($aTimeInfo['range']) === 2;
+        $bHasRange = isset($bTimeInfo['range']) && is_array($bTimeInfo['range']) && count($bTimeInfo['range']) === 2;
+
+        if (!$aHasRange && !$bHasRange) {
+
+            return 0;
+        }
+
+        if (!$aHasRange) {
+
+            return 1;
+        }
+
+        if (!$bHasRange) {
+
+            return -1;
+        }
+
+        $aStart = new \DateTime($aTimeInfo['range'][0]);
+        $bStart = new \DateTime($bTimeInfo['range'][0]);
+
+        if ($aStart === $bStart) {
+
+            return 0;
+        }
+
+        return $aStart < $bStart ? -1 : 1;
     }
 }

@@ -80,7 +80,6 @@ use Nucleos\UserBundle\Model\UserManagerInterface;
 use Nucleos\UserBundle\Util\TokenGeneratorInterface;
 use Nucleos\UserBundle\Util\CanonicalizerInterface;
 use Nucleos\ProfileBundle\Mailer\Mail\RegistrationMail;
-use GuzzleHttp\Client as HttpClient;
 use Knp\Component\Pager\PaginatorInterface;
 use Ramsey\Uuid\Uuid;
 use Redis;
@@ -107,6 +106,7 @@ use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Trikoder\Bundle\OAuth2Bundle\Model\Client as OAuth2Client;
 use Twig\Environment as TwigEnvironment;
@@ -155,7 +155,7 @@ class AdminController extends AbstractController
         PromotionCouponRepositoryInterface $promotionCouponRepository,
         FactoryInterface $promotionRuleFactory,
         FactoryInterface $promotionFactory,
-        HttpClient $browserlessClient
+        HttpClientInterface $browserlessClient
     )
     {
         $this->orderRepository = $orderRepository;
@@ -591,6 +591,42 @@ class AdminController extends AbstractController
     }
 
     /**
+     * @Route("/admin/user/{username}/delete", name="admin_user_delete", methods={"POST"})
+     */
+    public function userDeleteAction($username, Request $request, UserManagerInterface $userManager)
+    {
+        $user = $userManager->findUserByUsername($username);
+
+        if (!$user) {
+            throw $this->createNotFoundException();
+        }
+
+        $anonymousEmail = sprintf('anon%s@coopcycle.org', bin2hex(random_bytes(8)));
+
+        $user->setEmail($anonymousEmail);
+        $user->setEmailCanonical($anonymousEmail);
+        $user->setEnabled(false);
+
+        $customer = $user->getCustomer();
+        if (null !== $customer) {
+            $customer->setEmail($anonymousEmail);
+            $customer->setEmailCanonical($anonymousEmail);
+            $customer->setFullName('');
+        }
+
+        $userManager->updateUser($user, false);
+
+        $this->entityManager->flush();
+
+        $this->addFlash(
+            'notice',
+            $this->translator->trans('adminDashboard.users.userHasBeenDeleted')
+        );
+
+        return $this->redirectToRoute('admin_users');
+    }
+
+    /**
      * @Route("/admin/user/{username}/tracking", name="admin_user_tracking")
      */
     public function userTrackingAction($username, Request $request, UserManagerInterface $userManager)
@@ -995,7 +1031,7 @@ class AdminController extends AbstractController
 
     public function getStoreList()
     {
-        $stores = $this->getDoctrine()->getRepository(Store::class)->findAll();
+        $stores = $this->getDoctrine()->getRepository(Store::class)->findBy([], ['name' => 'ASC']);
         return [ $stores, 1, 1 ];
     }
 
@@ -1332,9 +1368,12 @@ class AdminController extends AbstractController
             return $this->redirectToRoute('admin_api_apps');
         }
 
-        $apiApps = $this->entityManager
+        $qb = $this->entityManager
             ->getRepository(ApiApp::class)
-            ->findAll();
+            ->createQueryBuilder('a')
+            ->andWhere('a.store IS NOT NULL');
+
+        $apiApps = $qb->getQuery()->getResult();
 
         return $this->render('admin/api_apps.html.twig', [
             'api_apps' => $apiApps
@@ -1871,7 +1910,7 @@ class AdminController extends AbstractController
             'json' => ['html' => $html]
         ]);
 
-        $response = new Response((string) $pdf->getBody());
+        $response = new Response((string) $pdf->getContent());
 
         $response->headers->add(['Content-Type' => 'application/pdf']);
         $response->headers->add([
