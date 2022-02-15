@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "e40055caf38f7afc939df82c491e479b",
+    "content-hash": "f69c0e429278c8cb34c98ec99ffe3156",
     "packages": [
         {
             "name": "api-platform/core",
@@ -219,16 +219,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.209.12",
+            "version": "3.209.15",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "02e488042410fac0af67fd37f222d5b3c0424b72"
+                "reference": "8656babb2e58ea3e7c9a40724e8a545ce40bb622"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/02e488042410fac0af67fd37f222d5b3c0424b72",
-                "reference": "02e488042410fac0af67fd37f222d5b3c0424b72",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/8656babb2e58ea3e7c9a40724e8a545ce40bb622",
+                "reference": "8656babb2e58ea3e7c9a40724e8a545ce40bb622",
                 "shasum": ""
             },
             "require": {
@@ -272,12 +272,12 @@
                 }
             },
             "autoload": {
-                "psr-4": {
-                    "Aws\\": "src/"
-                },
                 "files": [
                     "src/functions.php"
-                ]
+                ],
+                "psr-4": {
+                    "Aws\\": "src/"
+                }
             },
             "notification-url": "https://packagist.org/downloads/",
             "license": [
@@ -304,22 +304,22 @@
             "support": {
                 "forum": "https://forums.aws.amazon.com/forum.jspa?forumID=80",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.209.12"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.209.15"
             },
-            "time": "2022-01-25T19:17:24+00:00"
+            "time": "2022-01-28T19:14:57+00:00"
         },
         {
             "name": "azimolabs/apple-sign-in-php-sdk",
-            "version": "2.1.0",
+            "version": "2.2.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/AzimoLabs/apple-sign-in-php-sdk.git",
-                "reference": "c1f54a0a4fa8c20c12294dbd753dee095c029a2e"
+                "reference": "e98b43936d48be5d799c6dd1ebb51538e7aa4645"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/AzimoLabs/apple-sign-in-php-sdk/zipball/c1f54a0a4fa8c20c12294dbd753dee095c029a2e",
-                "reference": "c1f54a0a4fa8c20c12294dbd753dee095c029a2e",
+                "url": "https://api.github.com/repos/AzimoLabs/apple-sign-in-php-sdk/zipball/e98b43936d48be5d799c6dd1ebb51538e7aa4645",
+                "reference": "e98b43936d48be5d799c6dd1ebb51538e7aa4645",
                 "shasum": ""
             },
             "require": {
@@ -361,36 +361,36 @@
             ],
             "support": {
                 "issues": "https://github.com/AzimoLabs/apple-sign-in-php-sdk/issues",
-                "source": "https://github.com/AzimoLabs/apple-sign-in-php-sdk/tree/2.1.0"
+                "source": "https://github.com/AzimoLabs/apple-sign-in-php-sdk/tree/2.2.0"
             },
-            "time": "2022-01-25T12:30:54+00:00"
+            "time": "2022-02-04T11:11:44+00:00"
         },
         {
             "name": "azuyalabs/yasumi",
-            "version": "2.4.0",
+            "version": "2.5.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/azuyalabs/yasumi.git",
-                "reference": "083a0d0579fee17e68d688d463bc01098ac2691f"
+                "reference": "5fd99815e8bf480fd0e6b76527d5413767e98930"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/azuyalabs/yasumi/zipball/083a0d0579fee17e68d688d463bc01098ac2691f",
-                "reference": "083a0d0579fee17e68d688d463bc01098ac2691f",
+                "url": "https://api.github.com/repos/azuyalabs/yasumi/zipball/5fd99815e8bf480fd0e6b76527d5413767e98930",
+                "reference": "5fd99815e8bf480fd0e6b76527d5413767e98930",
                 "shasum": ""
             },
             "require": {
                 "ext-json": "*",
-                "php": ">=7.3"
+                "php": ">=7.4"
             },
             "require-dev": {
-                "friendsofphp/php-cs-fixer": "^2.16",
-                "infection/infection": "^0.17 | ^0.22",
+                "friendsofphp/php-cs-fixer": "v2.19 | v3.5",
+                "infection/infection": "^0.17 | ^0.26",
                 "mikey179/vfsstream": "^1.6",
-                "phan/phan": "^4.0",
-                "phpstan/phpstan": "^0.12.66",
-                "phpunit/phpunit": "^8.5 | ^9.4",
-                "vimeo/psalm": "^4"
+                "phan/phan": "^5.2",
+                "phpstan/phpstan": "^0.12",
+                "phpunit/phpunit": "^8.5 | ^9.5",
+                "vimeo/psalm": "^4.9"
             },
             "suggest": {
                 "ext-calendar": "For calculating the date of Easter"
@@ -436,7 +436,7 @@
                     "type": "other"
                 }
             ],
-            "time": "2021-05-09T09:03:34+00:00"
+            "time": "2022-01-30T07:43:17+00:00"
         },
         {
             "name": "babdev/pagerfanta-bundle",
@@ -4378,12 +4378,12 @@
             },
             "type": "library",
             "autoload": {
-                "psr-4": {
-                    "Google\\Service\\": "src"
-                },
                 "files": [
                     "autoload.php"
-                ]
+                ],
+                "psr-4": {
+                    "Google\\Service\\": "src"
+                }
             },
             "notification-url": "https://packagist.org/downloads/",
             "license": [
@@ -5378,16 +5378,16 @@
         },
         {
             "name": "illuminate/cache",
-            "version": "v8.81.0",
+            "version": "v8.82.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/illuminate/cache.git",
-                "reference": "bdfd3c9764133ef33d3aa480531214656e6f2fd2"
+                "reference": "341b4f98a0de928d5af990f4e75acb5b34948569"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/illuminate/cache/zipball/bdfd3c9764133ef33d3aa480531214656e6f2fd2",
-                "reference": "bdfd3c9764133ef33d3aa480531214656e6f2fd2",
+                "url": "https://api.github.com/repos/illuminate/cache/zipball/341b4f98a0de928d5af990f4e75acb5b34948569",
+                "reference": "341b4f98a0de928d5af990f4e75acb5b34948569",
                 "shasum": ""
             },
             "require": {
@@ -5434,11 +5434,11 @@
                 "issues": "https://github.com/laravel/framework/issues",
                 "source": "https://github.com/laravel/framework"
             },
-            "time": "2022-01-15T15:31:34+00:00"
+            "time": "2022-01-27T17:47:01+00:00"
         },
         {
             "name": "illuminate/collections",
-            "version": "v8.81.0",
+            "version": "v8.82.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/illuminate/collections.git",
@@ -5465,12 +5465,12 @@
                 }
             },
             "autoload": {
-                "psr-4": {
-                    "Illuminate\\Support\\": ""
-                },
                 "files": [
                     "helpers.php"
-                ]
+                ],
+                "psr-4": {
+                    "Illuminate\\Support\\": ""
+                }
             },
             "notification-url": "https://packagist.org/downloads/",
             "license": [
@@ -5492,7 +5492,7 @@
         },
         {
             "name": "illuminate/contracts",
-            "version": "v8.81.0",
+            "version": "v8.82.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/illuminate/contracts.git",
@@ -5540,7 +5540,7 @@
         },
         {
             "name": "illuminate/macroable",
-            "version": "v8.81.0",
+            "version": "v8.82.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/illuminate/macroable.git",
@@ -5586,16 +5586,16 @@
         },
         {
             "name": "illuminate/support",
-            "version": "v8.81.0",
+            "version": "v8.82.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/illuminate/support.git",
-                "reference": "fb33fd4bbcc075f641d5576b700a1c3d962acef0"
+                "reference": "910c5eb5d506013fdf60f9dc68c5512711857558"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/illuminate/support/zipball/fb33fd4bbcc075f641d5576b700a1c3d962acef0",
-                "reference": "fb33fd4bbcc075f641d5576b700a1c3d962acef0",
+                "url": "https://api.github.com/repos/illuminate/support/zipball/910c5eb5d506013fdf60f9dc68c5512711857558",
+                "reference": "910c5eb5d506013fdf60f9dc68c5512711857558",
                 "shasum": ""
             },
             "require": {
@@ -5627,12 +5627,12 @@
                 }
             },
             "autoload": {
-                "psr-4": {
-                    "Illuminate\\Support\\": ""
-                },
                 "files": [
                     "helpers.php"
-                ]
+                ],
+                "psr-4": {
+                    "Illuminate\\Support\\": ""
+                }
             },
             "notification-url": "https://packagist.org/downloads/",
             "license": [
@@ -5650,7 +5650,7 @@
                 "issues": "https://github.com/laravel/framework/issues",
                 "source": "https://github.com/laravel/framework"
             },
-            "time": "2022-01-25T16:10:28+00:00"
+            "time": "2022-01-28T16:29:10+00:00"
         },
         {
             "name": "imagine/imagine",
@@ -6429,6 +6429,7 @@
                 "issues": "https://github.com/KnpLabs/KnpMarkdownBundle/issues",
                 "source": "https://github.com/KnpLabs/KnpMarkdownBundle/tree/1.10.0"
             },
+            "abandoned": "twig/markdown-extra",
             "time": "2022-01-26T18:46:39+00:00"
         },
         {
@@ -7720,6 +7721,79 @@
                 }
             ],
             "time": "2021-10-11T20:41:49+00:00"
+        },
+        {
+            "name": "league/oauth2-server-bundle",
+            "version": "v0.3.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/thephpleague/oauth2-server-bundle.git",
+                "reference": "c306e318d24a712efd0973f91fb02eb373a3151b"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/thephpleague/oauth2-server-bundle/zipball/c306e318d24a712efd0973f91fb02eb373a3151b",
+                "reference": "c306e318d24a712efd0973f91fb02eb373a3151b",
+                "shasum": ""
+            },
+            "require": {
+                "doctrine/doctrine-bundle": "^2.0.8",
+                "doctrine/orm": "^2.7.1",
+                "league/oauth2-server": "^8.3",
+                "nyholm/psr7": "^1.4",
+                "php": ">=7.2",
+                "psr/http-factory": "^1.0",
+                "symfony/event-dispatcher": "^5.3|^6.0",
+                "symfony/framework-bundle": "^5.3|^6.0",
+                "symfony/polyfill-php81": "^1.22",
+                "symfony/psr-http-message-bridge": "^2.0",
+                "symfony/security-bundle": "^5.3|^6.0"
+            },
+            "require-dev": {
+                "ext-pdo": "*",
+                "ext-pdo_sqlite": "*",
+                "symfony/browser-kit": "^5.3|^6.0",
+                "symfony/phpunit-bridge": "^5.3|^6.0"
+            },
+            "type": "symfony-bundle",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "0.1-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "League\\Bundle\\OAuth2ServerBundle\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Robin Chalas",
+                    "email": "robin.chalas@gmail.com"
+                },
+                {
+                    "name": "All contributors",
+                    "homepage": "https://github.com/thephpleague/oauth2-server-bundle/graphs/contributors"
+                }
+            ],
+            "description": "Symfony bundle .",
+            "homepage": "https://github.com/thephpleague/oauth2-server-bundle",
+            "keywords": [
+                "auth",
+                "authorization",
+                "bundle",
+                "oauth2",
+                "server"
+            ],
+            "support": {
+                "issues": "https://github.com/thephpleague/oauth2-server-bundle/issues",
+                "source": "https://github.com/thephpleague/oauth2-server-bundle/tree/v0.3.0"
+            },
+            "time": "2021-12-28T16:51:16+00:00"
         },
         {
             "name": "league/omnipay",
@@ -9052,29 +9126,29 @@
         },
         {
             "name": "notfloran/mjml-bundle",
-            "version": "v3.5.1",
+            "version": "v3.6.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/notFloran/mjml-bundle.git",
-                "reference": "0b9b99fef1c0d06a34de58ba329d0b0bd3bd1623"
+                "reference": "3ec58e974b6117432b5ac2d6bf19be545117e663"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/notFloran/mjml-bundle/zipball/0b9b99fef1c0d06a34de58ba329d0b0bd3bd1623",
-                "reference": "0b9b99fef1c0d06a34de58ba329d0b0bd3bd1623",
+                "url": "https://api.github.com/repos/notFloran/mjml-bundle/zipball/3ec58e974b6117432b5ac2d6bf19be545117e663",
+                "reference": "3ec58e974b6117432b5ac2d6bf19be545117e663",
                 "shasum": ""
             },
             "require": {
                 "php": ">=7.1.0",
-                "symfony/dependency-injection": "^3.4 || ^4.0 || ^5.0",
-                "symfony/process": "^3.4 || ^4.0 || ^5.0",
-                "symfony/twig-bundle": "^3.4 || ^4.0 || ^5.0"
+                "symfony/dependency-injection": "^3.4 || ^4.0 || ^5.0 || ^6.0",
+                "symfony/process": "^3.4 || ^4.0 || ^5.0 || ^6.0",
+                "symfony/twig-bundle": "^3.4 || ^4.0 || ^5.0 || ^6.0"
             },
             "require-dev": {
                 "matthiasnoback/symfony-config-test": "^4.1",
                 "phpstan/phpstan": "^0.12.0",
-                "phpunit/phpunit": "^7.0",
-                "symplify/easy-coding-standard": "^6.0|^7.0"
+                "phpunit/phpunit": "^7.0|^8.0",
+                "symplify/easy-coding-standard": "^9.0"
             },
             "type": "symfony-bundle",
             "autoload": {
@@ -9099,9 +9173,9 @@
             ],
             "support": {
                 "issues": "https://github.com/notFloran/mjml-bundle/issues",
-                "source": "https://github.com/notFloran/mjml-bundle/tree/v3.5.1"
+                "source": "https://github.com/notFloran/mjml-bundle/tree/v3.6.0"
             },
-            "time": "2021-01-23T14:38:29+00:00"
+            "time": "2021-12-07T13:07:23+00:00"
         },
         {
             "name": "nucleos/profile-bundle",
@@ -10812,16 +10886,16 @@
         },
         {
             "name": "phpseclib/phpseclib",
-            "version": "3.0.12",
+            "version": "3.0.13",
             "source": {
                 "type": "git",
                 "url": "https://github.com/phpseclib/phpseclib.git",
-                "reference": "89bfb45bd8b1abc3b37e910d57f5dbd3174f40fb"
+                "reference": "1443ab79364eea48665fa8c09ac67f37d1025f7e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpseclib/phpseclib/zipball/89bfb45bd8b1abc3b37e910d57f5dbd3174f40fb",
-                "reference": "89bfb45bd8b1abc3b37e910d57f5dbd3174f40fb",
+                "url": "https://api.github.com/repos/phpseclib/phpseclib/zipball/1443ab79364eea48665fa8c09ac67f37d1025f7e",
+                "reference": "1443ab79364eea48665fa8c09ac67f37d1025f7e",
                 "shasum": ""
             },
             "require": {
@@ -10903,7 +10977,7 @@
             ],
             "support": {
                 "issues": "https://github.com/phpseclib/phpseclib/issues",
-                "source": "https://github.com/phpseclib/phpseclib/tree/3.0.12"
+                "source": "https://github.com/phpseclib/phpseclib/tree/3.0.13"
             },
             "funding": [
                 {
@@ -10919,7 +10993,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2021-11-28T23:46:03+00:00"
+            "time": "2022-01-30T08:50:05+00:00"
         },
         {
             "name": "phpstan/phpdoc-parser",
@@ -12573,6 +12647,45 @@
             "time": "2022-01-10T08:56:54+00:00"
         },
         {
+            "name": "shahonseven/php-color-hash",
+            "version": "dev-master",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/alexsegura/php-color-hash.git",
+                "reference": "ec790f780c07cc33c914d1dc57b64ecee20da7af"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/alexsegura/php-color-hash/zipball/ec790f780c07cc33c914d1dc57b64ecee20da7af",
+                "reference": "ec790f780c07cc33c914d1dc57b64ecee20da7af",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=5.3.0"
+            },
+            "default-branch": true,
+            "type": "library",
+            "autoload": {
+                "psr-0": {
+                    "Shahonseven": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Shahril Abdullah",
+                    "email": "shahonseven@gmail.com"
+                }
+            ],
+            "description": "Generate color based on the given string. Backported from the Javascript library color-hash",
+            "support": {
+                "source": "https://github.com/alexsegura/php-color-hash/tree/master"
+            },
+            "time": "2022-02-07T12:03:26+00:00"
+        },
+        {
             "name": "simple-bus/message-bus",
             "version": "v6.2.2",
             "source": {
@@ -13855,16 +13968,16 @@
         },
         {
             "name": "stripe/stripe-php",
-            "version": "v7.112.0",
+            "version": "v7.113.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/stripe/stripe-php.git",
-                "reference": "f5213ccb88795663f73841bc65f467a0e1e61180"
+                "reference": "1aef1ccffad48f39952073e0ed53cb8f3f1b1d8c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/stripe/stripe-php/zipball/f5213ccb88795663f73841bc65f467a0e1e61180",
-                "reference": "f5213ccb88795663f73841bc65f467a0e1e61180",
+                "url": "https://api.github.com/repos/stripe/stripe-php/zipball/1aef1ccffad48f39952073e0ed53cb8f3f1b1d8c",
+                "reference": "1aef1ccffad48f39952073e0ed53cb8f3f1b1d8c",
                 "shasum": ""
             },
             "require": {
@@ -13909,9 +14022,9 @@
             ],
             "support": {
                 "issues": "https://github.com/stripe/stripe-php/issues",
-                "source": "https://github.com/stripe/stripe-php/tree/v7.112.0"
+                "source": "https://github.com/stripe/stripe-php/tree/v7.113.0"
             },
-            "time": "2022-01-25T19:42:36+00:00"
+            "time": "2022-02-03T23:46:29+00:00"
         },
         {
             "name": "sylius-labs/polyfill-symfony-framework-bundle",
@@ -15546,8 +15659,8 @@
             },
             "autoload": {
                 "psr-4": {
-                    "Sylius\\Bundle\\ResourceBundle\\": "src/Bundle/",
-                    "Sylius\\Component\\Resource\\": "src/Component/"
+                    "Sylius\\Component\\Resource\\": "src/Component/",
+                    "Sylius\\Bundle\\ResourceBundle\\": "src/Bundle/"
                 }
             },
             "notification-url": "https://packagist.org/downloads/",
@@ -17407,16 +17520,16 @@
         },
         {
             "name": "symfony/symfony",
-            "version": "v5.4.3",
+            "version": "v5.4.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/symfony.git",
-                "reference": "74f33558adecab939c54f8fc472cb7a12b96b488"
+                "reference": "d7915d01c1205b7e6f2cbc58c5b5b3fd0d973a1c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/symfony/zipball/74f33558adecab939c54f8fc472cb7a12b96b488",
-                "reference": "74f33558adecab939c54f8fc472cb7a12b96b488",
+                "url": "https://api.github.com/repos/symfony/symfony/zipball/d7915d01c1205b7e6f2cbc58c5b5b3fd0d973a1c",
+                "reference": "d7915d01c1205b7e6f2cbc58c5b5b3fd0d973a1c",
                 "shasum": ""
             },
             "require": {
@@ -17569,17 +17682,17 @@
             },
             "type": "library",
             "autoload": {
-                "psr-4": {
-                    "Symfony\\Bridge\\Doctrine\\": "src/Symfony/Bridge/Doctrine/",
-                    "Symfony\\Bridge\\Monolog\\": "src/Symfony/Bridge/Monolog/",
-                    "Symfony\\Bridge\\ProxyManager\\": "src/Symfony/Bridge/ProxyManager/",
-                    "Symfony\\Bridge\\Twig\\": "src/Symfony/Bridge/Twig/",
-                    "Symfony\\Bundle\\": "src/Symfony/Bundle/",
-                    "Symfony\\Component\\": "src/Symfony/Component/"
-                },
                 "files": [
                     "src/Symfony/Component/String/Resources/functions.php"
                 ],
+                "psr-4": {
+                    "Symfony\\Bundle\\": "src/Symfony/Bundle/",
+                    "Symfony\\Component\\": "src/Symfony/Component/",
+                    "Symfony\\Bridge\\Twig\\": "src/Symfony/Bridge/Twig/",
+                    "Symfony\\Bridge\\Monolog\\": "src/Symfony/Bridge/Monolog/",
+                    "Symfony\\Bridge\\Doctrine\\": "src/Symfony/Bridge/Doctrine/",
+                    "Symfony\\Bridge\\ProxyManager\\": "src/Symfony/Bridge/ProxyManager/"
+                },
                 "classmap": [
                     "src/Symfony/Component/Intl/Resources/stubs"
                 ],
@@ -17608,7 +17721,7 @@
             ],
             "support": {
                 "issues": "https://github.com/symfony/symfony/issues",
-                "source": "https://github.com/symfony/symfony/tree/v5.4.3"
+                "source": "https://github.com/symfony/symfony/tree/v5.4.4"
             },
             "funding": [
                 {
@@ -17624,7 +17737,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2022-01-28T11:06:17+00:00"
+            "time": "2022-01-29T18:08:18+00:00"
         },
         {
             "name": "symfony/webpack-encore-bundle",
@@ -17787,88 +17900,6 @@
                 }
             ],
             "time": "2021-01-25T10:07:17+00:00"
-        },
-        {
-            "name": "trikoder/oauth2-bundle",
-            "version": "v3.2.0",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/trikoder/oauth2-bundle.git",
-                "reference": "58788136d3856a3e0c7fb41364943af8bc89101c"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/trikoder/oauth2-bundle/zipball/58788136d3856a3e0c7fb41364943af8bc89101c",
-                "reference": "58788136d3856a3e0c7fb41364943af8bc89101c",
-                "shasum": ""
-            },
-            "require": {
-                "doctrine/doctrine-bundle": "^1.8|^2.0",
-                "doctrine/orm": "^2.7",
-                "league/oauth2-server": "^8.0",
-                "php": ">=7.2",
-                "psr/http-factory": "^1.0",
-                "sensio/framework-extra-bundle": "^5.5",
-                "symfony/framework-bundle": "^4.4|^5.0",
-                "symfony/psr-http-message-bridge": "^2.0",
-                "symfony/security-bundle": "^4.4|^5.0"
-            },
-            "require-dev": {
-                "ext-timecop": "*",
-                "ext-xdebug": "*",
-                "laminas/laminas-diactoros": "^2.2",
-                "nyholm/psr7": "^1.2",
-                "phpunit/phpunit": "^8.5|^9.4",
-                "symfony/browser-kit": "^4.4|^5.0",
-                "symfony/phpunit-bridge": "^5.0"
-            },
-            "suggest": {
-                "defuse/php-encryption": "For better performance when doing encryption",
-                "nelmio/cors-bundle": "For handling CORS requests",
-                "nyholm/psr7": "For a super lightweight PSR-7/17 implementation"
-            },
-            "type": "symfony-bundle",
-            "extra": {
-                "branch-alias": {
-                    "dev-master": "3.x-dev"
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Trikoder\\Bundle\\OAuth2Bundle\\": ""
-                },
-                "exclude-from-classmap": [
-                    "/Tests/"
-                ]
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Antonio Pauletich",
-                    "email": "antonio.pauletich@trikoder.net"
-                },
-                {
-                    "name": "Berislav Balogović",
-                    "email": "berislav.balogovic@trikoder.net"
-                },
-                {
-                    "name": "Petar Obradović",
-                    "email": "petar.obradovic@trikoder.net"
-                }
-            ],
-            "description": "Symfony bundle which provides OAuth 2.0 authorization/resource server capabilities.",
-            "homepage": "https://www.trikoder.net/",
-            "keywords": [
-                "oauth2"
-            ],
-            "support": {
-                "issues": "https://github.com/trikoder/oauth2-bundle/issues",
-                "source": "https://github.com/trikoder/oauth2-bundle/tree/v3.2.0"
-            },
-            "time": "2020-10-26T15:54:32+00:00"
         },
         {
             "name": "twig/cache-extra",
@@ -18083,16 +18114,16 @@
         },
         {
             "name": "twig/twig",
-            "version": "v2.14.10",
+            "version": "v2.14.11",
             "source": {
                 "type": "git",
                 "url": "https://github.com/twigphp/Twig.git",
-                "reference": "95fb194cd4dd6ac373a27af2bde2bad5d3f27aba"
+                "reference": "66baa66f29ee30e487e05f1679903e36eb01d727"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/twigphp/Twig/zipball/95fb194cd4dd6ac373a27af2bde2bad5d3f27aba",
-                "reference": "95fb194cd4dd6ac373a27af2bde2bad5d3f27aba",
+                "url": "https://api.github.com/repos/twigphp/Twig/zipball/66baa66f29ee30e487e05f1679903e36eb01d727",
+                "reference": "66baa66f29ee30e487e05f1679903e36eb01d727",
                 "shasum": ""
             },
             "require": {
@@ -18147,7 +18178,7 @@
             ],
             "support": {
                 "issues": "https://github.com/twigphp/Twig/issues",
-                "source": "https://github.com/twigphp/Twig/tree/v2.14.10"
+                "source": "https://github.com/twigphp/Twig/tree/v2.14.11"
             },
             "funding": [
                 {
@@ -18159,7 +18190,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2022-01-03T21:13:26+00:00"
+            "time": "2022-02-04T06:57:25+00:00"
         },
         {
             "name": "twilio/sdk",
@@ -20158,16 +20189,16 @@
         },
         {
             "name": "phpstan/phpstan",
-            "version": "1.4.3",
+            "version": "1.4.5",
             "source": {
                 "type": "git",
                 "url": "https://github.com/phpstan/phpstan.git",
-                "reference": "89d10839dbfc95eeb7da656578b4a899ad2b59b1"
+                "reference": "150d1fbd82fb71ff76b3bd7f6ea6006d89c5f0c3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpstan/phpstan/zipball/89d10839dbfc95eeb7da656578b4a899ad2b59b1",
-                "reference": "89d10839dbfc95eeb7da656578b4a899ad2b59b1",
+                "url": "https://api.github.com/repos/phpstan/phpstan/zipball/150d1fbd82fb71ff76b3bd7f6ea6006d89c5f0c3",
+                "reference": "150d1fbd82fb71ff76b3bd7f6ea6006d89c5f0c3",
                 "shasum": ""
             },
             "require": {
@@ -20198,7 +20229,7 @@
             "description": "PHPStan - PHP Static Analysis Tool",
             "support": {
                 "issues": "https://github.com/phpstan/phpstan/issues",
-                "source": "https://github.com/phpstan/phpstan/tree/1.4.3"
+                "source": "https://github.com/phpstan/phpstan/tree/1.4.5"
             },
             "funding": [
                 {
@@ -20218,7 +20249,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2022-01-28T16:27:17+00:00"
+            "time": "2022-02-02T19:35:10+00:00"
         },
         {
             "name": "phpstan/phpstan-doctrine",
@@ -20293,16 +20324,16 @@
         },
         {
             "name": "phpstan/phpstan-symfony",
-            "version": "1.1.2",
+            "version": "1.1.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/phpstan/phpstan-symfony.git",
-                "reference": "96ee630098c49c1c25326ae51b027e469bfd2064"
+                "reference": "51488c9c3000a07db3e543bc6e8f2de9c0a9037d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpstan/phpstan-symfony/zipball/96ee630098c49c1c25326ae51b027e469bfd2064",
-                "reference": "96ee630098c49c1c25326ae51b027e469bfd2064",
+                "url": "https://api.github.com/repos/phpstan/phpstan-symfony/zipball/51488c9c3000a07db3e543bc6e8f2de9c0a9037d",
+                "reference": "51488c9c3000a07db3e543bc6e8f2de9c0a9037d",
                 "shasum": ""
             },
             "require": {
@@ -20359,22 +20390,22 @@
             "description": "Symfony Framework extensions and rules for PHPStan",
             "support": {
                 "issues": "https://github.com/phpstan/phpstan-symfony/issues",
-                "source": "https://github.com/phpstan/phpstan-symfony/tree/1.1.2"
+                "source": "https://github.com/phpstan/phpstan-symfony/tree/1.1.4"
             },
-            "time": "2022-01-18T16:08:22+00:00"
+            "time": "2022-02-03T11:35:02+00:00"
         },
         {
             "name": "phpstan/phpstan-webmozart-assert",
-            "version": "1.0.8",
+            "version": "1.0.9",
             "source": {
                 "type": "git",
                 "url": "https://github.com/phpstan/phpstan-webmozart-assert.git",
-                "reference": "67f970c81ae8633ad85b6cb332a64b4ec7860b74"
+                "reference": "f77d18f63be234aa1494106ba4de36be3e49292a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpstan/phpstan-webmozart-assert/zipball/67f970c81ae8633ad85b6cb332a64b4ec7860b74",
-                "reference": "67f970c81ae8633ad85b6cb332a64b4ec7860b74",
+                "url": "https://api.github.com/repos/phpstan/phpstan-webmozart-assert/zipball/f77d18f63be234aa1494106ba4de36be3e49292a",
+                "reference": "f77d18f63be234aa1494106ba4de36be3e49292a",
                 "shasum": ""
             },
             "require": {
@@ -20412,9 +20443,9 @@
             "description": "PHPStan webmozart/assert extension",
             "support": {
                 "issues": "https://github.com/phpstan/phpstan-webmozart-assert/issues",
-                "source": "https://github.com/phpstan/phpstan-webmozart-assert/tree/1.0.8"
+                "source": "https://github.com/phpstan/phpstan-webmozart-assert/tree/1.0.9"
             },
-            "time": "2022-01-17T11:49:56+00:00"
+            "time": "2022-02-01T19:24:42+00:00"
         },
         {
             "name": "phpunit/php-code-coverage",
@@ -21721,7 +21752,8 @@
         "league/geotools": 0,
         "drupal/core-vendor-hardening": 20,
         "nucleos/user-bundle": 20,
-        "nucleos/profile-bundle": 20
+        "nucleos/profile-bundle": 20,
+        "shahonseven/php-color-hash": 20
     },
     "prefer-stable": false,
     "prefer-lowest": false,
