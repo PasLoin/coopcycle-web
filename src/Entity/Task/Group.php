@@ -3,6 +3,7 @@
 namespace AppBundle\Entity\Task;
 
 use ApiPlatform\Core\Annotation\ApiResource;
+use AppBundle\Action\Task\AddToGroup as AddTasksToGroup;
 use AppBundle\Action\Task\Bulk as TaskBulk;
 use AppBundle\Action\Task\BulkAsync as TaskBulkAsync;
 use AppBundle\Action\Task\DeleteGroup as DeleteGroupController;
@@ -27,7 +28,7 @@ use Symfony\Component\Validator\Constraints as Assert;
  *       "input_formats"={"csv"={"text/csv"}},
  *       "denormalization_context"={"groups"={"task", "task_create"}},
  *       "controller"=TaskBulk::class,
- *       "security"="is_granted('ROLE_OAUTH2_TASKS')"
+ *       "security"="is_granted('ROLE_OAUTH2_TASKS') or is_granted('ROLE_ADMIN')"
  *     },
  *     "tasks_import_async"={
  *       "method"="POST",
@@ -35,7 +36,7 @@ use Symfony\Component\Validator\Constraints as Assert;
  *       "input_formats"={"csv"={"text/csv"}},
  *       "deserialize"=false,
  *       "controller"=TaskBulkAsync::class,
- *       "security"="is_granted('ROLE_OAUTH2_TASKS')"
+ *       "security"="is_granted('ROLE_OAUTH2_TASKS') or is_granted('ROLE_ADMIN')"
  *     },
  *     "post"={
  *       "method"="POST",
@@ -48,9 +49,22 @@ use Symfony\Component\Validator\Constraints as Assert;
  *       "normalizationContext"={"groups"={"task_group"}},
  *       "security"="is_granted('view', object)"
  *     },
+ *     "put"={
+ *       "method"="PUT",
+ *       "denormalization_context"={"groups"={"task_group"}},
+ *       "security"="is_granted('edit', object)"
+ *     },
  *     "delete"={
  *       "method"="DELETE",
  *       "controller"=DeleteGroupController::class,
+ *       "security"="is_granted('edit', object)"
+ *     },
+ *     "add_tasks"={
+ *       "method"="POST",
+ *       "path"="/task_groups/{id}/tasks",
+ *       "controller"=AddTasksToGroup::class,
+ *       "deserialize"=false,
+ *       "write"=false,
  *       "security"="is_granted('edit', object)"
  *     }
  *   }
@@ -62,7 +76,7 @@ class Group implements TaggableInterface
     use TaggableTrait;
 
     /**
-     * @Groups({"task"})
+     * @Groups({"task", "task_group"})
      */
     protected $id;
 

@@ -103,6 +103,8 @@ class ReceiveWebhook
             $pickupComments .= "{$task['hubName']}\n\n";
         }
 
+        $pickupComments .= "Commande n° {$task['taskId']}\n";
+
         if (isset($task['dimensions'])) {
             if (isset($task['dimensions']['bac'])) {
                 $pickupComments .= "{$task['dimensions']['bac']} × bac(s)\n";
@@ -118,15 +120,23 @@ class ReceiveWebhook
 
         $dropoffComments = '';
 
-        if (isset($task['contact']['buildingInfo']) && isset($task['contact']['buildingInfo']['digicode1'])) {
-            if (!empty($task['contact']['buildingInfo']['digicode1'])) {
-                $dropoffComments .= "Digicode : {$task['contact']['buildingInfo']['digicode1']}\n";
-            }
+        $buildingInfo = isset($task['contact']) && isset($task['contact']['buildingInfo']) ?
+            $task['contact']['buildingInfo'] : [];
+
+        if (isset($buildingInfo['digicode1']) && !empty($buildingInfo['digicode1'])) {
+            $dropoffComments .= "Digicode : {$buildingInfo['digicode1']}\n";
         }
 
-        if (!empty($pickupComments)) {
-            $delivery->getPickup()->setComments($pickupComments);
+        if (isset($buildingInfo['floor']) && !empty($buildingInfo['floor'])) {
+            $dropoffComments .= "Étage : {$buildingInfo['floor']}\n";
         }
+
+        if (isset($buildingInfo['hasInterphone']) && true === $buildingInfo['hasInterphone'] &&
+            isset($buildingInfo['interphoneCode']) && !empty($buildingInfo['interphoneCode'])) {
+            $dropoffComments .= "Code interphone : {$buildingInfo['interphoneCode']}\n";
+        }
+
+        $delivery->getPickup()->setComments($pickupComments);
 
         if (!empty($dropoffComments)) {
             $delivery->getDropoff()->setComments($dropoffComments);

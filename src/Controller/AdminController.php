@@ -11,6 +11,7 @@ use AppBundle\Controller\Utils\OrderTrait;
 use AppBundle\Controller\Utils\RestaurantTrait;
 use AppBundle\Controller\Utils\StoreTrait;
 use AppBundle\Controller\Utils\UserTrait;
+use AppBundle\CubeJs\TokenFactory as CubeJsTokenFactory;
 use AppBundle\Entity\ApiApp;
 use AppBundle\Entity\Nonprofit;
 use AppBundle\Entity\User;
@@ -21,6 +22,7 @@ use AppBundle\Entity\Hub;
 use AppBundle\Entity\Invitation;
 use AppBundle\Entity\LocalBusiness;
 use AppBundle\Entity\LocalBusinessRepository;
+use AppBundle\Entity\OptinConsent;
 use AppBundle\Entity\Organization;
 use AppBundle\Entity\OrganizationConfig;
 use AppBundle\Entity\PackageSet;
@@ -33,6 +35,8 @@ use AppBundle\Entity\Sylius\OrderRepository;
 use AppBundle\Entity\Tag;
 use AppBundle\Entity\Task;
 use AppBundle\Entity\TimeSlot;
+use AppBundle\Entity\Vehicle;
+use AppBundle\Entity\Woopit\WoopitIntegration;
 use AppBundle\Entity\Zone;
 use AppBundle\Form\AddOrganizationType;
 use AppBundle\Form\AttachToOrganizationType;
@@ -44,6 +48,7 @@ use AppBundle\Form\DeliveryImportType;
 use AppBundle\Form\EmbedSettingsType;
 use AppBundle\Form\GeoJSONUploadType;
 use AppBundle\Form\HubType;
+use AppBundle\Form\WoopitIntegrationType;
 use AppBundle\Form\InviteUserType;
 use AppBundle\Form\MaintenanceType;
 use AppBundle\Form\MercadopagoLivemodeType;
@@ -60,6 +65,8 @@ use AppBundle\Form\Type\TimeSlotChoiceType;
 use AppBundle\Form\Sylius\Promotion\CreditNoteType;
 use AppBundle\Form\TimeSlotType;
 use AppBundle\Form\UpdateProfileType;
+use AppBundle\Form\UsersExportType;
+use AppBundle\Form\VehicleType;
 use AppBundle\Form\ZoneCollectionType;
 use AppBundle\Service\ActivityManager;
 use AppBundle\Service\DeliveryManager;
@@ -67,7 +74,6 @@ use AppBundle\Service\EmailManager;
 use AppBundle\Service\OrderManager;
 use AppBundle\Service\SettingsManager;
 use AppBundle\Service\TagManager;
-use AppBundle\Spreadsheet\DeliveryDataExporter;
 use AppBundle\Sylius\Order\OrderInterface;
 use AppBundle\Sylius\Order\OrderFactory;
 use AppBundle\Sylius\Promotion\Action\FixedDiscountPromotionActionCommand;
@@ -112,6 +118,8 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use League\Bundle\OAuth2ServerBundle\Model\Client as OAuth2Client;
 use Twig\Environment as TwigEnvironment;
+use Typesense\Client as TypesenseClient;
+use AppBundle\Typesense\ShopsClient as TypesenseShopsClient;
 
 class AdminController extends AbstractController
 {
@@ -147,6 +155,7 @@ class AdminController extends AbstractController
             'product_option_preview' => 'admin_restaurant_product_option_preview',
             'reusable_packaging_new' => 'admin_restaurant_new_reusable_packaging',
             'mercadopago_oauth_redirect' => 'admin_restaurant_mercadopago_oauth_redirect',
+            'mercadopago_oauth_remove' => 'admin_restaurant_mercadopago_oauth_remove',
         ];
     }
 
@@ -157,7 +166,9 @@ class AdminController extends AbstractController
         PromotionCouponRepositoryInterface $promotionCouponRepository,
         FactoryInterface $promotionRuleFactory,
         FactoryInterface $promotionFactory,
-        HttpClientInterface $browserlessClient
+        HttpClientInterface $browserlessClient,
+        bool $optinExportUsersEnabled,
+        TypesenseShopsClient $typesenseShopsClient
     )
     {
         $this->orderRepository = $orderRepository;
@@ -167,6 +178,8 @@ class AdminController extends AbstractController
         $this->promotionRuleFactory = $promotionRuleFactory;
         $this->promotionFactory = $promotionFactory;
         $this->browserlessClient = $browserlessClient;
+        $this->optinExportUsersEnabled = $optinExportUsersEnabled;
+        $this->typesenseShopsClient = $typesenseShopsClient;
     }
 
     /**
@@ -406,6 +419,11 @@ class AdminController extends AbstractController
 
         $qb->leftJoin(User::class, 'u', Expr\Join::WITH, 'c.id = u.customer');
 
+        if (!$request->query->has('filterField') || $request->query->get('filterField') !== 'u.enabled') {
+            $qb->andWhere('u.enabled = :enabled');
+            $qb->setParameter('enabled', true);
+        }
+
         $customers = $paginator->paginate(
             $qb,
             $request->query->getInt('page', 1),
@@ -414,7 +432,7 @@ class AdminController extends AbstractController
                 PaginatorInterface::DEFAULT_SORT_FIELD_NAME => 'c.id',
                 PaginatorInterface::DEFAULT_SORT_DIRECTION => 'desc',
                 PaginatorInterface::SORT_FIELD_ALLOW_LIST => ['u.username', 'c.id'],
-                PaginatorInterface::FILTER_FIELD_ALLOW_LIST => ['u.roles', 'u.username']
+                PaginatorInterface::FILTER_FIELD_ALLOW_LIST => ['u.roles', 'u.username', 'u.enabled']
             ]
         );
 
@@ -446,10 +464,47 @@ class AdminController extends AbstractController
             $attributes[$key]['last_order'] = $res;
         }
 
-        return $this->render('admin/users.html.twig', array(
+        $parameters = [
             'customers' => $customers,
             'attributes' => $attributes,
-        ));
+            'optin_export_users_enabled' => $this->optinExportUsersEnabled,
+        ];
+
+        if ($this->optinExportUsersEnabled) {
+
+            $usersExportForm = $this->createForm(UsersExportType::class);
+            $usersExportForm->handleRequest($request);
+
+            if ($usersExportForm->isSubmitted() && $usersExportForm->isValid()) {
+                $optinSelected = $usersExportForm->get('optins')->getData();
+
+                $optinsQB = $this->getDoctrine()
+                    ->getRepository(User::class)
+                    ->createQueryBuilder('u')
+                    ->select('u.username, u.email')
+                    ->innerJoin('u.optinConsents', 'oc')
+                    ->where('oc.type = :optin and oc.accepted = true')
+                    ->setParameter('optin', $optinSelected);
+
+                $optinsResult = $optinsQB->getQuery()->getResult();
+
+                $csv = $this->get('serializer')->serialize($optinsResult, 'csv');
+
+                $filename = sprintf('coopcycle-users-for-%s-.csv', $optinSelected);
+
+                $response = new Response($csv);
+                $response->headers->set('Content-Disposition', $response->headers->makeDisposition(
+                    ResponseHeaderBag::DISPOSITION_ATTACHMENT,
+                    $filename
+                ));
+
+                return $response;
+            }
+
+            $parameters['users_export_form'] = $usersExportForm->createView();
+        }
+
+        return $this->render('admin/users.html.twig', $parameters);
     }
 
     /**
@@ -614,6 +669,7 @@ class AdminController extends AbstractController
             $customer->setEmail($anonymousEmail);
             $customer->setEmailCanonical($anonymousEmail);
             $customer->setFullName('');
+            $customer->setPhoneNumber('');
         }
 
         $userManager->updateUser($user, false);
@@ -666,7 +722,8 @@ class AdminController extends AbstractController
     /**
      * @Route("/admin/deliveries", name="admin_deliveries")
      */
-    public function deliveriesAction(Request $request, DeliveryDataExporter $dataExporter, PaginatorInterface $paginator)
+    public function deliveriesAction(Request $request,
+        PaginatorInterface $paginator)
     {
         $deliveryImportForm = $this->createForm(DeliveryImportType::class, null, [
             'with_store' => true
@@ -691,24 +748,20 @@ class AdminController extends AbstractController
             return $this->redirectToRoute('admin_deliveries');
         }
 
-        $dataExportForm = $this->createForm(DataExportType::class, null, [
-            'data_exporter' => $dataExporter
-        ]);
+        $dataExportForm = $this->createForm(DataExportType::class);
 
         $dataExportForm->handleRequest($request);
         if ($dataExportForm->isSubmitted() && $dataExportForm->isValid()) {
+
             $data = $dataExportForm->getData();
 
-            $start = $dataExportForm->get('start')->getData();
-            $end = $dataExportForm->get('end')->getData();
+            $response = new Response($data['content']);
 
-            $response = new Response($data['csv']);
-
-            $response->headers->add(['Content-Type' => 'text/csv']);
+            $response->headers->add(['Content-Type' => $data['content_type']]);
             $response->headers->add([
                 'Content-Disposition' => $response->headers->makeDisposition(
                     ResponseHeaderBag::DISPOSITION_ATTACHMENT,
-                    sprintf('deliveries-%s-%s.csv', $start->format('Y-m-d'), $end->format('Y-m-d'))
+                    $data['filename']
                 )
             ]);
 
@@ -1031,12 +1084,6 @@ class AdminController extends AbstractController
         ]);
     }
 
-    public function getStoreList()
-    {
-        $stores = $this->getDoctrine()->getRepository(Store::class)->findBy([], ['name' => 'ASC']);
-        return [ $stores, 1, 1 ];
-    }
-
     public function newStoreAction(Request $request)
     {
         $store = new Store();
@@ -1049,17 +1096,20 @@ class AdminController extends AbstractController
      */
     public function searchRestaurantsAction(Request $request)
     {
-        $repository = $this->getDoctrine()->getRepository(LocalBusiness::class);
+        $searchParameters = [
+            'q'         => $request->query->get('q'),
+            'query_by'  => 'name',
+        ];
 
-        $results = $repository->search($request->query->get('q'));
+        $result = $this->typesenseShopsClient->search($searchParameters);
 
         if ($request->query->has('format') && 'json' === $request->query->get('format')) {
-            $data = array_map(function (LocalBusiness $restaurant) {
+            $data = array_map(function ($hit) {
                 return [
-                    'id' => $restaurant->getId(),
-                    'name' => $restaurant->getName(),
+                    'id' => $hit['document']['id'],
+                    'name' => $hit['document']['name'],
                 ];
-            }, $results);
+            }, $result['hits']);
 
             return new JsonResponse($data);
         }
@@ -1443,6 +1493,106 @@ class AdminController extends AbstractController
     }
 
     /**
+     * @Route("/admin/integrations", name="admin_integrations")
+     */
+    public function integrationsAction(Request $request)
+    {
+        return $this->render('admin/integrations.html.twig');
+    }
+
+    /**
+     * @Route("/admin/integrations/woopit", name="admin_integrations_woopit")
+     */
+    public function integrationWoopitAction(Request $request)
+    {
+        if ($request->isMethod('POST') && $request->request->has('oauth2_client')) {
+
+            $oAuth2ClientId = $request->get('oauth2_client');
+            $oAuth2Client = $this->entityManager
+                ->getRepository(OAuth2Client::class)
+                ->find($oAuth2ClientId);
+
+            $newSecret = hash('sha512', random_bytes(32));
+            $oAuth2Client->setSecret($newSecret);
+
+            $this->entityManager->flush();
+
+            return $this->redirectToRoute('admin_integrations');
+        }
+
+        $qb = $this->entityManager
+            ->getRepository(WoopitIntegration::class)
+            ->createQueryBuilder('i');
+
+        $integrations = $qb->getQuery()->getResult();
+
+        return $this->render('_partials/integrations/woopit/list.html.twig', [
+            'integrations' => $integrations
+        ]);
+    }
+
+    /**
+     * @Route("/admin/integrations/woopit/new", name="admin_new_integration_woopit")
+     */
+    public function newIntegrationAction(Request $request)
+    {
+        $woopitIntegration = new WoopitIntegration();
+
+        $form = $this->createForm(WoopitIntegrationType::class, $woopitIntegration);
+
+        $form->handleRequest($request);
+        if ($form->isSubmitted() && $form->isValid()) {
+            $woopitIntegration = $form->getData();
+
+            $this->getDoctrine()
+                ->getManagerForClass(WoopitIntegration::class)
+                ->persist($woopitIntegration);
+
+            $this->getDoctrine()
+                ->getManagerForClass(WoopitIntegration::class)
+                ->flush();
+
+            $this->addFlash(
+                'notice',
+                $this->translator->trans('integration.created.message')
+            );
+
+            return $this->redirectToRoute('admin_integration_woopit', [ 'id' => $woopitIntegration->getId() ]);
+        }
+
+        return $this->render('_partials/integrations/woopit/form.html.twig', [
+            'form' => $form->createView(),
+        ]);
+    }
+
+    /**
+     * @Route("/admin/integrtations/woopit/{id}", name="admin_integration_woopit")
+     */
+    public function integrationAction($id, Request $request)
+    {
+        $apiApp = $this->getDoctrine()
+            ->getRepository(WoopitIntegration::class)
+            ->find($id);
+
+        $form = $this->createForm(WoopitIntegrationType::class, $apiApp);
+
+        $form->handleRequest($request);
+        if ($form->isSubmitted() && $form->isValid()) {
+            $apiApp = $form->getData();
+
+            $this->getDoctrine()
+                ->getManagerForClass(WoopitIntegration::class)
+                ->flush();
+
+            return $this->redirectToRoute('admin_integrations_woopit');
+        }
+
+        return $this->render('_partials/integrations/woopit/form.html.twig', [
+            'form' => $form->createView(),
+        ]);
+    }
+
+    /**
      * @Route("/admin/promotions", name="admin_promotions")
      */
     public function promotionsAction()
@@ -1735,12 +1885,6 @@ class AdminController extends AbstractController
 
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
-            if ($timeSlot->hasOpeningHours()) {
-                foreach ($timeSlot->getChoices() as $choice) {
-                    $timeSlot->removeChoice($choice);
-                }
-                $timeSlot->setWorkingDaysOnly(false);
-            }
 
             $objectManager->persist($timeSlot);
             $objectManager->flush();
@@ -2222,28 +2366,55 @@ class AdminController extends AbstractController
         ]);
     }
 
-    public function metricsAction(LocalBusinessRepository $localBusinessRepository, Request $request)
+    public function metricsAction(
+        LocalBusinessRepository $localBusinessRepository,
+        CubeJsTokenFactory $tokenFactory,
+        Request $request)
     {
-        // https://cube.dev/docs/security
-        $key = \Lcobucci\JWT\Signer\Key\InMemory::plainText($_SERVER['CUBEJS_API_SECRET']);
-        $config = \Lcobucci\JWT\Configuration::forSymmetricSigner(
-            new \Lcobucci\JWT\Signer\Hmac\Sha256(),
-            $key
-        );
-
-        // https://github.com/lcobucci/jwt/issues/229
-        $now = new \DateTimeImmutable('@' . time());
-
-        $token = $config->builder()
-                ->expiresAt($now->modify('+1 hour'))
-                ->withClaim('database', $this->getParameter('database_name'))
-                ->getToken($config->signer(), $config->signingKey());
-
         $zeroWasteCount = $localBusinessRepository->countZeroWaste();
 
         return $this->render('admin/metrics.html.twig', [
-            'cube_token' => $token->toString(),
+            'cube_token' => $tokenFactory->createToken(),
             'zero_waste' => $zeroWasteCount > 0,
+        ]);
+    }
+
+    /**
+     * @Route("/admin/vehicles/new", name="admin_new_vehicle")
+     */
+    public function newVehicleAction(Request $request)
+    {
+        $vehicle = new Vehicle();
+
+        $form = $this->createForm(VehicleType::class, $vehicle);
+
+        if ($request->isMethod('POST') && $form->handleRequest($request)->isValid()) {
+
+            $this->getDoctrine()->getManager()->persist($vehicle);
+            $this->getDoctrine()->getManager()->flush();
+
+            $this->addFlash(
+                'notice',
+                $this->translator->trans('global.changesSaved')
+            );
+
+            return $this->redirectToRoute('admin_vehicles');
+        }
+
+        return $this->render('admin/vehicle.html.twig', [
+            'form' => $form->createView(),
+        ]);
+    }
+
+    /**
+     * @Route("/admin/vehicles", name="admin_vehicles")
+     */
+    public function vehiclesAction()
+    {
+        $vehicles = $this->getDoctrine()->getRepository(Vehicle::class)->findAll();
+
+        return $this->render('admin/vehicles.html.twig', [
+            'vehicles' => $vehicles,
         ]);
     }
 }

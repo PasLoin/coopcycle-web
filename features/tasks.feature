@@ -28,18 +28,29 @@ Feature: Tasks
             "id":@integer@,
             "type":"DROPOFF",
             "status":"TODO",
-            "address":@...@,
-            "after":"2018-03-02T11:30:00+00:00",
-            "before":"2018-03-02T12:00:00+00:00",
-            "doneAfter":"2018-03-02T11:30:00+00:00",
-            "doneBefore":"2018-03-02T12:00:00+00:00",
+            "address":{"@*@":"@*@"},
+            "after":"@string@.isDateTime().startsWith('2018-03-02T11:30:00')",
+            "before":"@string@.isDateTime().startsWith('2018-03-02T12:00:00')",
+            "doneAfter":"@string@.isDateTime().startsWith('2018-03-02T11:30:00')",
+            "doneBefore":"@string@.isDateTime().startsWith('2018-03-02T12:00:00')",
             "comments":"#bob",
             "updatedAt":"@string@.isDateTime()",
             "isAssigned":true,
             "assignedTo":"bob",
             "previous":null,
-            "group":null,
-            "tags":@array@
+            "group":{"@*@":"@*@"},
+            "tags":@array@,
+            "doorstep":@boolean@,
+            "ref":null,
+            "recurrenceRule":null,
+            "metadata":[],
+            "weight":null,
+            "orgName":"",
+            "images":[],
+            "next":null,
+            "packages":[],
+            "position":0,
+            "createdAt":"@string@.isDateTime()"
           },
           {
             "@id":"@string@.startsWith('/api/tasks')",
@@ -47,18 +58,29 @@ Feature: Tasks
             "id":@integer@,
             "type":"DROPOFF",
             "status":"DONE",
-            "address":@...@,
-            "after":"2018-03-02T12:00:00+00:00",
-            "before":"2018-03-02T12:30:00+00:00",
-            "doneAfter":"2018-03-02T12:00:00+00:00",
-            "doneBefore":"2018-03-02T12:30:00+00:00",
+            "address":{"@*@":"@*@"},
+            "after":"@string@.isDateTime().startsWith('2018-03-02T12:00:00')",
+            "before":"@string@.isDateTime().startsWith('2018-03-02T12:30:00')",
+            "doneAfter":"@string@.isDateTime().startsWith('2018-03-02T12:00:00')",
+            "doneBefore":"@string@.isDateTime().startsWith('2018-03-02T12:30:00')",
             "comments":"#bob",
             "updatedAt":"@string@.isDateTime()",
             "isAssigned":true,
             "assignedTo":"bob",
             "previous":null,
             "group":null,
-            "tags":@array@
+            "tags":@array@,
+            "doorstep":@boolean@,
+            "ref":null,
+            "recurrenceRule":null,
+            "metadata":[],
+            "weight":null,
+            "orgName":"",
+            "images":[],
+            "next":null,
+            "packages":[],
+            "position":1,
+            "createdAt":"@string@.isDateTime()"
           }
         ],
         "hydra:totalItems":2,
@@ -69,18 +91,29 @@ Feature: Tasks
             "id":@integer@,
             "type":"DROPOFF",
             "status":"TODO",
-            "address":@...@,
-            "after":"2018-03-02T11:30:00+00:00",
-            "before":"2018-03-02T12:00:00+00:00",
-            "doneAfter":"2018-03-02T11:30:00+00:00",
-            "doneBefore":"2018-03-02T12:00:00+00:00",
+            "address":{"@*@":"@*@"},
+            "after":"@string@.isDateTime().startsWith('2018-03-02T11:30:00')",
+            "before":"@string@.isDateTime().startsWith('2018-03-02T12:00:00')",
+            "doneAfter":"@string@.isDateTime().startsWith('2018-03-02T11:30:00')",
+            "doneBefore":"@string@.isDateTime().startsWith('2018-03-02T12:00:00')",
             "comments":"#bob",
             "updatedAt":"@string@.isDateTime()",
             "isAssigned":true,
             "assignedTo":"bob",
             "previous":null,
-            "group":null,
-            "tags":@array@
+            "group":{"@*@":"@*@"},
+            "tags":@array@,
+            "doorstep":@boolean@,
+            "ref":null,
+            "recurrenceRule":null,
+            "metadata":[],
+            "weight":null,
+            "orgName":"",
+            "images":[],
+            "next":null,
+            "packages":[],
+            "position":0,
+            "createdAt":"@string@.isDateTime()"
           },
           {
             "@id":"@string@.startsWith('/api/tasks')",
@@ -88,18 +121,29 @@ Feature: Tasks
             "id":@integer@,
             "type":"DROPOFF",
             "status":"DONE",
-            "address":@...@,
-            "after":"2018-03-02T12:00:00+00:00",
-            "before":"2018-03-02T12:30:00+00:00",
-            "doneAfter":"2018-03-02T12:00:00+00:00",
-            "doneBefore":"2018-03-02T12:30:00+00:00",
+            "address":{"@*@":"@*@"},
+            "after":"@string@.isDateTime().startsWith('2018-03-02T12:00:00')",
+            "before":"@string@.isDateTime().startsWith('2018-03-02T12:30:00')",
+            "doneAfter":"@string@.isDateTime().startsWith('2018-03-02T12:00:00')",
+            "doneBefore":"@string@.isDateTime().startsWith('2018-03-02T12:30:00')",
             "comments":"#bob",
             "updatedAt":"@string@.isDateTime()",
             "isAssigned":true,
             "assignedTo":"bob",
             "previous":null,
             "group":null,
-            "tags":@array@
+            "tags":@array@,
+            "doorstep":@boolean@,
+            "ref":null,
+            "recurrenceRule":null,
+            "metadata":[],
+            "weight":null,
+            "orgName":"",
+            "images":[],
+            "next":null,
+            "packages":[],
+            "position":1,
+            "createdAt":"@string@.isDateTime()"
           }
         ],
         "distance":@integer@,
@@ -171,22 +215,9 @@ Feature: Tasks
         "hydra:totalItems":2,
         "hydra:search":{
           "@type":"hydra:IriTemplate",
-          "hydra:template":"/api/tasks/2/events{?date,assigned}",
+          "hydra:template":"/api/tasks/2/events{?date,assigned,organization}",
           "hydra:variableRepresentation":"BasicRepresentation",
-          "hydra:mapping":[
-            {
-              "@type":"IriTemplateMapping",
-              "variable":"date",
-              "property":"date",
-              "required":false
-            },
-            {
-              "@type":"IriTemplateMapping",
-              "variable":"assigned",
-              "property":"assigned",
-              "required":false
-            }
-          ]
+          "hydra:mapping":@array@
         }
       }
       """
@@ -261,6 +292,67 @@ Feature: Tasks
       }
       """
 
+  Scenario: Add task to a group
+    Given the fixtures files are loaded:
+      | sylius_channels.yml |
+      | tasks.yml           |
+      | users.yml           |
+    And the user "bob" has role "ROLE_ADMIN"
+    And the user "bob" is authenticated
+    And I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And the user "bob" sends a "POST" request to "/api/task_groups/1/tasks" with body:
+      """
+      {
+        "tasks": [
+          "/api/tasks/1",
+          "/api/tasks/3"
+        ]
+      }
+      """
+    Then the response status code should be 201
+    And the response should be in JSON
+    And the JSON should match:
+      """
+      {
+          "@context": "\/api\/contexts\/TaskGroup",
+          "@id": "\/api\/task_groups\/1",
+          "@type": "TaskGroup",
+          "id": 1,
+          "name": "Group #1",
+          "tasks":"@array@.count(3)"
+      }
+      """
+
+  Scenario: Remove task from a group
+    Given the fixtures files are loaded:
+      | sylius_channels.yml |
+      | tasks.yml           |
+      | users.yml           |
+    And the user "bob" has role "ROLE_ADMIN"
+    And the user "bob" is authenticated
+    When I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And the user "bob" sends a "DELETE" request to "/api/tasks/2/group"
+    Then the response status code should be 204
+    When the user "bob" is authenticated
+    And I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And the user "bob" sends a "GET" request to "/api/task_groups/1"
+    Then the response status code should be 200
+    And the response should be in JSON
+    And the JSON should match:
+      """
+      {
+        "@context": "/api/contexts/TaskGroup",
+        "@id": "/api/task_groups/1",
+        "@type": "TaskGroup",
+        "id": 1,
+        "name": "Group #1",
+        "tasks": []
+      }
+      """
+
   Scenario: Start a task
     Given the fixtures files are loaded:
       | sylius_channels.yml |
@@ -310,6 +402,14 @@ Feature: Tasks
         "tags":@array@
       }
       """
+    # Trying to start twice should do nothing
+    When I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And the user "bob" sends a "PUT" request to "/api/tasks/2/start" with body:
+      """
+      {}
+      """
+    Then the response status code should be 200
 
   Scenario: Mark task as done with contact name
     Given the fixtures files are loaded:
@@ -374,7 +474,9 @@ Feature: Tasks
         "ref":null,
         "recurrenceRule": null,
         "metadata": [],
-        "weight":null
+        "weight":null,
+        "packages": [],
+        "createdAt":"@string@.isDateTime()"
       }
       """
 
@@ -665,7 +767,9 @@ Feature: Tasks
         "ref":null,
         "recurrenceRule": null,
         "metadata": [],
-        "weight": 800
+        "weight": 800,
+        "packages": [],
+        "createdAt":"@string@.isDateTime()"
       }
       """
 
@@ -743,7 +847,9 @@ Feature: Tasks
         "ref":null,
         "recurrenceRule": null,
         "metadata": [],
-        "weight":null
+        "weight":null,
+        "packages": [],
+        "createdAt":"@string@.isDateTime()"
       }
       """
 
@@ -871,7 +977,9 @@ Feature: Tasks
               "foo":"bar",
               "baz":"bat"
             },
-            "weight":null
+            "weight":null,
+            "packages": [],
+            "createdAt":"@string@.isDateTime()"
           },
           {
             "@id":"/api/tasks/2",
@@ -898,7 +1006,9 @@ Feature: Tasks
             "ref": null,
             "recurrenceRule":null,
             "metadata":[],
-            "weight":null
+            "weight":null,
+            "packages": [],
+            "createdAt":"@string@.isDateTime()"
           }
         ],
         "hydra:totalItems":2,
@@ -908,22 +1018,9 @@ Feature: Tasks
         },
         "hydra:search":{
           "@type":"hydra:IriTemplate",
-          "hydra:template":"/api/tasks{?date,assigned}",
+          "hydra:template":"/api/tasks{?date,assigned,organization}",
           "hydra:variableRepresentation":"BasicRepresentation",
-          "hydra:mapping":[
-            {
-              "@type":"IriTemplateMapping",
-              "variable":"date",
-              "property":"date",
-              "required":false
-            },
-            {
-              "@type":"IriTemplateMapping",
-              "variable":"assigned",
-              "property":"assigned",
-              "required":false
-            }
-          ]
+          "hydra:mapping":@array@
         }
       }
       """
@@ -1034,7 +1131,7 @@ Feature: Tasks
         },
         "hydra:search":{
           "@type":"hydra:IriTemplate",
-          "hydra:template":"/api/tasks{?date,assigned}",
+          "hydra:template":"/api/tasks{?date,assigned,organization}",
           "hydra:variableRepresentation":"BasicRepresentation",
           "hydra:mapping":@array@
         }
@@ -1086,7 +1183,7 @@ Feature: Tasks
         },
         "hydra:search":{
           "@type":"hydra:IriTemplate",
-          "hydra:template":"/api/tasks{?date,assigned}",
+          "hydra:template":"/api/tasks{?date,assigned,organization}",
           "hydra:variableRepresentation":"BasicRepresentation",
           "hydra:mapping":@array@
         }
@@ -1231,7 +1328,8 @@ Feature: Tasks
           "comments":"",
           "after":"2019-11-12T19:00:00+01:00",
           "before":"2019-11-12T19:30:00+01:00"
-        }
+        },
+        "trackingUrl": @string@
       }
       """
 
@@ -1282,7 +1380,8 @@ Feature: Tasks
           "comments":"",
           "after":"2019-11-12T19:00:00+01:00",
           "before":"2019-11-12T19:30:00+01:00"
-        }
+        },
+        "trackingUrl": @string@
       }
       """
     When I add "Content-Type" header equal to "application/ld+json"
@@ -1325,7 +1424,8 @@ Feature: Tasks
           "comments":"",
           "after":"2019-11-12T19:00:00+01:00",
           "before":"2019-11-12T19:30:00+01:00"
-        }
+        },
+        "trackingUrl": @string@
       }
       """
 
@@ -1353,6 +1453,7 @@ Feature: Tasks
         "@context":"/api/contexts/TaskGroup",
         "@id":"/api/task_groups/1",
         "@type":"TaskGroup",
+        "id": 1,
         "name":@string@,
         "tasks":[
           "@string@.matchRegex('#/api/tasks/[0-9]+#')",
@@ -1389,6 +1490,7 @@ Feature: Tasks
         "@context":"/api/contexts/TaskGroup",
         "@id":"/api/task_groups/1",
         "@type":"TaskGroup",
+        "id": 1,
         "name":@string@,
         "tasks":[
           "@string@.matchRegex('#/api/tasks/[0-9]+#')"
@@ -1484,6 +1586,7 @@ Feature: Tasks
         "@context":"/api/contexts/TaskGroup",
         "@id":"/api/task_groups/1",
         "@type":"TaskGroup",
+        "id": 1,
         "name":@string@,
         "tasks":[
           "@string@.matchRegex('#/api/tasks/[0-9]+#')",
@@ -1544,6 +1647,120 @@ Feature: Tasks
               "code":@string@
             }
          ]
+      }
+      """
+
+  Scenario: Create and update task group
+    Given the fixtures files are loaded:
+      | dispatch.yml        |
+    And the user "bob" has role "ROLE_ADMIN"
+    And the user "bob" is authenticated
+    When I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And the user "bob" sends a "POST" request to "/api/task_groups" with body:
+      """
+      {
+        "name": "Fancy group",
+        "tasks": [
+          "/api/tasks/1",
+          "/api/tasks/2"
+        ]
+      }
+      """
+    Then the response status code should be 201
+    And the response should be in JSON
+    And the JSON should match:
+      """
+      {
+        "@context":"/api/contexts/TaskGroup",
+        "@id":"/api/task_groups/1",
+        "@type":"TaskGroup",
+        "id": 1,
+        "name":"Fancy group",
+        "tasks":"@array@.count(2)"
+      }
+      """
+    When the user "bob" is authenticated
+    And I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And the user "bob" sends a "PUT" request to "/api/task_groups/1" with body:
+      """
+      {
+        "name": "New name group",
+        "tasks": [
+          "/api/tasks/1",
+          "/api/tasks/2"
+        ]
+      }
+      """
+    Then the response status code should be 200
+    And the response should be in JSON
+    And the JSON should match:
+      """
+      {
+        "@context":"/api/contexts/TaskGroup",
+        "@id":"/api/task_groups/1",
+        "@type":"TaskGroup",
+        "id": 1,
+        "name":"New name group",
+        "tasks":"@array@.count(2)"
+      }
+      """
+
+  Scenario: Create and update task group
+    Given the fixtures files are loaded:
+      | dispatch.yml        |
+    And the user "bob" has role "ROLE_ADMIN"
+    And the user "bob" is authenticated
+    When I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And the user "bob" sends a "POST" request to "/api/task_groups" with body:
+      """
+      {
+        "name": "Fancy group",
+        "tasks": [
+          "/api/tasks/1",
+          "/api/tasks/2"
+        ]
+      }
+      """
+    Then the response status code should be 201
+    And the response should be in JSON
+    And the JSON should match:
+      """
+      {
+        "@context":"/api/contexts/TaskGroup",
+        "@id":"/api/task_groups/1",
+        "@type":"TaskGroup",
+        "id": 1,
+        "name":"Fancy group",
+        "tasks":"@array@.count(2)"
+      }
+      """
+    When the user "bob" is authenticated
+    And I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And the user "bob" sends a "PUT" request to "/api/task_groups/1" with body:
+      """
+      {
+        "name": "New name group",
+        "tasks": [
+          "/api/tasks/1",
+          "/api/tasks/2"
+        ]
+      }
+      """
+    Then the response status code should be 200
+    And the response should be in JSON
+    And the JSON should match:
+      """
+      {
+        "@context":"/api/contexts/TaskGroup",
+        "@id":"/api/task_groups/1",
+        "@type":"TaskGroup",
+        "id": 1,
+        "name":"New name group",
+        "tasks":"@array@.count(2)"
       }
       """
 

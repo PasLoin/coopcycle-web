@@ -108,8 +108,6 @@ help.home: 'Inicio'
 restaurants.no_results: 'No hemos trobau garra restaurant que coincida con a tuya
   busqueda ☹<br> Torna a prebar con una adreza diferent'
 restaurants.visible_by_you_only: 'Visible solo pa tu'
-restaurants.placeholder.title: 'Un poquet de paciencia…'
-restaurants.placeholder.text: 'A escape plegarán nuevos restaurants!'
 localBusiness.form.orderingDelayMinutes: 'Retardo adicional antes d''o pediu'
 localBusiness.form.orderingDelayMinutes.help: 'Usa estes campos pa anyadir un tiempo
   adicional antes d''o pediu d''un usuario. Esta opción no cambia los tiempos de cocina
@@ -709,7 +707,6 @@ form.embed_settings.with_weight.label: 'Consultar peso de biens'
 form.time_slot.name.label: 'Nombre'
 form.time_slot.interval.label: 'Intervalo'
 form.time_slot.working_days_only.label: 'Permitir triar nomás días laborals'
-form.time_slot.choices.label: 'Opcions'
 form.time_slot_choice.start_time.label: 'Hora d''inicio'
 form.time_slot_choice.end_time.label: 'Hora de finalización'
 form.time_slot.prior_notice_hours.label: 'Aviso previo (horas)'

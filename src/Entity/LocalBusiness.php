@@ -52,7 +52,7 @@ use Vich\UploaderBundle\Mapping\Annotation as Vich;
  *     "get"={
  *       "method"="GET",
  *       "pagination_enabled"=false,
- *       "normalization_context"={"groups"={"restaurant", "address", "order"}}
+ *       "normalization_context"={"groups"={"restaurant", "address", "order", "restaurant_list"}}
  *     },
  *     "me_restaurants"={
  *       "method"="GET",
@@ -227,6 +227,11 @@ class LocalBusiness extends BaseLocalBusiness implements
      */
     protected $stripeConnectRoles = ['ROLE_ADMIN'];
 
+    /**
+     * The roles needed to be able to manage Mercadopago connect.
+     */
+    protected $mercadopagoConnectRoles = ['ROLE_ADMIN'];
+
     protected $preparationTimeRules;
 
     protected $reusablePackagings;
@@ -242,7 +247,7 @@ class LocalBusiness extends BaseLocalBusiness implements
      */
     protected $isAvailableForB2b;
 
-    protected $mercadopagoAccounts;
+    protected $mercadopagoAccount;
 
     protected $edenredMerchantId;
 
@@ -253,6 +258,10 @@ class LocalBusiness extends BaseLocalBusiness implements
     protected $enBoitLePlatEnabled = false;
 
     protected $cashOnDeliveryEnabled = false;
+
+    protected $dabbaEnabled = false;
+
+    protected $dabbaCode;
 
     public function __construct()
     {
@@ -267,7 +276,6 @@ class LocalBusiness extends BaseLocalBusiness implements
         $this->reusablePackagings = new ArrayCollection();
         $this->promotions = new ArrayCollection();
         $this->isAvailableForB2b = false ;
-        $this->mercadopagoAccounts = new ArrayCollection();
 
         $this->fulfillmentMethods = new ArrayCollection();
         $this->addFulfillmentMethod('delivery', true);
@@ -448,6 +456,18 @@ class LocalBusiness extends BaseLocalBusiness implements
     public function setState($state)
     {
         $this->state = $state;
+
+        return $this;
+    }
+
+    public function getMercadopagoConnectRoles()
+    {
+        return $this->mercadopagoConnectRoles;
+    }
+
+    public function setMercadopagoConnectRoles($mercadopagoConnectRoles)
+    {
+        $this->mercadopagoConnectRoles = $mercadopagoConnectRoles;
 
         return $this;
     }
@@ -771,26 +791,14 @@ class LocalBusiness extends BaseLocalBusiness implements
         $this->owners->add($owner);
     }
 
-    public function getMercadopagoAccounts()
-    {
-        return $this->mercadopagoAccounts;
-    }
-
-    public function addMercadopagoAccount(MercadopagoAccount $account)
-    {
-        $manyToMany = new RestaurantMercadopagoAccount();
-        $manyToMany->setRestaurant($this);
-        $manyToMany->setMercadopagoAccount($account);
-
-        $this->mercadopagoAccounts->add($manyToMany);
-    }
-
     public function getMercadopagoAccount(): ?MercadopagoAccount
     {
-        foreach ($this->getMercadopagoAccounts() as $account) {
-            return $account->getMercadopagoAccount();
-        }
-        return null;
+        return $this->mercadopagoAccount;
+    }
+
+    public function setMercadopagoAccount(?MercadopagoAccount $account)
+    {
+        $this->mercadopagoAccount = $account;
     }
 
     public function asOriginCode(): string
@@ -941,5 +949,73 @@ class LocalBusiness extends BaseLocalBusiness implements
         $this->enBoitLePlatEnabled = $enabled;
 
         return $this;
+    }
+
+    /**
+     * @SerializedName("facets")
+     * @Groups("restaurant_list")
+     */
+    public function getFacets()
+    {
+        $facets = [
+            'category' => [],
+            'cuisine'  => [],
+            'type'     => [],
+        ];
+
+        if ($this->isExclusive()) {
+            $facets['category'][] = 'exclusive';
+        }
+
+        if ($this->isFeatured()) {
+            $facets['category'][] = 'featured';
+        }
+
+        if ($this->isZeroWaste()) {
+            $facets['category'][] = 'zero_waste';
+        }
+
+        foreach ($this->getServesCuisine() as $cuisine) {
+            $facets['cuisine'][] = $cuisine->getName();
+        }
+
+        $facets['type'] = $this->getType();
+
+        return $facets;
+    }
+
+    public function isZeroWaste()
+    {
+        return $this->isDepositRefundEnabled() || $this->isLoopeatEnabled() || $this->isDabbaEnabled();
+    }
+
+    /**
+     * @return bool
+     */
+    public function isDabbaEnabled()
+    {
+        return $this->dabbaEnabled;
+    }
+
+    /**
+     * @param bool $enabled
+     *
+     * @return self
+     */
+    public function setDabbaEnabled($enabled)
+    {
+        $this->dabbaEnabled = $enabled;
+
+        return $this;
+    }
+
+    public function getDabbaCode()
+    {
+        return $this->dabbaCode;
+    }
+
+    public function setDabbaCode($dabbaCode)
+    {
+        $this->dabbaCode = $dabbaCode;
     }
 }

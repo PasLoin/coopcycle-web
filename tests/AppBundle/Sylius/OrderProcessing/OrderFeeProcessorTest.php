@@ -16,6 +16,7 @@ use AppBundle\Sylius\Order\AdjustmentInterface;
 use AppBundle\Sylius\Order\OrderInterface;
 use AppBundle\Sylius\OrderProcessing\OrderFeeProcessor;
 use AppBundle\Sylius\Promotion\Action\DeliveryPercentageDiscountPromotionActionCommand;
+use AppBundle\Sylius\Promotion\Action\FixedDiscountPromotionActionCommand;
 use Doctrine\Common\Collections\ArrayCollection;
 use Prophecy\Argument;
 use Prophecy\PhpUnit\ProphecyTrait;
@@ -560,6 +561,9 @@ class OrderFeeProcessorTest extends KernelTestCase
         $order->getAdjustments(AdjustmentInterface::DELIVERY_PROMOTION_ADJUSTMENT)
             ->willReturn(new ArrayCollection([]));
 
+        $order->getAdjustments(AdjustmentInterface::ORDER_PROMOTION_ADJUSTMENT)
+            ->willReturn(new ArrayCollection([]));
+
         $order->getAdjustmentsTotal(AdjustmentInterface::TIP_ADJUSTMENT)
             ->willReturn(0);
 
@@ -576,5 +580,114 @@ class OrderFeeProcessorTest extends KernelTestCase
         $order->addAdjustment(Argument::that(function ($adjustment) {
             return 590 === $adjustment->getAmount();
         }))->shouldHaveBeenCalled();
+    }
+
+    public function testOrderWithOrderPromotionDecreasesPlatformFee()
+    {
+        $contract = self::createContract(565, 350, 0.1860);
+
+        $restaurant = new Restaurant();
+        $restaurant->setContract($contract);
+
+        $order = new Order();
+        $order->setRestaurant($restaurant);
+        $order->addItem($this->createOrderItem(2500));
+
+        $promotion = new Promotion();
+        $promotion->setCode('REDUC2E');
+
+        $promotionAction = new PromotionAction();
+        $promotionAction->setType(DeliveryPercentageDiscountPromotionActionCommand::TYPE);
+        $promotionAction->setConfiguration([
+            'amount' => 200,
+            // When it's not set, it should default to true
+            // 'decrase_platform_fee' => true,
+        ]);
+
+        $promotion->addAction($promotionAction);
+
+        $this->promotionRepository
+            ->findOneBy(['code' => 'REDUC2E'])
+            ->willReturn($promotion);
+
+        $promoAdjustment = new Adjustment();
+        $promoAdjustment->setType(AdjustmentInterface::ORDER_PROMOTION_ADJUSTMENT);
+        $promoAdjustment->setLabel('Réduction 2€');
+        $promoAdjustment->setAmount(-350);
+        $promoAdjustment->setOriginCode('REDUC2E');
+
+        $order->addAdjustment($promoAdjustment);
+
+        $deliveryAdjustment = new Adjustment();
+        $deliveryAdjustment->setType(AdjustmentInterface::DELIVERY_ADJUSTMENT);
+        $deliveryAdjustment->setLabel('Delivery');
+        $deliveryAdjustment->setAmount(350);
+
+        $order->addAdjustment($deliveryAdjustment);
+
+        $this->orderFeeProcessor->process($order);
+
+        // The customer pays 25 (delivery is free)
+        $this->assertEquals(2500, $order->getTotal());
+
+        $feeAdjustments = $order->getAdjustments(AdjustmentInterface::FEE_ADJUSTMENT);
+        $deliveryAdjustments = $order->getAdjustments(AdjustmentInterface::DELIVERY_ADJUSTMENT);
+
+        $this->assertCount(1, $feeAdjustments);
+        $this->assertEquals(680, $order->getFeeTotal());
+    }
+
+    public function testOrderPromotionDoesNotAddNegativeAdjustment()
+    {
+        $contract = self::createContract(590, 590, 0.1860);
+
+        $restaurant = new Restaurant();
+        $restaurant->setContract($contract);
+
+        $order = new Order();
+        $order->setRestaurant($restaurant);
+        $order->addItem($this->createOrderItem(4000));
+
+        $promotion = new Promotion();
+        $promotion->setCode('REDUC30E');
+
+        $promotionAction = new PromotionAction();
+        $promotionAction->setType(FixedDiscountPromotionActionCommand::TYPE);
+        $promotionAction->setConfiguration([
+            'amount' => 3000,
+            // When it's not set, it should default to true
+            // 'decrase_platform_fee' => true,
+        ]);
+
+        $promotion->addAction($promotionAction);
+
+        $this->promotionRepository
+            ->findOneBy(['code' => 'REDUC30E'])
+            ->willReturn($promotion);
+
+        $promoAdjustment = new Adjustment();
+        $promoAdjustment->setType(AdjustmentInterface::ORDER_PROMOTION_ADJUSTMENT);
+        $promoAdjustment->setLabel('Réduction 30€');
+        $promoAdjustment->setAmount(-3000);
+        $promoAdjustment->setOriginCode('REDUC30E');
+
+        $order->addAdjustment($promoAdjustment);
+
+        $deliveryAdjustment = new Adjustment();
+        $deliveryAdjustment->setType(AdjustmentInterface::DELIVERY_ADJUSTMENT);
+        $deliveryAdjustment->setLabel('Delivery');
+        $deliveryAdjustment->setAmount(590);
+
+        $order->addAdjustment($deliveryAdjustment);
+
+        $this->orderFeeProcessor->process($order);
+
+        $this->assertEquals(1590, $order->getTotal());
+
+        $feeAdjustments = $order->getAdjustments(AdjustmentInterface::FEE_ADJUSTMENT);
+        $deliveryAdjustments = $order->getAdjustments(AdjustmentInterface::DELIVERY_ADJUSTMENT);
+
+        $this->assertCount(1, $feeAdjustments);
+        $this->assertEquals(0, $order->getFeeTotal());
     }
 }

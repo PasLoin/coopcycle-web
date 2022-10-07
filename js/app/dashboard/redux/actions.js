@@ -126,6 +126,7 @@ export const OPEN_SETTINGS = 'OPEN_SETTINGS'
 export const CLOSE_SETTINGS = 'CLOSE_SETTINGS'
 export const SET_POLYLINE_STYLE = 'SET_POLYLINE_STYLE'
 export const SET_CLUSTERS_ENABLED = 'SET_CLUSTERS_ENABLED'
+export const SET_USE_AVATAR_COLORS = 'SET_USE_AVATAR_COLORS'
 
 export const LOAD_TASK_EVENTS_REQUEST = 'LOAD_TASK_EVENTS_REQUEST'
 export const LOAD_TASK_EVENTS_SUCCESS = 'LOAD_TASK_EVENTS_SUCCESS'
@@ -157,9 +158,18 @@ export const UPDATE_RECURRENCE_RULE_ERROR = 'UPDATE_RECURRENCE_RULE_ERROR'
 export const SHOW_RECURRENCE_RULES = 'SHOW_RECURRENCE_RULES'
 
 export const DELETE_GROUP_SUCCESS = 'DELETE_GROUP_SUCCESS'
+export const EDIT_GROUP_SUCCESS = 'EDIT_GROUP_SUCCESS'
 
 export const OPEN_CREATE_GROUP_MODAL = 'OPEN_CREATE_GROUP_MODAL'
 export const CLOSE_CREATE_GROUP_MODAL = 'CLOSE_CREATE_GROUP_MODAL'
+
+export const OPEN_ADD_TASK_TO_GROUP_MODAL = 'OPEN_ADD_TASK_TO_GROUP_MODAL'
+export const CLOSE_ADD_TASK_TO_GROUP_MODAL = 'CLOSE_ADD_TASK_TO_GROUP_MODAL'
+export const ADD_TASK_TO_GROUP_REQUEST = 'ADD_TASK_TO_GROUP_REQUEST'
+export const ADD_TASKS_TO_GROUP_SUCCESS = 'ADD_TASKS_TO_GROUP_SUCCESS'
+
+export const REMOVE_TASK_FROM_GROUP_REQUEST = 'REMOVE_TASK_FROM_GROUP_REQUEST'
+export const REMOVE_TASKS_FROM_GROUP_SUCCESS = 'REMOVE_TASKS_FROM_GROUP_SUCCESS'
 
 export const CREATE_GROUP_REQUEST = 'CREATE_GROUP_REQUEST'
 export const CREATE_GROUP_SUCCESS = 'CREATE_GROUP_SUCCESS'
@@ -465,6 +475,10 @@ export function setPolylineStyle(style) {
 
 export function setClustersEnabled(enabled) {
   return {type: SET_CLUSTERS_ENABLED, enabled}
+}
+
+export function setUseAvatarColors(useAvatarColors) {
+  return {type: SET_USE_AVATAR_COLORS, useAvatarColors}
 }
 
 export function loadTaskEventsRequest() {
@@ -1001,6 +1015,42 @@ export function deleteGroup(group) {
   }
 }
 
+export function editGroupSuccess(group) {
+  return { type: EDIT_GROUP_SUCCESS, group }
+}
+
+export function editGroup(group) {
+
+  return function(dispatch, getState) {
+
+    const { jwt } = getState()
+
+    const resourceId = group['@id']
+
+    return createClient(dispatch).request({
+      method: 'put',
+      url: resourceId,
+      headers: {
+        'Authorization': `Bearer ${jwt}`,
+        'Accept': 'application/ld+json',
+        'Content-Type': 'application/ld+json'
+      },
+      data: {
+        name: group.name
+      }
+    })
+      .then((res) => {
+        dispatch(editGroupSuccess())
+        return res.data
+      })
+      .catch(error => {
+        // eslint-disable-next-line no-console
+        console.log(error)
+        return null
+      })
+  }
+}
+
 export function openExportModal() {
   return { type: OPEN_EXPORT_MODAL }
 }
@@ -1161,6 +1211,89 @@ export function createGroup(name) {
       .then((response) => {
         dispatch(createGroupSuccess(response.data))
         dispatch(closeCreateGroupModal())
+      })
+      // eslint-disable-next-line no-console
+      .catch(error => console.log(error))
+  }
+}
+
+export function addTaskToGroupRequest() {
+  return { type: ADD_TASK_TO_GROUP_REQUEST }
+}
+
+export function addTasksToGroupSuccess(tasks, taskGroup) {
+  return { type: ADD_TASKS_TO_GROUP_SUCCESS, tasks, taskGroup }
+}
+
+export function openAddTaskToGroupModal() {
+  return { type: OPEN_ADD_TASK_TO_GROUP_MODAL }
+}
+
+export function closeAddTaskToGroupModal() {
+  return { type: CLOSE_ADD_TASK_TO_GROUP_MODAL }
+}
+
+export function addTasksToGroup(tasks, taskGroup) {
+
+  return function(dispatch, getState) {
+
+    const { jwt } = getState()
+
+    dispatch(addTaskToGroupRequest())
+
+    createClient(dispatch).request({
+      method: 'post',
+      url: `${taskGroup['@id']}/tasks`,
+      data: {
+        tasks: tasks.map((task) => task['@id'])
+      },
+      headers: {
+        'Authorization': `Bearer ${jwt}`,
+        'Accept': 'application/ld+json',
+        'Content-Type': 'application/ld+json'
+      }
+    })
+      .then(() => {
+        dispatch(closeAddTaskToGroupModal())
+        dispatch(addTasksToGroupSuccess(tasks, taskGroup))
+        dispatch(clearSelectedTasks())
+      })
+      // eslint-disable-next-line no-console
+      .catch(error => console.log(error))
+  }
+}
+
+export function removeTasksFromGroupRequest() {
+  return { type: REMOVE_TASK_FROM_GROUP_REQUEST }
+}
+
+export function removeTasksFromGroupSuccess(tasks) {
+  return { type: REMOVE_TASKS_FROM_GROUP_SUCCESS, tasks }
+}
+
+export function removeTasksFromGroup(tasks) {
+
+  return function(dispatch, getState) {
+
+    const { jwt } = getState()
+
+    dispatch(removeTasksFromGroupRequest())
+
+    const requests = tasks.map((task) => {
+      return createClient(dispatch).request({
+        method: 'delete',
+        url: `/api/tasks/${task.id}/group`,
+        headers: {
+          'Authorization': `Bearer ${jwt}`,
+          'Accept': 'application/ld+json',
+          'Content-Type': 'application/ld+json'
+        }
+      })
+    })
+
+    Promise.all(requests)
+      .then(() => {
+        dispatch(removeTasksFromGroupSuccess(tasks))
       })
       // eslint-disable-next-line no-console
       .catch(error => console.log(error))

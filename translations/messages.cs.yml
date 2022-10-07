@@ -100,8 +100,6 @@ help.home: Úvodní strana
 restaurants.no_results: Nebyly nalezeny žádné restaurace odpovídající vašemu hledání.
   ☹<br> Zkuste jinou adresu
 restaurants.visible_by_you_only: Viditelné pouze vámi
-restaurants.placeholder.title: Mějte strpení …
-restaurants.placeholder.text: Nové restaurace už se chystají!
 localBusiness.form.orderingDelayMinutes: Další zpoždění před objednáním
 localBusiness.form.orderingDelayMinutes.help: Pomocí tohoto pole můžete přidat nějaký
   čas, než si zákazník může objednat. Toto nastavení nemění čas potřebný pro vaření
@@ -784,7 +782,6 @@ form.package_set.name.label: Název
 form.time_slot.prior_notice_hours.label: Předběžné oznámení (hodiny)
 form.time_slot_choice.end_time.label: Čas konce
 form.time_slot_choice.start_time.label: Čas začátku
-form.time_slot.choices.label: Možnosti
 form.time_slot.working_days_only.label: Povolit výběr pouze pracovních dnů
 form.time_slot.interval.label: Časový rozsah
 form.time_slot.name.label: Název

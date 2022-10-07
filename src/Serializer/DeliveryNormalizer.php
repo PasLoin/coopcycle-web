@@ -10,9 +10,12 @@ use AppBundle\Entity\Delivery;
 use AppBundle\Entity\Package;
 use AppBundle\Entity\Task;
 use AppBundle\Service\Geocoder;
+use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Doctrine\Persistence\ManagerRegistry;
+use Hashids\Hashids;
 use Psr\Log\LoggerInterface;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
@@ -26,17 +29,27 @@ class DeliveryNormalizer implements NormalizerInterface, DenormalizerInterface
         ItemNormalizer $normalizer,
         Geocoder $geocoder,
         IriConverterInterface $iriConverter,
-        ManagerRegistry $doctrine)
+        ManagerRegistry $doctrine,
+        UrlGeneratorInterface $urlGenerator,
+        Hashids $hashids8)
     {
         $this->normalizer = $normalizer;
         $this->geocoder = $geocoder;
         $this->iriConverter = $iriConverter;
         $this->doctrine = $doctrine;
+        $this->urlGenerator = $urlGenerator;
+        $this->hashids = $hashids8;
     }
 
     public function normalize($object, $format = null, array $context = array())
     {
-        return $this->normalizer->normalize($object, $format, $context);
+        $data = $this->normalizer->normalize($object, $format, $context);
+
+        $data['trackingUrl'] = $this->urlGenerator->generate('public_delivery', [
+            'hashid' => $this->hashids->encode($object->getId())
+        ], UrlGeneratorInterface::ABSOLUTE_URL);
+
+        return $data;
     }
 
     public function supportsNormalization($data, $format = null)
@@ -46,6 +59,20 @@ class DeliveryNormalizer implements NormalizerInterface, DenormalizerInterface
 
     private function denormalizeTask($data, Task $task, $format = null)
     {
+        if (isset($data['type'])) {
+            $task->setType(strtoupper($data['type']));
+        }
+
+        // Legacy
+        if (isset($data['doneAfter']) && !isset($data['after'])) {
+            $data['after'] = $data['doneAfter'];
+            unset($data['doneAfter']);
+        }
+        if (isset($data['doneBefore']) && !isset($data['before'])) {
+            $data['before'] = $data['doneBefore'];
+            unset($data['doneBefore']);
+        }
+
         if (isset($data['timeSlot'])) {
 
             // TODO Validate time slot
@@ -80,12 +107,20 @@ class DeliveryNormalizer implements NormalizerInterface, DenormalizerInterface
                 $task->setBefore($period->getEndDate()->tz($tz)->toDateTime());
             }
 
-        } elseif (isset($data['before'])) {
+        } elseif (isset($data['before']) || isset($data['after'])) {
 
-            $task->setDoneBefore(new \DateTime($data['before']));
-        } elseif (isset($data['doneBefore'])) {
+            $tz = date_default_timezone_get();
 
-            $task->setDoneBefore(new \DateTime($data['doneBefore']));
+            if (isset($data['after'])) {
+                $task->setAfter(
+                    Carbon::parse($data['after'])->tz($tz)->toDateTime()
+                );
+            }
+            if (isset($data['before'])) {
+                $task->setBefore(
+                    Carbon::parse($data['before'])->tz($tz)->toDateTime()
+                );
+            }
         }
 
         if (isset($data['address'])) {
@@ -150,9 +185,19 @@ class DeliveryNormalizer implements NormalizerInterface, DenormalizerInterface
         $pickup = $delivery->getPickup();
         $dropoff = $delivery->getDropoff();
 
-        if (isset($data['tasks']) && is_array($data['tasks']) && count($data['tasks']) === 2) {
-            $this->denormalizeTask($data['tasks'][0], $pickup, $format);
-            $this->denormalizeTask($data['tasks'][1], $dropoff, $format);
+        if (isset($data['tasks']) && is_array($data['tasks'])) {
+            if (count($data['tasks']) === 2) {
+                $this->denormalizeTask($data['tasks'][0], $pickup, $format);
+                $this->denormalizeTask($data['tasks'][1], $dropoff, $format);
+            } else {
+                $tasks = array_map(function ($item) use ($format) {
+                    $task = new Task();
+                    $this->denormalizeTask($item, $task, $format);
+                    return $task;
+                }, $data['tasks']);
+
+                $delivery = $delivery->withTasks(...$tasks);
+            }
         } else {
             if (isset($data['dropoff'])) {
                 $this->denormalizeTask($data['dropoff'], $dropoff, $format);

@@ -161,47 +161,6 @@ Feature: Stores
       }
       """
 
-  Scenario: Retrieve time slot with choices
-    Given the fixtures files are loaded:
-      | sylius_channels.yml |
-      | stores.yml          |
-    And the user "bob" is loaded:
-      | email      | bob@coopcycle.org |
-      | password   | 123456            |
-    Given the user "bob" is authenticated
-    When I add "Content-Type" header equal to "application/ld+json"
-    And I add "Accept" header equal to "application/ld+json"
-    And the user "bob" sends a "GET" request to "/api/time_slots/1"
-    Then the response status code should be 200
-    And the response should be in JSON
-    And the JSON should match:
-      """
-      {
-        "@context":"/api/contexts/TimeSlot",
-        "@id":"/api/time_slots/1",
-        "@type":"TimeSlot",
-        "name":"Acme time slot",
-        "choices":[
-          {
-            "@type":"Choice",
-            "@id":@string@,
-            "startTime":"12:00:00",
-            "endTime":"14:00:00"
-          },
-          {
-            "@type":"Choice",
-            "@id":@string@,
-            "startTime":"14:00:00",
-            "endTime":"17:00:00"
-          }
-        ],
-        "interval":"2 days",
-        "priorNotice":null,
-        "workingDaysOnly":true,
-        "openingHoursSpecification":[]
-      }
-      """
-
   Scenario: Retrieve time slot with opening hours
     Given the fixtures files are loaded:
       | sylius_channels.yml |
@@ -283,7 +242,7 @@ Feature: Stores
         "@id":"/api/time_slots/2",
         "@type":"TimeSlot",
         "name":"Time slot with opening hours",
-        "choices":[],
+        "choices": [],
         "interval":"2 days",
         "priorNotice":null,
         "workingDaysOnly":false,
@@ -375,7 +334,8 @@ Feature: Stores
               "before":"2019-11-12T20:30:00+01:00",
               "doneBefore":"2019-11-12T20:30:00+01:00",
               "comments": ""
-            }
+            },
+            "trackingUrl": @string@
           },
           {
             "@id":"/api/deliveries/1",
@@ -404,7 +364,8 @@ Feature: Stores
               "before":"2019-11-12T19:30:00+01:00",
               "doneBefore":"2019-11-12T19:30:00+01:00",
               "comments": ""
-            }
+            },
+            "trackingUrl": @string@
           }
         ],
         "hydra:totalItems":2,
@@ -462,7 +423,8 @@ Feature: Stores
               "before":"2019-11-12T19:30:00+01:00",
               "doneBefore":"2019-11-12T19:30:00+01:00",
               "comments": ""
-            }
+            },
+            "trackingUrl": @string@
           },
           {
             "@id":"/api/deliveries/2",
@@ -491,7 +453,8 @@ Feature: Stores
               "before":"2019-11-12T20:30:00+01:00",
               "doneBefore":"2019-11-12T20:30:00+01:00",
               "comments": ""
-            }
+            },
+            "trackingUrl": @string@
           }
         ],
         "hydra:totalItems":2,
@@ -545,7 +508,8 @@ Feature: Stores
               "before":"2019-11-12T20:30:00+01:00",
               "doneBefore":"2019-11-12T20:30:00+01:00",
               "comments": ""
-            }
+            },
+            "trackingUrl": @string@
           },
           {
             "@id":"/api/deliveries/1",
@@ -574,7 +538,8 @@ Feature: Stores
               "before":"2019-11-12T19:30:00+01:00",
               "doneBefore":"2019-11-12T19:30:00+01:00",
               "comments": ""
-            }
+            },
+            "trackingUrl": @string@
           }
         ],
         "hydra:totalItems":2,

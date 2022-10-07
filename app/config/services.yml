@@ -102,6 +102,10 @@ services:
   Sylius\Component\Resource\Repository\RepositoryInterface $taxRateRepository: '@sylius.repository.tax_rate'
   League\Flysystem\Filesystem $taskImagesFilesystem: '@task_images_filesystem'
   Nucleos\ProfileBundle\Mailer\MailerInterface: '@nucleos_profile.mailer.default'
+  Lcobucci\JWT\Configuration $cubeJsJwtConfiguration: '@cubejs.jwt.config'
+  Hashids\Hashids $hashids8: '@hashids.8'
+  Hashids\Hashids $hashids12: '@hashids.12'
+  BenjaminFavre\OAuthHttpClient\OAuthHttpClient $woopitClient: '@woopit.oauth_http_client'
 
   AppBundle\Routing\FoodtechEnabledAwareLoader:
     arguments:
@@ -183,6 +187,7 @@ services:
     arguments:
       $promotionRuleFactory: '@sylius.factory.promotion_rule'
       $promotionFactory: '@sylius.factory.promotion'
+      $optinExportUsersEnabled: '%env(bool:OPTIN_EXPORT_USERS_ENABLED)%'
 
   AppBundle\EventListener\LocaleListener:
     arguments: ['%env(COOPCYCLE_LOCALE)%']
@@ -669,6 +674,11 @@ services:
       - { name: kernel.event_subscriber }
       - { name: monolog.logger, channel: urbantz }
 
+  AppBundle\Doctrine\EventSubscriber\ShopsEventsForTypesenseSubscriber:
+    tags:
+      - { name: monolog.logger }
+      - { name: doctrine.event_subscriber }
+
   AppBundle\Action\Settings:
     public: true
     arguments:
@@ -676,6 +686,7 @@ services:
       $phoneNumberNormalizer: '@misd_phone_number.serializer.normalizer'
       $country: '%country_iso%'
       $locale: '%env(COOPCYCLE_LOCALE)%'
+      $splitTermsAndConditionsAndPrivacyPolicy: '%env(SPLIT_TERMS_AND_CONDITIONS_AND_PRIVACY_POLICY)%'
 
   AppBundle\Action\Register:
     public: true
@@ -750,11 +761,21 @@ services:
 
   AppBundle\Api\DataProvider\RestaurantCollectionDataProvider:
     parent: 'api_platform.doctrine.orm.collection_data_provider'
-    arguments:
-      $restaurantFilter: '@coopcycle.utils.restaurant_filter'
-      $timingRegistry: '@AppBundle\Service\TimingRegistry'
     tags:
       - { name: 'api_platform.collection_data_provider', priority: 2 }
+    calls:
+      - setRestaurantFilter: ['@coopcycle.utils.restaurant_filter']
+      - setTimingRegistry: ['@AppBundle\Service\TimingRegistry']
+    autoconfigure: false
+    autowire: false
+    public: false
+
+  AppBundle\Api\DataProvider\TaskListCollectionDataProvider:
+    parent: 'api_platform.doctrine.orm.collection_data_provider'
+    tags:
+      - { name: 'api_platform.collection_data_provider', priority: 2 }
+    calls:
+      - setTokenExtractor: ['@AppBundle\Security\TokenStoreExtractor']
     autoconfigure: false
     autowire: false
     public: false
@@ -986,6 +1007,7 @@ services:
         - br
         - cr
         - mx
+        - cl
       $forceStripe: "%env(bool:FORCE_STRIPE)%"
 
   AppBundle\Payment\Gateway: ~
@@ -1034,6 +1056,9 @@ services:
   AppBundle\Security\ProductOptionValueVoter:
     tags: [ 'security.voter' ]
 
+  AppBundle\Security\DeliveryQuoteVoter:
+    tags: [ 'security.voter' ]
+
   # While adding a priority is optional, it’s recommended to add one to make sure the expected value is injected.
   # The built-in RequestAttributeValueResolver, which fetches attributes from the Request, has a priority of 100.
   # If your resolver also fetches Request attributes, set a priority of 100 or more.
@@ -1056,6 +1081,15 @@ services:
   AppBundle\Utils\OptionsPayloadConverter:
     arguments:
       $productOptionValueRepository: '@sylius.repository.product_option_value'
+
+  Typesense\Client:
+    arguments:
+      - api_key: '%env(TYPESENSE_API_KEY)%'
+        nodes:
+          - host: '%env(TYPESENSE_HOST)%'
+            port: '%env(TYPESENSE_PORT)%'
+            protocol: 'http'
+        connection_timeout_seconds: 2
 
   Psonic\Client:
     arguments:
@@ -1090,6 +1124,7 @@ services:
       $namespace: '%centrifugo_namespace%'
 
   AppBundle\Spreadsheet\DeliveryDataExporter: ~
+  AppBundle\Spreadsheet\DV4CULDataExporter: ~
 
   AppBundle\Edenred\Authentication:
     arguments:
@@ -1143,3 +1178,74 @@ services:
   AppBundle\Routing\EmbedAwareRouter:
     decorates: router
     arguments: ['@.inner']
+
+  # https://cube.dev/docs/security
+
+  cubejs.jwt.key:
+    class: Lcobucci\JWT\Signer\Key
+    factory: ['Lcobucci\JWT\Signer\Key\InMemory', 'plainText']
+    arguments: ['%env(CUBEJS_API_SECRET)%']
+
+  cubejs.jwt.signer:
+    class: Lcobucci\JWT\Signer\Hmac\Sha256
+
+  cubejs.jwt.config:
+    class: Lcobucci\JWT\Configuration
+    factory: ['Lcobucci\JWT\Configuration', 'forSymmetricSigner']
+    arguments: ['@cubejs.jwt.signer', '@cubejs.jwt.key']
+
+  AppBundle\CubeJs\TokenFactory:
+    arguments:
+      $databaseName: '%database_name%'
+
+  AppBundle\Translation\DatePeriodFormatter:
+    arguments:
+      $locale: '%env(COOPCYCLE_LOCALE)%'
+
+  AppBundle\Typesense\ShopsClient:
+    arguments:
+      $collectionName: '%typesense_shops_collection_name%'
+
+  AppBundle\Typesense\CollectionManager:
+    arguments:
+      $schemasDir: '%typesense_schemas_dir%'
+      $collections:
+        shops: "%typesense_shops_collection_name%"
+
+  hashids.8:
+    class: Hashids\Hashids
+    arguments: ['%secret%', 8]
+
+  AppBundle\Service\PriceHelper:
+    arguments:
+      $state: "%region_iso%"
+
+  hashids.12:
+    class: Hashids\Hashids
+    arguments: ['%secret%', 12]
+
+  woopit.grant_type:
+    class: BenjaminFavre\OAuthHttpClient\GrantType\ClientCredentialsGrantType
+    arguments: [
+      '@woopit.http_client',
+      'https://connect.%env(WOOPIT_HOST)%/api/oauth/token',
+      '%env(WOOPIT_CLIENT_ID)%',
+      '%env(WOOPIT_CLIENT_SECRET)%'
+    ]
+
+  woopit.oauth_http_client:
+      class: BenjaminFavre\OAuthHttpClient\OAuthHttpClient
+      arguments: [
+        '@woopit.http_client',
+        '@woopit.grant_type'
+      ]
+
+  AppBundle\Dabba\Client:
+    arguments:
+      $baseUrl: "%dabba_base_url%"
+      $clientId: "%dabba_client_id%"
+      $clientSecret: "%dabba_client_secret%"
+
+  AppBundle\Dabba\Context:
+    tags:
+      - { name: monolog.logger, channel: dabba }

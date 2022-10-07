@@ -9,6 +9,7 @@ use AppBundle\Entity\Task;
 use AppBundle\Entity\Package;
 use AppBundle\Service\Geocoder;
 use AppBundle\Service\TagManager;
+use Carbon\CarbonPeriod;
 use Doctrine\ORM\EntityManagerInterface;
 use Nucleos\UserBundle\Model\UserManagerInterface;
 use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
@@ -33,6 +34,18 @@ class TaskNormalizer implements NormalizerInterface, DenormalizerInterface
         $this->userManager = $userManager;
         $this->geocoder = $geocoder;
         $this->entityManager = $entityManager;
+    }
+
+    private function _normalizeTaskPackages($packages) {
+        $packagesNormalized = [];
+        foreach ($packages as $package) {
+            $packagesNormalized[] = [
+                'type' => $package->getPackage()->getName(),
+                'name' => $package->getPackage()->getName(),
+                'quantity' => $package->getQuantity(),
+            ];
+        }
+        return $packagesNormalized;
     }
 
     public function normalize($object, $format = null, array $context = array())
@@ -82,7 +95,14 @@ class TaskNormalizer implements NormalizerInterface, DenormalizerInterface
         }
 
         if ($object->isPickup()) {
-            unset($data['weight']);
+            $delivery = $object->getDelivery();
+
+            if (null !== $delivery) {
+                $data['packages'] = $this->_normalizeTaskPackages($delivery->getPackages());
+                $data['weight'] = $delivery->getWeight();
+            }
+        } else {
+            $data['packages'] = $this->_normalizeTaskPackages($object->getPackages());
         }
 
         return $data;
@@ -145,24 +165,36 @@ class TaskNormalizer implements NormalizerInterface, DenormalizerInterface
 
             // TODO Validate time slot
 
-            preg_match('/^([0-9]{4}-[0-9]{2}-[0-9]{2}) ([0-9:]+-[0-9:]+)$/', $data['timeSlot'], $matches);
+            if (1 === preg_match('/^([0-9]{4}-[0-9]{2}-[0-9]{2}) ([0-9:]+-[0-9:]+)$/', $data['timeSlot'], $matches)) {
 
-            $date = $matches[1];
-            $timeRange = $matches[2];
+                $date = $matches[1];
+                $timeRange = $matches[2];
 
-            [ $start, $end ] = explode('-', $timeRange);
+                [ $start, $end ] = explode('-', $timeRange);
 
-            [ $startHour, $startMinute ] = explode(':', $start);
-            [ $endHour, $endMinute ] = explode(':', $end);
+                [ $startHour, $startMinute ] = explode(':', $start);
+                [ $endHour, $endMinute ] = explode(':', $end);
 
-            $after = new \DateTime($date);
-            $after->setTime($startHour, $startMinute);
+                $after = new \DateTime($date);
+                $after->setTime($startHour, $startMinute);
 
-            $before = new \DateTime($date);
-            $before->setTime($endHour, $endMinute);
+                $before = new \DateTime($date);
+                $before->setTime($endHour, $endMinute);
 
-            $task->setAfter($after);
-            $task->setBefore($before);
+                $task->setAfter($after);
+                $task->setBefore($before);
+
+            } else {
+
+                $tz = date_default_timezone_get();
+
+                // FIXME Catch Exception
+                $period = CarbonPeriod::createFromIso($data['timeSlot']);
+
+                $task->setAfter($period->getStartDate()->tz($tz)->toDateTime());
+                $task->setBefore($period->getEndDate()->tz($tz)->toDateTime());
+
+            }
         }
 
         if (isset($data['packages'])) {

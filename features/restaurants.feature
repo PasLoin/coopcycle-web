@@ -19,6 +19,11 @@ Feature: Manage restaurants
       "hydra:member":[
         {
           "@id":"/api/restaurants/1",
+          "facets": {
+            "category":["Exclusivités","À la une"],
+            "cuisine":["Asiatique"],
+            "type":"Restaurant"
+          },
           "@*@": "@*@"
         },
         {
@@ -92,7 +97,10 @@ Feature: Manage restaurants
           "specialOpeningHoursSpecification":[],
           "image":@string@,
           "fulfillmentMethods":@array@,
-          "isOpen":true
+          "isOpen":true,
+          "facets": {
+            "@*@": "@*@"
+          }
         }
       ],
       "hydra:totalItems":1,
@@ -727,25 +735,25 @@ Feature: Manage restaurants
                 "@id":"@string@.startsWith('/api/product_option_values')",
                 "@type":"ProductOptionValue",
                 "price":0,
-                "code":"PIZZA_TOPPING_PEPPERONI",
-                "value":"Pepperoni",
-                "enabled":true
+                "code":@string@,
+                "value":@string@,
+                "enabled":@boolean@
               },
               {
                 "@id":"@string@.startsWith('/api/product_option_values')",
                 "@type":"ProductOptionValue",
                 "price":0,
-                "code":"PIZZA_TOPPING_EXTRA_CHEESE",
-                "value":"Extra cheese",
-                "enabled":true
+                "code":@string@,
+                "value":@string@,
+                "enabled":@boolean@
               },
               {
                 "@id":"@string@.startsWith('/api/product_option_values')",
                 "@type":"ProductOptionValue",
                 "price":0,
-                "code":"NOT_ENABLED_OPTION",
-                "enabled":false,
-                "value":"Not enabled"
+                "code":@string@,
+                "value":@string@,
+                "enabled":@boolean@
               }
             ],
             "name":"Pizza topping"
@@ -878,7 +886,10 @@ Feature: Manage restaurants
               "after":"@string@.isDateTime()",
               "before":"@string@.isDateTime()",
               "doneAfter":"@string@.isDateTime()",
-              "doneBefore":"@string@.isDateTime()"
+              "doneBefore":"@string@.isDateTime()",
+              "weight": null,
+              "packages": [],
+              "createdAt":"@string@.isDateTime()"
             },
             "dropoff":{
               "@id":"/api/tasks/2",
@@ -904,8 +915,11 @@ Feature: Manage restaurants
               "before":"@string@.isDateTime()",
               "doneAfter":"@string@.isDateTime()",
               "doneBefore":"@string@.isDateTime()",
-              "weight":null
-            }
+              "weight":null,
+              "packages": [],
+              "createdAt":"@string@.isDateTime()"
+            },
+            "trackingUrl": @string@
           }
         ],
         "hydra:totalItems":1

@@ -20,7 +20,6 @@ use Doctrine\ORM\EntityManagerInterface;
 use Nucleos\UserBundle\Util\CanonicalizerInterface;
 use Hashids\Hashids;
 use libphonenumber\PhoneNumber;
-use Sylius\Component\Taxation\Resolver\TaxRateResolverInterface;
 use Sylius\Component\Order\Processor\OrderProcessorInterface;
 use Sylius\Component\Order\Repository\OrderRepositoryInterface;
 use Sylius\Component\Payment\Model\PaymentInterface;
@@ -302,7 +301,8 @@ class EmbedController extends AbstractController
                             'form' => $paymentForm->createView(),
                             'payment' => $payment,
                             'order' => $order,
-                            'error' => $payment->getLastError()
+                            'error' => $payment->getLastError(),
+                            'submission_hashid' => $request->query->get('data'),
                         ]);
                     }
 

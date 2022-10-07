@@ -5,6 +5,7 @@ namespace AppBundle\Form;
 use AppBundle\Entity\Cuisine;
 use AppBundle\Entity\LocalBusiness;
 use AppBundle\Enum\FoodEstablishment;
+use AppBundle\Form\Restaurant\DabbaType;
 use AppBundle\Form\Restaurant\FulfillmentMethodType;
 use AppBundle\Form\Restaurant\LoopeatType;
 use AppBundle\Form\Restaurant\ShippingOptionsTrait;
@@ -123,6 +124,13 @@ class RestaurantType extends LocalBusinessType
             ]);
         }
 
+        if ($options['dabba_enabled']) {
+            $builder->add('dabba', DabbaType::class, [
+                'mapped' => false,
+                'allow_toggle' => $this->authorizationChecker->isGranted('ROLE_ADMIN'),
+            ]);
+        }
+
         $builder->addEventListener(FormEvents::POST_SET_DATA, function (FormEvent $event) use ($options) {
 
             $restaurant = $event->getData();
@@ -131,12 +139,27 @@ class RestaurantType extends LocalBusinessType
             if (null !== $restaurant->getId()) {
 
                 if ($this->authorizationChecker->isGranted('ROLE_ADMIN')) {
-                    $form->add('allowStripeConnect', CheckboxType::class, [
-                        'label' => 'restaurant.form.allow_stripe_connect.label',
-                        'mapped' => false,
-                        'required' => false,
-                        'data' => in_array('ROLE_RESTAURANT', $restaurant->getStripeConnectRoles())
-                    ]);
+                    $gateway = $this->gatewayResolver->resolve();
+
+                    switch ($gateway) {
+                        case 'mercadopago':
+                            $form->add('allowMercadopagoConnect', CheckboxType::class, [
+                                'label' => 'restaurant.form.allow_mercadopago_connect.label',
+                                'mapped' => false,
+                                'required' => false,
+                                'data' => in_array('ROLE_RESTAURANT', $restaurant->getMercadopagoConnectRoles())
+                            ]);
+                            break;
+                        case 'stripe':
+                        default:
+                            $form->add('allowStripeConnect', CheckboxType::class, [
+                                'label' => 'restaurant.form.allow_stripe_connect.label',
+                                'mapped' => false,
+                                'required' => false,
+                                'data' => in_array('ROLE_RESTAURANT', $restaurant->getStripeConnectRoles())
+                            ]);
+                            break;
+                    }
                     if (!$restaurant->isDeleted()) {
                         $form->add('delete', SubmitType::class, [
                             'label' => 'basics.delete',
@@ -199,6 +222,17 @@ class RestaurantType extends LocalBusinessType
                     }
                 }
 
+                if ($form->has('allowMercadopagoConnect')) {
+                    $allowMercadopagoConnect = $form->get('allowMercadopagoConnect')->getData();
+                    if ($allowMercadopagoConnect) {
+                        $mercadopagoConnectRoles = $restaurant->getMercadopagoConnectRoles();
+                        if (!in_array('ROLE_RESTAURANT', $mercadopagoConnectRoles)) {
+                            $mercadopagoConnectRoles[] = 'ROLE_RESTAURANT';
+                            $restaurant->setMercadopagoConnectRoles($mercadopagoConnectRoles);
+                        }
+                    }
+                }
+
                 if ($form->has('enableGiropay')) {
                     $enableGiropay = $form->get('enableGiropay')->getData();
                     if ($enableGiropay) {
@@ -257,6 +291,7 @@ class RestaurantType extends LocalBusinessType
             'edenred_enabled' => false,
             'vytal_enabled' => false,
             'en_boite_le_plat_enabled' => false,
+            'dabba_enabled' => false,
         ));
     }
 }

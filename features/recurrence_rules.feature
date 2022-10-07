@@ -184,7 +184,8 @@ Feature: Task recurrence rules
             {
               "@type":"Task",
               "address": {
-                "streetAddress": "1, Rue de Rivoli, 75004 Paris"
+                "streetAddress": "1, Rue de Rivoli, 75004 Paris",
+                "telephone": "+33612345678"
               },
               "after":"11:30",
               "before":"12:00"
@@ -219,7 +220,8 @@ Feature: Task recurrence rules
               "@type":"Task",
               "address": {
                 "@id": @string@,
-                "streetAddress": @string@
+                "streetAddress": @string@,
+                "telephone": "+33612345678"
               },
               "after":"11:30",
               "before":"12:00"
@@ -328,6 +330,83 @@ Feature: Task recurrence rules
       }
       """
 
+  Scenario: Update recurrence rule address telephone (multiple tasks, existing address)
+    Given the fixtures files are loaded:
+      | sylius_channels.yml  |
+      | users.yml            |
+      | addresses.yml        |
+      | recurrence_rules.yml |
+    And the user "bob" has role "ROLE_ADMIN"
+    And the user "bob" is authenticated
+    When I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And the user "bob" sends a "PUT" request to "/api/recurrence_rules/2" with body:
+      """
+      {
+        "template": {
+          "@type":"hydra:Collection",
+          "hydra:member":[
+            {
+              "address":{
+                "@id":"/api/addresses/1",
+                "streetAddress":"272, rue Saint Honor\u00e9 75001 Paris 1er",
+                "telephone":"+33612345678",
+                "description":"Lorem ipsum",
+                "contactName":"John Doe"
+              },
+              "after":"11:30",
+              "before":"12:00"
+            },
+            {
+              "address":{
+                "@id":"/api/addresses/2",
+                "streetAddress":"18, avenue Ledru-Rollin 75012 Paris 12\u00e8me"
+              },
+              "after":"12:30",
+              "before":"13:00"
+            }
+          ]
+        }
+      }
+      """
+    Then the response status code should be 200
+    And the response should be in JSON
+    And the JSON should match:
+      """
+      {
+        "@context":"/api/contexts/RecurrenceRule",
+        "@id":"/api/recurrence_rules/2",
+        "@type":"RecurrenceRule",
+        "rule":"FREQ=WEEKLY;BYDAY=MO,FR",
+        "template":{
+          "@type":"hydra:Collection",
+          "hydra:member":[
+            {
+              "address":{
+                "@id":"/api/addresses/4",
+                "streetAddress":"272 Rue Saint-Honoré, 75001 Paris",
+                "telephone":"+33612345678",
+                "description":"Lorem ipsum",
+                "contactName":"John Doe"
+              },
+              "after":"11:30",
+              "before":"12:00"
+            },
+            {
+              "address":{
+                "@id":"/api/addresses/2",
+                "streetAddress":"18, avenue Ledru-Rollin 75012 Paris 12ème"
+              },
+              "after":"12:30",
+              "before":"13:00"
+            }
+          ]
+        },
+        "store":"/api/stores/1",
+        "orgName":"Acme"
+      }
+      """
+
   Scenario: List recurrence rules
     Given the fixtures files are loaded:
       | sylius_channels.yml  |
@@ -406,11 +485,13 @@ Feature: Task recurrence rules
         "hydra:member":[
           {
             "@id":"/api/tasks/1",
-            "@type":"Task"
+            "@type":"Task",
+            "packages": []
           },
           {
             "@id":"/api/tasks/2",
-            "@type":"Task"
+            "@type":"Task",
+            "packages": []
           }
         ],
         "hydra:totalItems":2
@@ -445,15 +526,19 @@ Feature: Task recurrence rules
         "hydra:member":[
           {
             "@id":"/api/tasks/1",
-            "@type":"Task"
+            "@type":"Task",
+            "packages": [],
+            "weight": null
           },
           {
             "@id":"/api/tasks/2",
-            "@type":"Task"
+            "@type":"Task",
+            "packages": []
           },
           {
             "@id":"/api/tasks/3",
-            "@type":"Task"
+            "@type":"Task",
+            "packages": []
           }
         ],
         "hydra:totalItems":3

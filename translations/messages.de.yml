@@ -175,8 +175,6 @@ help.home: Zuhause
 restaurants.no_results: Wir haben leider kein Restaurant zu deiner Suchanfrage gefunden
   ☹<br>Versuchen Sie es mit einer anderen Adresse
 restaurants.visible_by_you_only: Nur für Sie sichtbar
-restaurants.placeholder.title: Ein wenig Geduld …
-restaurants.placeholder.text: Neue Restaurants folgen demnächst!
 localBusiness.form.orderingDelayMinutes: Zusätzliche Verzögerung vor der Bestellung
 localBusiness.form.orderingDelayMinutes.help: Nutzen Sie dieses Feld um eine Zeit
   festzulegen, bevor der Kunde bestellen kann. Diese Einstellung ändert die Kochzeit
@@ -480,7 +478,6 @@ form.package_set.packages.label: Verpackungen
 form.package_set.name.label: Name
 form.time_slot_choice.end_time.label: Endzeit
 form.time_slot_choice.start_time.label: Startzeit
-form.time_slot.choices.label: Auswahl
 form.settings.company_logo.label: Logo der Firma
 form.delivery.weight.help: Bitte das Gewicht in Gramm eingeben (1Kg=1000g)
 form.task.recipient.label: Kontakt

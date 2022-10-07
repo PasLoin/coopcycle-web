@@ -12,9 +12,11 @@ use AppBundle\Action\Task\Failed as TaskFailed;
 use AppBundle\Action\Task\Unassign as TaskUnassign;
 use AppBundle\Action\Task\Duplicate as TaskDuplicate;
 use AppBundle\Action\Task\Start as TaskStart;
+use AppBundle\Action\Task\RemoveFromGroup;
 use AppBundle\Api\Filter\AssignedFilter;
 use AppBundle\Api\Filter\TaskDateFilter;
 use AppBundle\Api\Filter\TaskFilter;
+use AppBundle\Api\Filter\OrganizationFilter;
 use AppBundle\DataType\TsRange;
 use AppBundle\Domain\Task\Event as TaskDomainEvent;
 use AppBundle\Entity\Package;
@@ -128,6 +130,17 @@ use Symfony\Component\Validator\Constraints as Assert;
  *         }
  *       }
  *     },
+ *     "task_remove_from_group"={
+ *       "method"="DELETE",
+ *       "path"="/tasks/{id}/group",
+ *       "controller"=RemoveFromGroup::class,
+ *       "write"=false,
+ *       "denormalization_context"={"groups"={"task_operation"}},
+ *       "access_control"="is_granted('ROLE_ADMIN') or is_granted('edit', object)",
+ *       "openapi_context"={
+ *         "summary"="Remove a task from the group to which it belongs",
+ *        }
+ *     },
  *     "task_unassign"={
  *       "method"="PUT",
  *       "path"="/tasks/{id}/unassign",
@@ -173,6 +186,7 @@ use Symfony\Component\Validator\Constraints as Assert;
  * @ApiFilter(TaskDateFilter::class, properties={"date"})
  * @ApiFilter(TaskFilter::class)
  * @ApiFilter(AssignedFilter::class, properties={"assigned"})
+ * @ApiFilter(OrganizationFilter::class, properties={"organization"})
  * @UniqueEntity(fields={"organization", "ref"}, errorPath="ref")
  */
 class Task implements TaggableInterface, OrganizationAwareInterface, PackagesAwareInterface
@@ -239,6 +253,9 @@ class Task implements TaggableInterface, OrganizationAwareInterface, PackagesAwa
 
     private $events;
 
+    /**
+     * @Groups({"task", "delivery"})
+     */
     private $createdAt;
 
     /**
@@ -294,7 +311,7 @@ class Task implements TaggableInterface, OrganizationAwareInterface, PackagesAwa
 
     /**
      * @var array
-     * @Groups({"task"})
+     * @Groups({"task", "task_edit"})
      */
     private $metadata = [];
 
@@ -859,5 +876,10 @@ class Task implements TaggableInterface, OrganizationAwareInterface, PackagesAwa
         $this->weight = $weight;
 
         return $this;
+    }
+
+    public function addToStore(Store $store)
+    {
+        $this->setOrganization($store->getOrganization());
     }
 }

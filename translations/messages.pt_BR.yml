@@ -101,8 +101,6 @@ help.home: Página inicial
 restaurants.no_results: Não encontramos restaurantes com sua busca ☹<br>Tente com
   outro endereço
 restaurants.visible_by_you_only: Visível apenas para você
-restaurants.placeholder.title: Um pouco de paciência…
-restaurants.placeholder.text: Novos restaurantes chegarão em breve!
 localBusiness.form.orderingDelayMinutes: Tempo adicional antes do pedido
 localBusiness.form.orderingDelayMinutes.help: Utilize este campo para adicionar algum
   tempo antes do cliente poder fazer um pedido. Esta configuração não altera o tempo
@@ -629,7 +627,6 @@ form.embed_settings.with_weight.label: Solicitar peso das mercadorias
 form.time_slot.name.label: Nome
 form.time_slot.interval.label: Intervalo
 form.time_slot.working_days_only.label: Permitir selecionar apenas dias úteis
-form.time_slot.choices.label: Escolhas
 form.time_slot_choice.start_time.label: Hora de início
 form.time_slot_choice.end_time.label: Hora de fim
 form.time_slot.prior_notice_hours.label: Aviso prévio (horas)

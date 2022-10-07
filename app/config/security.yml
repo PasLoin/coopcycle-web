@@ -13,7 +13,8 @@ security:
         ROLE_COURIER: ROLE_CUSTOMER
         ROLE_RESTAURANT: ROLE_USER
         ROLE_STORE: ROLE_USER
-        ROLE_ADMIN: ROLE_COURIER
+        ROLE_LOOPEAT: ROLE_USER
+        ROLE_ADMIN: [ ROLE_COURIER, ROLE_LOOPEAT ]
 
     # http://symfony.com/doc/current/book/security.html#where-do-users-come-from-user-providers
     providers:
@@ -74,6 +75,12 @@ security:
 
         api_task_get:
             pattern:   ^/api/tasks/[0-9]+$
+            methods: [ GET ]
+            stateless: true
+            bearer_token: true
+
+        api_task_lists_get:
+            pattern:   ^/api/task_lists$
             methods: [ GET ]
             stateless: true
             bearer_token: true
@@ -155,7 +162,7 @@ security:
             cart_session: true
 
         api_cart_operations:
-            pattern:   ^/api/orders/[0-9]+/(assign|timing|validate)$
+            pattern:   ^/api/orders/[0-9]+/(assign|timing|validate|tip)$
             methods: [ GET, PUT ]
             stateless: true
             cart_session: true
@@ -195,9 +202,16 @@ security:
             stateless: true
             bearer_token: true
 
+        api_woopit:
+            pattern:   ^/api/woopit
+            stateless: true
+            bearer_token: true
+
         token_refresh:
             pattern:  ^/api/token/refresh
             stateless: true
+            refresh_jwt:
+                provider: fos_userbundle
 
         api_docs:
             pattern:   ^/api/docs

@@ -73,6 +73,9 @@ adminDashboard.users.invite: Invite user
 adminDashboard.users.orders_count: Number of orders
 adminDashboard.users.registered_at: Registered
 adminDashboard.users.last_order: Last order
+adminDashboard.users.export.optins.title: Select what you want to export
+adminDashboard.users.export.optins.newsletter: Users who agree to receive the newsletter
+adminDashboard.users.export.optins.marketting: Users who agree to receive promotions
 form.user.quotes_allowed.label: Allow this user to request a quote
 adminDashboard.settings.title: Settings
 adminDashboard.pricing.title: Pricing
@@ -108,10 +111,8 @@ delivery.with_id: 'Delivery #%id%'
 help.title: Help
 help.home: Home
 restaurants.no_results: We did not find any restaurants matching your search ☹<br>Try
-  with a different address
+  with a different address or other filters
 restaurants.visible_by_you_only: Visible by you only
-restaurants.placeholder.title: A bit of patience…
-restaurants.placeholder.text: New restaurants are coming soon!
 localBusiness.form.orderingDelayMinutes: Additional delay before ordering
 localBusiness.form.orderingDelayMinutes.help: Use this field to add some time before
   the customer can order. This setting doesn't change the time needed for cooking
@@ -162,6 +163,8 @@ restaurant.form.enabled.tooltip: "When disabled, a restaurant is not visible on 
   \ website. It doesn't show in search results and the restaurant page is not accessible\
   \ by visitors.\n"
 restaurant.form.allow_stripe_connect.label: Allow the restaurant to manage Stripe
+  account on its own
+restaurant.form.allow_mercadopago_connect.label: Allow the restaurant to manage Mercadopago
   account on its own
 restaurant.form.temporaryClosingRule: Click here to temporarily disable orders to
   your restaurant.
@@ -583,6 +586,13 @@ form.registration.username.help: "Your username cannot be longer than 15 charact
 form.registration.legal.label: I agree with the Terms and Conditions and Privacy Policy
 form.registration.legal.help: By checking this box, you agree to our <a href="%terms_url%">Terms
   and Conditions</a> and <a href="%privacy_url%">Privacy Policy</a>.
+form.registration.terms.and.conditions.label: I agree with the Terms and Conditions
+form.registration.terms.and.conditions.help: By checking this box, you agree to our <a href="%terms_url%">Terms
+  and Conditions</a>.
+form.registration.privacy.policy.label: I agree with the Privacy Policy
+form.registration.privacy.policy.help: By checking this box, you agree to our <a href="%privacy_url%">Privacy Policy</a>.
+form.registration.optin.newsletter.label: I agree to receive the %brand_name% newsletter.
+form.registration.optin.marketing.label: I agree to receive occasional promotions.
 form.local_business.stripe_account.title: Stripe account
 form.local_business.stripe_account.help: Connect a Stripe account to transfer money
   to another bank account
@@ -684,7 +694,7 @@ form.checkout_address.telephone.label: Phone number
 form.checkout_address.reusable_packaging_enabled.label: I want reusable packaging
   (%price%)
 form.checkout_address.reusable_packaging_loopeat_enabled.label: I want to use LoopEat
-  containers (%price%)
+  containers
 form.checkout_address.add_promotion.label: Apply
 form.checkout_address.tip_amount.label: Tip
 form.checkout_address.tip_amount.help: Thank you ❤
@@ -720,7 +730,6 @@ form.embed_settings.with_weight.label: Ask for weight of goods
 form.time_slot.name.label: Name
 form.time_slot.interval.label: Interval
 form.time_slot.working_days_only.label: Allow selecting only working days
-form.time_slot.choices.label: Choices
 form.time_slot_choice.start_time.label: Start time
 form.time_slot_choice.end_time.label: End time
 form.time_slot.prior_notice_hours.label: Prior notice (hours)
@@ -856,6 +865,7 @@ authentication.forgot_password: Forgot password?
 authentication.not_registered_yet: Not registered yet?
 authentication.create_account: Create your account
 authentication.already_registered: Already registered?
+authentication.unsubscribe: You can easily unsubscribe at any time via the unsubscribe links in each of our emails
 authentication.sign_in: Sign in
 authentication.choose_password: Choose your password
 maintenance.text: Site under maintenance - We will be back soon
@@ -1232,3 +1242,46 @@ adminDashboard.nonprofits.confirm_delete: Are you sure you want to delete this n
 order.cart.donation.disclaimer: We offer you to donate %percentage% of the revenue from your order to one of our partner associations. You will not pay more.
 form.checkout_address.nonprofit.placeholder: Choose your favorite nonprofit
 form.delivery.arbitrary_price.label: Define the price manually
+form.store_type.time_slots.label: Time slots
+form.store_type.time_slots.set_as_default: Set as default time slot
+homepage.featured: Featured
+homepage.exclusive: Exclusives
+homepage.shops.new: New shops
+users.disabled: Disabled
+admin.settings.stop_using_algolia: |
+  You are using the Algolia suggestions engine, which <a href="https://www.algolia.com/blog/product/sunsetting-our-places-feature/">will stop working from May 31, 2022</a >. Go to the <a href="%settings_url%">settings page</a> to configure another engine, such as <a href="https://docs.coopcycle.org/en/admin/google/">Google Maps</a>
+shops.filters.clear_all: Clear all
+shops.filters.title.types: Types
+shops.filters.title.categories: Categories
+shops.filters.title.cuisines: Cuisines
+shops.filters.title: Filters
+form.local_business.mercadopago.remove.connection: Remove connection with Mercadopago
+form.local_business.mercadopago.remove.connection.success: Mercadopago connection removed successfully
+form.vehicle.volume_units.label: Volume units
+form.vehicle.max_weight.label: Maximum weight
+vehicles.breadcrumb: Vehicles
+vehicles.breadcrumb.help: Define fleet of vehicles
+form.task_export.dv4cul.label: Export using DV4CUL format
+restaurant.form.section.dabba: Dabba
+restaurant.form.dabba_enabled.label: Enable Dabba deposit-refund system
+dabba.oauth_redirect.warning: You will be redirected to the Dabba website to login or create your account
+form.checkout_address.reusable_packaging_dabba_enabled.label: I want to use Dabba
+  containers
+form.checkout_address.reusable_packaging.dabba.learn_more: Learn more about Dabba
+dabba.oauth_connect.success: Dabba account connected successfully!
+form.checkout_address.reusable_packaging.dabba.wallet.label: You have <strong>%amount%</strong> on your Dabba wallet
+form.checkout_address.reusable_packaging.dabba.wallet.help: (%price% per lunchbox)
+restaurant.form.dabba_code.label: Dabba restaurant code
+adminDashboard.integrations.title: Integrations
+adminDashboard.integrations.help: Allow to configure the constraints of an integration
+integrations.breadcrumb: Integrations
+form.integration.name.label: Integration name
+form.integration.store.label: Store
+form.integration.zone.label: Zona
+form.integration.maxWeight.label: Maximum weight allowed (kg)
+form.integration.maxHeight.label: Maximum height allowed (cm)
+form.integration.maxWidth.label: Maximum width allowed (cm)
+form.integration.maxLength.label: Maximum length allowed (cm)
+form.integration.productTypes.label: Product types allowed
+form.integration.woopitStoreId.label: Woopit store identifier
+integration.created.message: The integration has been created.

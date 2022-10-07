@@ -4,6 +4,7 @@ namespace AppBundle\Controller\Utils;
 
 use ApiPlatform\Core\Api\IriConverterInterface;
 use AppBundle\Annotation\HideSoftDeleted;
+use AppBundle\CubeJs\TokenFactory as CubeJsTokenFactory;
 use AppBundle\Entity\ApiApp;
 use AppBundle\Entity\ClosingRule;
 use AppBundle\Entity\Contract;
@@ -107,6 +108,7 @@ trait RestaurantTrait
             'edenred_enabled' => $this->getParameter('edenred_enabled'),
             'vytal_enabled' => $this->getParameter('vytal_enabled'),
             'en_boite_le_plat_enabled' => $this->getParameter('en_boite_le_plat_enabled'),
+            'dabba_enabled' => $this->getParameter('dabba_enabled'),
         ]);
 
         // Associate Stripe account with restaurant
@@ -133,6 +135,7 @@ trait RestaurantTrait
         $wasLoopEatEnabled = $restaurant->isLoopeatEnabled();
         $wasDepositRefundEnabled = $restaurant->isDepositRefundEnabled();
         $wasVytalEnabled = $restaurant->isVytalEnabled();
+        $wasDabbaEnabled = $restaurant->isDabbaEnabled();
 
         $activationErrors = [];
         $formErrors = [];
@@ -181,6 +184,20 @@ trait RestaurantTrait
                     if (!$restaurant->hasReusablePackagingWithName('Vytal')) {
                         $reusablePackaging = new ReusablePackaging();
                         $reusablePackaging->setName('Vytal');
+                        $reusablePackaging->setPrice(0);
+                        $reusablePackaging->setOnHold(0);
+                        $reusablePackaging->setOnHand(9999);
+                        $reusablePackaging->setTracked(false);
+
+                        $restaurant->addReusablePackaging($reusablePackaging);
+                    }
+                }
+
+                if (!$wasDabbaEnabled && $restaurant->isDabbaEnabled()) {
+
+                    if (!$restaurant->hasReusablePackagingWithName('Dabba')) {
+                        $reusablePackaging = new ReusablePackaging();
+                        $reusablePackaging->setName('Dabba');
                         $reusablePackaging->setPrice(0);
                         $reusablePackaging->setOnHold(0);
                         $reusablePackaging->setOnHand(9999);
@@ -484,6 +501,21 @@ trait RestaurantTrait
         $menuTaxon = $taxonRepository
             ->find($menuId);
 
+        // Handle deletion
+        $menuForm = $this->createForm(MenuTaxonType::class, $menuTaxon);
+        $menuForm->handleRequest($request);
+        if ($menuForm->isSubmitted() && $menuForm->isValid()) {
+            if ($menuForm->getClickedButton() && 'delete' === $menuForm->getClickedButton()->getName()) {
+
+                $restaurant->removeTaxon($menuTaxon);
+                $entityManager->remove($menuTaxon);
+
+                $entityManager->flush();
+
+                return $this->redirectToRoute($routes['menu_taxons'], ['id' => $restaurantId]);
+            }
+        }
+
         $form = $this->createFormBuilder()
             ->add('name', TextType::class)
             ->getForm();
@@ -539,15 +571,13 @@ trait RestaurantTrait
 
             $newSectionPositions = [];
 
-            $em = $this->getDoctrine()->getManagerForClass(ProductTaxon::class);
-
             foreach ($menuEditor->getChildren() as $child) {
 
                 // The section is empty
                 if (count($originalTaxonProducts[$child]) > 0 && count($child->getTaxonProducts()) === 0) {
                     foreach ($originalTaxonProducts[$child] as $originalTaxonProduct) {
                         $originalTaxonProducts[$child]->removeElement($originalTaxonProduct);
-                        $em->remove($originalTaxonProduct);
+                        $entityManager->remove($originalTaxonProduct);
                     }
                     continue;
                 }
@@ -561,7 +591,7 @@ trait RestaurantTrait
                     foreach ($originalTaxonProducts[$child] as $originalTaxonProduct) {
                         if (!$child->getTaxonProducts()->contains($originalTaxonProduct)) {
                             $child->getTaxonProducts()->removeElement($originalTaxonProduct);
-                            $em->remove($originalTaxonProduct);
+                            $entityManager->remove($originalTaxonProduct);
                         }
                     }
                 }
@@ -641,7 +671,7 @@ trait RestaurantTrait
         return $this->createForm(ProductType::class, $product, [
             'owner' => $restaurant,
             'with_reusable_packaging' =>
-                $restaurant->isDepositRefundEnabled() || $restaurant->isLoopeatEnabled(),
+                $restaurant->isDepositRefundEnabled() || $restaurant->isLoopeatEnabled() || $restaurant->isDabbaEnabled(),
             'reusable_packaging_choices' => $restaurant->getReusablePackagings(),
             'options_loader' => function (ProductInterface $product) use ($restaurant) {
 
@@ -1069,12 +1099,45 @@ trait RestaurantTrait
 
         $oAuth = new MercadoPago\OAuth();
 
+        $authURL = $oAuth->getAuthorizationURL($settingsManager->get('mercadopago_app_id'), $redirectUri);
+
+        if ('cl' === $this->getParameter('country_iso')) {
+            // for Chile Mercadopago is building the URL as .com.cl and should be just .cl instead
+            // https://github.com/mercadopago/sdk-php/blob/9ca999e06cc8a875a11f0fcf4dccc75b41d020d5/src/MercadoPago/Entities/OAuth.php#L109
+            $authURL = str_replace('.com.cl', '.cl', $authURL);
+        }
+
         $url = sprintf('%s&state=%s',
             $oAuth->getAuthorizationURL($settingsManager->get('mercadopago_app_id'), $redirectUri),
             $state
         );
 
         return $this->redirect($url);
+    }
+
+    public function mercadopagoOAuthRemoveAction(
+        $id,
+        Request $request,
+        EntityManagerInterface $entityManager,
+        TranslatorInterface $translator)
+    {
+        $restaurant = $this->getDoctrine()
+            ->getRepository(LocalBusiness::class)
+            ->find($id);
+
+        $restaurant->setMercadopagoAccount(null);
+
+        $entityManager->flush();
+
+        $this->addFlash(
+            'notice',
+            $translator->trans('form.local_business.mercadopago.remove.connection.success')
+        );
+
+        return $this->redirectToRoute(
+            $request->attributes->get('redirect_after'),
+            ['id' => $id]
+        );
     }
 
     public function preparationTimeAction($id, Request $request, PreparationTimeCalculator $calculator)
@@ -1142,7 +1205,8 @@ trait RestaurantTrait
         TranslatorInterface $translator,
         EntityManagerInterface $entityManager,
         PaginatorInterface $paginator,
-        TaxesHelper $taxesHelper)
+        TaxesHelper $taxesHelper,
+        CubeJsTokenFactory $tokenFactory)
     {
         $tab = $request->query->get('tab', 'orders');
 
@@ -1193,22 +1257,6 @@ trait RestaurantTrait
             return $response;
         }
 
-        // https://cube.dev/docs/security
-        $key = \Lcobucci\JWT\Signer\Key\InMemory::plainText($_SERVER['CUBEJS_API_SECRET']);
-        $config = \Lcobucci\JWT\Configuration::forSymmetricSigner(
-            new \Lcobucci\JWT\Signer\Hmac\Sha256(),
-            $key
-        );
-
-        // https://github.com/lcobucci/jwt/issues/229
-        $now = new \DateTimeImmutable('@' . time());
-
-        $token = $config->builder()
-            ->expiresAt($now->modify('+1 hour'))
-            ->withClaim('database', $this->getParameter('database_name'))
-            ->withClaim('vendor_id', $restaurant->getId())
-            ->getToken($config->signer(), $config->signingKey());
-
         return $this->render('restaurant/stats.html.twig', $this->withRoutes([
             'layout' => $request->attributes->get('layout'),
             'restaurant' => $restaurant,
@@ -1217,7 +1265,7 @@ trait RestaurantTrait
             'start' => $start,
             'end' => $end,
             'tab' => $tab,
-            'cube_token' => $token->toString(),
+            'cube_token' => $tokenFactory->createToken(['vendor_id' => $restaurant->getId()]),
             'picker_type' => $request->query->has('date') ? 'date' : 'month',
             'with_details' => $request->query->getBoolean('details', false),
         ]));
@@ -1476,10 +1524,12 @@ trait RestaurantTrait
         $edenredWithCard = 'EDENRED+CARD';
 
         $qb->andWhere('pm.code = :code');
-        $qb->andWhere('o.state = :state');
+        $qb->andWhere('o.state = :order_state');
+        $qb->andWhere('p.state = :payment_state');
 
         $qb->setParameter('code', $edenredWithCard);
-        $qb->setParameter('state', OrderInterface::STATE_FULFILLED);
+        $qb->setParameter('order_state', OrderInterface::STATE_FULFILLED);
+        $qb->setParameter('payment_state', PaymentInterface::STATE_COMPLETED);
 
         $month = new \DateTime('now');
         if ($request->query->has('month')) {

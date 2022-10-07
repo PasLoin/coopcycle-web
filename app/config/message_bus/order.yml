@@ -63,6 +63,7 @@ services:
   coopcycle.domain.order.handler.cancel_order:
     class: AppBundle\Domain\Order\Handler\CancelOrderHandler
     arguments:
+      - '@coopcycle.stripe_manager'
       - '@event_recorder'
     tags:
       - name: command_handler
@@ -122,6 +123,8 @@ services:
     tags:
         - name: event_subscriber
           subscribes_to: order:cancelled
+        - name: event_subscriber
+          subscribes_to: order:refused
 
   coopcycle.domain.order.reactor.calculate_timeline:
     class: AppBundle\Domain\Order\Reactor\CalculateTimeline
@@ -249,6 +252,15 @@ services:
     class: AppBundle\Domain\Order\Reactor\GrabLoopEats
     arguments:
       - '@AppBundle\LoopEat\Client'
+    tags:
+        - name: event_subscriber
+          subscribes_to: order:picked
+
+  coopcycle.domain.order.reactor.trade_dabba:
+    class: AppBundle\Domain\Order\Reactor\TradeDabba
+    arguments:
+      - '@AppBundle\Dabba\Client'
+      - '@monolog.logger.dabba'
     tags:
         - name: event_subscriber
           subscribes_to: order:picked

@@ -50,6 +50,7 @@
     <field name="additionalProperties" type="json_array" column="additional_properties" nullable="true"/>
     <field name="state" type="string" column="state"/>
     <field name="stripeConnectRoles" type="json_array" column="stripe_connect_roles"/>
+    <field name="mercadopagoConnectRoles" type="json_array" column="mercadopago_connect_roles" nullable="true"/>
     <field name="deletedAt" type="datetime" column="deleted_at" nullable="true"/>
     <field name="exclusive" type="boolean" column="exclusive">
       <options>
@@ -91,6 +92,12 @@
         <option name="default">0</option>
       </options>
     </field>
+    <field name="dabbaEnabled" type="boolean" column="dabba_enabled">
+      <options>
+        <option name="default">0</option>
+      </options>
+    </field>
+    <field name="dabbaCode" type="string" column="dabba_code" nullable="true"/>
     <gedmo:soft-deleteable field-name="deletedAt" time-aware="false" hard-delete="false" />
     <many-to-one field="contract" target-entity="AppBundle\Entity\Contract">
       <cascade>
@@ -141,11 +148,11 @@
         <cascade-all/>
       </cascade>
     </one-to-many>
-    <one-to-many field="mercadopagoAccounts" target-entity="AppBundle\Entity\RestaurantMercadopagoAccount" mapped-by="restaurant">
+    <one-to-one field="mercadopagoAccount" target-entity="AppBundle\Entity\MercadopagoAccount" mapped-by="restaurant" orphan-removal="true">
       <cascade>
         <cascade-all/>
       </cascade>
-    </one-to-many>
+    </one-to-one>
     <one-to-many field="reusablePackagings" target-entity="AppBundle\Entity\ReusablePackaging" mapped-by="restaurant">
       <cascade>
         <cascade-all/>

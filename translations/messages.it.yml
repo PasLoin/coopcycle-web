@@ -95,13 +95,11 @@ delivery.with_id: 'Consegna #%id%'
 help.title: Aiuto
 help.home: Home
 restaurants.visible_by_you_only: Visibile solo a te
-restaurants.placeholder.title: Un attimo di pazienza…
 adminDashboard.pledges.title: Suggerimenti
 deliveryForm.noPriceWarning: Non è stato possibile calcolare il prezzo. Per favore
   inserirlo manualmente.
 restaurants.no_results: Non abbiamo trovato ristoranti che coincidono con la tua ricerca
   ☹<br>Prova con un indirizzo diverso
-restaurants.placeholder.text: Nuovi ristoranti arriveranno presto!
 order.reusable_packaging.alert: Questo ordine deve essere impacchettato con un packaging
   riutilizzabile
 restaurant.quotes_disclaimer.authenticated: Questo ristorante accetta anche preventivi.
@@ -660,7 +658,6 @@ form.embed_settings.with_vehicle.label: Aggiungi scelta del veicolo
 form.embed_settings.with_weight.label: Chiedi il peso dei prodotti
 form.time_slot.name.label: Nome
 form.time_slot.working_days_only.label: Consenti la selezione solo dei giorni lavorativi
-form.time_slot.choices.label: Scelte
 form.time_slot.prior_notice_hours.label: Preavviso (ore)
 form.package_set.name.label: Nome
 form.package_set.packages.label: Pacchi
@@ -1089,6 +1086,11 @@ form.registration.legal.help: Spuntando questa casella, accetti i nostri <a href
   e condizioni</a> e <a href="%privacy_url%">l'informativa sulla privacy</a>.
 form.registration.legal.label: Accetto i termini e condizioni e l'Informativa sulla
   privacy
+form.registration.terms.and.conditions.help: Spuntando questa casella, accetti i nostri <a href="%terms_url%">termini
+  e condizioni</a>.
+form.registration.terms.and.conditions.label: Accetto i termini e condizioni
+form.registration.privacy.policy.help: Spuntando questa casella, accetti i nostri <a href="%privacy_url%">l'informativa sulla privacy</a>.
+form.registration.privacy.policy.label: Accetto i l'Informativa sulla privacy
 form.settings.sms_gateway_config.twilio.from.label: Numero di telefono Twilio
 form.settings.sms_gateway_config.twilio.auth_token.label: Twilio Auth Token
 form.settings.sms_gateway_config.twilio.sid.label: Twilio SID

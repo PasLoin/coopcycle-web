@@ -171,4 +171,61 @@ class PickupExpressionLanguageProviderTest extends TestCase
         $this->assertThat($value, $this->isType('int'));
         $this->assertEquals($expectedValue, $value);
     }
+
+    public function timeRangeLengthProvider()
+    {
+        return [
+            [ '2019-08-19 09:00:00', '2019-08-19 12:00:00', 3.0 ],
+            [ '2019-08-19 09:00:00', '2019-08-19 10:00:00', 1.0 ],
+            [ '2019-08-19 09:00:00', '2019-08-19 09:30:00', 0.5 ],
+            [ '2019-08-19 09:00:00', '2019-08-20 09:30:00', 24.5 ],
+        ];
+    }
+
+    /**
+     * @dataProvider timeRangeLengthProvider
+     */
+    public function testTimeRangeLength($after, $before, $expectedValue)
+    {
+        $this->language->registerProvider(new PickupExpressionLanguageProvider());
+
+        $pickup = new \stdClass();
+        $pickup->after = new \DateTime($after);
+        $pickup->before = new \DateTime($before);
+
+        $value = $this->language->evaluate('time_range_length(pickup, "hours")', [
+            'pickup' => $pickup,
+        ]);
+
+        $this->assertIsNumeric($value);
+        $this->assertEquals($expectedValue, $value);
+    }
+
+    public function timeRangeLengthProviderIn()
+    {
+        return [
+            [ '2019-08-19 09:00:00', '2019-08-19 12:00:00', true ],
+            [ '2019-08-19 09:00:00', '2019-08-19 10:00:00', false ],
+            [ '2019-08-19 09:00:00', '2019-08-19 09:30:00', false ],
+            [ '2019-08-19 09:00:00', '2019-08-20 09:30:00', false ],
+        ];
+    }
+
+    /**
+     * @dataProvider timeRangeLengthProviderIn
+     */
+    public function testTimeRangeLengthIn($after, $before, $expectedValue)
+    {
+        $this->language->registerProvider(new PickupExpressionLanguageProvider());
+
+        $dropoff = new \stdClass();
+        $dropoff->after = new \DateTime($after);
+        $dropoff->before = new \DateTime($before);
+
+        $value = $this->language->evaluate('time_range_length(dropoff, "hours") in 2..8', [
+            'dropoff' => $dropoff,
+        ]);
+
+        $this->assertSame($expectedValue, $value);
+    }
 }

@@ -96,7 +96,7 @@ class User extends BaseUser implements JWTUserInterface, ChannelAwareInterface
      */
     protected $customer;
 
-    private $mercadopagoAccounts;
+    protected $optinConsents;
 
     public function __construct()
     {
@@ -104,7 +104,7 @@ class User extends BaseUser implements JWTUserInterface, ChannelAwareInterface
         $this->stores = new ArrayCollection();
         $this->stripeAccounts = new ArrayCollection();
         $this->remotePushTokens = new ArrayCollection();
-        $this->mercadopagoAccounts = new ArrayCollection();
+        $this->optinConsents = new ArrayCollection();
 
         parent::__construct();
     }
@@ -387,18 +387,6 @@ class User extends BaseUser implements JWTUserInterface, ChannelAwareInterface
         }
     }
 
-    public function getMercadopagoAccounts()
-    {
-        return $this->mercadopagoAccounts;
-    }
-
-    public function addMercadopagoAccount(MercadopagoAccount $account)
-    {
-        $this->mercadopagoAccounts->add($account);
-
-        return $this;
-    }
-
     public function getDefaultNonprofit()
     {
         return $this->defaultNonprofit;
@@ -407,5 +395,39 @@ class User extends BaseUser implements JWTUserInterface, ChannelAwareInterface
     public function setDefaultNonprofit($defaultNonprofit)
     {
         $this->defaultNonprofit = $defaultNonprofit;
+    }
+
+    /**
+     * @return mixed
+     */
+    public function getOptinConsents()
+    {
+        return $this->optinConsents;
+    }
+
+    /**
+     * @param mixed $optinConsents
+     *
+     * @return self
+     */
+    public function setOptinConsents($optinConsents)
+    {
+        $this->optinConsents = $optinConsents;
+
+        return $this;
+    }
+
+    /**
+     * @param mixed $optinConsent
+     *
+     * @return self
+     */
+    public function addOptinConsent($optinConsent)
+    {
+        $optinConsent->setUser($this);
+
+        $this->optinConsents->add($optinConsent);
+
+        return $this;
     }
 }

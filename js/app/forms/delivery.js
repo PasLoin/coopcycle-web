@@ -171,6 +171,34 @@ function createTagsWidget(name, type, tags) {
   })
 }
 
+function createSwitchTimeSlotWidget(name, taskForm) {
+  const switchTimeSlotEl = document.querySelector(`#${name}_${taskForm}_switchTimeSlot`)
+  const timeSlotEl = document.querySelector(`#${name}_${taskForm}_timeSlot`)
+
+  if (switchTimeSlotEl && timeSlotEl) {
+    switchTimeSlotEl.querySelectorAll('input[type="radio"]').forEach(rad => {
+      rad.addEventListener('change', function(e) {
+
+        const choices = JSON.parse(e.target.dataset.choices)
+
+        timeSlotEl.innerHTML = ''
+        choices.forEach(choice => {
+          const opt = document.createElement('option')
+          opt.value = choice.value
+          opt.innerHTML = choice.label
+          timeSlotEl.appendChild(opt)
+        })
+
+        store.dispatch({
+          type: 'SET_TIME_SLOT',
+          taskIndex: getTaskIndex(taskForm),
+          value: timeSlotEl.value
+        })
+      })
+    })
+  }
+}
+
 function createPackageForm(name, $list, cb) {
 
   var counter = $list.data('widget-counter') || $list.children().length
@@ -378,6 +406,8 @@ function initSubForm(name, taskEl, preloadedState) {
     })
   }
 
+  createSwitchTimeSlotWidget(name, taskForm)
+
   const deleteBtn = taskEl.querySelector('[data-delete="task"]')
 
   if (deleteBtn) {
@@ -468,7 +498,7 @@ export default function(name, options) {
 
     el.addEventListener('submit', (e) => {
 
-      _.find(taskForms, taskEl => {
+      const hasInvalidInput = _.find(taskForms, taskEl => {
 
         const type = taskEl.getAttribute('id').replace(name + '_', '')
 
@@ -486,6 +516,10 @@ export default function(name, options) {
 
         return !isValid
       })
+
+      if (!hasInvalidInput) {
+        form.disable()
+      }
 
     }, false)
 

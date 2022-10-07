@@ -15,10 +15,13 @@ use AppBundle\Action\Order\Cancel as OrderCancel;
 use AppBundle\Action\Order\Delay as OrderDelay;
 use AppBundle\Action\Order\Fulfill as OrderFulfill;
 use AppBundle\Action\Order\Pay as OrderPay;
+use AppBundle\Action\Order\Tip as OrderTip;
 use AppBundle\Action\Order\PaymentDetails as PaymentDetailsController;
 use AppBundle\Action\Order\PaymentMethods as PaymentMethodsController;
 use AppBundle\Action\Order\Refuse as OrderRefuse;
 use AppBundle\Action\Order\Centrifugo as CentrifugoController;
+use AppBundle\Action\Order\Invoice as InvoiceController;
+use AppBundle\Action\Order\GenerateInvoice as GenerateInvoiceController;
 use AppBundle\Action\Order\MercadopagoPreference;
 use AppBundle\Action\MyOrders;
 use AppBundle\Api\Dto\CartItemInput;
@@ -35,6 +38,7 @@ use AppBundle\Payment\MercadopagoPreferenceResponse;
 use AppBundle\Sylius\Order\AdjustmentInterface;
 use AppBundle\Sylius\Order\OrderInterface;
 use AppBundle\Sylius\Order\OrderItemInterface;
+use AppBundle\Validator\Constraints\DabbaOrder as AssertDabbaOrder;
 use AppBundle\Validator\Constraints\IsOrderModifiable as AssertOrderIsModifiable;
 use AppBundle\Validator\Constraints\Order as AssertOrder;
 use AppBundle\Validator\Constraints\LoopEatOrder as AssertLoopEatOrder;
@@ -189,6 +193,17 @@ use Webmozart\Assert\Assert as WMAssert;
  *         "summary"="Assigns a Order resource to a User."
  *       }
  *     },
+ *     "tip"={
+ *       "method"="PUT",
+ *       "path"="/orders/{id}/tip",
+ *       "controller"=OrderTip::class,
+ *       "validation_groups"={"cart"},
+ *       "security"="is_granted('session', object)",
+ *       "normalization_context"={"groups"={"cart"}},
+ *       "openapi_context"={
+ *         "summary"="Updates tip amount of an Order resource."
+ *       }
+ *     },
  *     "get_cart_timing"={
  *       "method"="GET",
  *       "path"="/orders/{id}/timing",
@@ -276,7 +291,26 @@ use Webmozart\Assert\Assert as WMAssert;
  *       "openapi_context"={
  *         "summary"="Creates a MercadoPago preference and returns its ID."
  *       }
- *     }
+ *     },
+ *     "invoice"={
+ *      "method"="GET",
+ *      "path"="/orders/{id}/invoice",
+ *      "controller"=InvoiceController::class,
+ *      "security"="is_granted('view', object)",
+ *      "openapi_context"={
+ *        "summary"="Get Invoice for a Order resource."
+ *      }
+ *     },
+ *     "generate_invoice"={
+ *      "method"="POST",
+ *      "path"="/orders/{id}/invoice",
+ *      "normalization_context"={"groups"={"order"}},
+ *      "controller"=GenerateInvoiceController::class,
+ *      "security"="is_granted('view', object)",
+ *      "openapi_context"={
+ *        "summary"="Generate Invoice for a Order resource."
+ *      }
+ *     },
  *   },
  *   attributes={
  *     "denormalization_context"={"groups"={"order_create"}},
@@ -288,6 +322,7 @@ use Webmozart\Assert\Assert as WMAssert;
  * @AssertOrder(groups={"Default"})
  * @AssertOrderIsModifiable(groups={"cart"})
  * @AssertLoopEatOrder(groups={"loopeat"})
+ * @AssertDabbaOrder(groups={"dabba"})
  */
 class Order extends BaseOrder implements OrderInterface
 {
@@ -820,7 +855,8 @@ class Order extends BaseOrder implements OrderInterface
 
         if (!$restaurant->isDepositRefundEnabled()
             && !$restaurant->isLoopeatEnabled()
-            && !$restaurant->isVytalEnabled()) {
+            && !$restaurant->isVytalEnabled()
+            && !$restaurant->isDabbaEnabled()) {
             return false;
         }
 
@@ -915,6 +951,11 @@ class Order extends BaseOrder implements OrderInterface
     public function getReceipt()
     {
         return $this->receipt;
+    }
+
+    public function getHasReceipt()
+    {
+        return $this->hasReceipt();
     }
 
     public function setReceipt($receipt)
@@ -1174,6 +1215,8 @@ class Order extends BaseOrder implements OrderInterface
             array_map($serializeAdjustment, $this->getAdjustments(AdjustmentInterface::REUSABLE_PACKAGING_ADJUSTMENT)->toArray());
         $taxAdjustments =
             array_map($serializeAdjustment, $this->getAdjustments(AdjustmentInterface::TAX_ADJUSTMENT)->toArray());
+        $tipAdjustments =
+            array_map($serializeAdjustment, $this->getAdjustments(AdjustmentInterface::TIP_ADJUSTMENT)->toArray());
 
         return [
             AdjustmentInterface::DELIVERY_ADJUSTMENT => array_values($deliveryAdjustments),
@@ -1181,6 +1224,7 @@ class Order extends BaseOrder implements OrderInterface
             AdjustmentInterface::ORDER_PROMOTION_ADJUSTMENT => array_values($orderPromotionAdjustments),
             AdjustmentInterface::REUSABLE_PACKAGING_ADJUSTMENT => array_values($reusablePackagingAdjustments),
             AdjustmentInterface::TAX_ADJUSTMENT => array_values($taxAdjustments),
+            AdjustmentInterface::TIP_ADJUSTMENT => array_values($tipAdjustments),
         ];
     }
 

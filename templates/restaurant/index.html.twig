@@ -75,13 +75,13 @@
   {% if not restaurant.isOpen %}
     {% set closingRule = restaurant.matchClosingRuleFor %}
     {% if closingRule is not empty %}
-    <div class="alert alert-danger text-center">
+    <div class="alert alert-info text-center">
       {% trans with { '%date%': closingRule.endDate|format_datetime('full', 'none') } %}
       restaurant.temporaryClosedWarning
       {% endtrans %}
     </div>
     {% else %}
-    <div class="alert alert-danger text-center">
+    <div class="alert alert-info text-center">
       {% set next_opening_date = restaurant.getNextOpeningDate() %}
       {% if next_opening_date %}
         {% set isOrderingAvailable = cart.shippingTimeRange is not null or times.range is not null or times.ranges|length > 0 %}
@@ -299,12 +299,17 @@
 <div id="js-addresses-data"
   data-addresses="{{ addresses_normalized|json_encode|e('html_attr') }}"></div>
 
+<div id="optins"
+  data-brand-name={{ coopcycle_setting('brand_name')|json_encode|e('html_attr') }}></div>
+
 {% endblock %}
 
 {% block styles %}
 {{ encore_entry_link_tags('restaurant') }}
+{{ encore_entry_link_tags('optins') }}
 {% endblock %}
 
 {% block scripts %}
 {{ encore_entry_script_tags('restaurant') }}
+{{ encore_entry_script_tags('optins') }}
 {% endblock %}

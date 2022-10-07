@@ -2,13 +2,17 @@
 
 namespace AppBundle\Doctrine\EventSubscriber;
 
+use libphonenumber\PhoneNumber;
 use ApiPlatform\Core\Api\IriConverterInterface;
+use AppBundle\Entity\Address;
 use AppBundle\Entity\Task\RecurrenceRule;
 use AppBundle\Service\Geocoder;
 use Doctrine\Common\EventSubscriber;
+use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Event\OnFlushEventArgs;
 use Doctrine\ORM\Event\PostFlushEventArgs;
 use Doctrine\ORM\Events;
+use Misd\PhoneNumberBundle\Serializer\Normalizer\PhoneNumberNormalizer;
 use Psr\Log\LoggerInterface;
 use SimpleBus\Message\Bus\MessageBus;
 use Symfony\Component\Messenger\MessageBusInterface;
@@ -21,12 +25,14 @@ class TaskRecurrenceRuleSubscriber implements EventSubscriber
     public function __construct(
         Geocoder $geocoder,
         IriConverterInterface $iriConverter,
-        PropertyAccessorInterface $propertyAccessor)
+        PropertyAccessorInterface $propertyAccessor,
+        PhoneNumberNormalizer $phoneNumberNormalizer)
     {
         $this->geocoder = $geocoder;
         $this->iriConverter = $iriConverter;
         $this->propertyAccessor = $propertyAccessor;
         $this->createdAddresses = new \SplObjectStorage();
+        $this->phoneNumberNormalizer = $phoneNumberNormalizer;
     }
 
     public function getSubscribedEvents()
@@ -67,7 +73,14 @@ class TaskRecurrenceRuleSubscriber implements EventSubscriber
                     $addressObj = $this->iriConverter->getItemFromIri($address);
                 } elseif (!isset($address['@id'])) {
                     $addressObj = $this->geocoder->geocode($address['streetAddress']);
+                    $this->_populateAddressDetails($addressObj, $address);
                     $em->persist($addressObj);
+                } elseif (isset($address['@id'])) {
+                    $entityChangeSet = $uow->getEntityChangeSet($object);
+                    [ $oldTemplate, $newTemplate ] = $entityChangeSet['template'];
+                    if (isset($oldTemplate['address'])) {
+                        $addressObj = $this->_handleAddressChange($oldTemplate, $template, $em);
+                    }
                 }
 
                 if ($addressObj) {
@@ -85,7 +98,17 @@ class TaskRecurrenceRuleSubscriber implements EventSubscriber
                         $addressObj = $this->iriConverter->getItemFromIri($task['address']);
                     } elseif (!isset($task['address']['@id'])) {
                         $addressObj = $this->geocoder->geocode($task['address']['streetAddress']);
+                        $this->_populateAddressDetails($addressObj, $task['address']);
                         $em->persist($addressObj);
+                    } elseif (isset($task['address']['@id'])) {
+                        $entityChangeSet = $uow->getEntityChangeSet($object);
+                        if (isset($entityChangeSet['template'])) {
+                            [ $oldTemplate, $newTemplate ] = $entityChangeSet['template'];
+                            if ($oldTemplate) {
+                                $oldTask = $oldTemplate['hydra:member'][$i];
+                                $addressObj = $this->_handleAddressChange($oldTask, $task, $em);
+                            }
+                        }
                     }
 
                     if ($addressObj) {
@@ -119,14 +142,77 @@ class TaskRecurrenceRuleSubscriber implements EventSubscriber
 
             $template = $item['object']->getTemplate();
 
-            $this->propertyAccessor->setValue($template, $item['path'], [
-                '@id' => $this->iriConverter->getIriFromItem($address),
-                'streetAddress' => $address->getStreetAddress(),
-            ]);
+            if (is_string($template['address'])) {
+                $template['address'] = [
+                    '@id' => $template['address']
+                ];
+            }
+
+            $this->propertyAccessor->setValue($template,
+                sprintf('%s[@id]', $item['path']), $this->iriConverter->getIriFromItem($address));
+            $this->propertyAccessor->setValue($template,
+                sprintf('%s[streetAddress]', $item['path']), $address->getStreetAddress());
 
             $item['object']->setTemplate($template);
         }
 
         $em->flush();
+    }
+
+    private function _hasChangedAddress($oldTask, $newTask)
+    {
+        if (!isset($oldTask['address']['@id'])) {
+            return false;
+        }
+
+        if ($oldTask['address']['@id'] !== $newTask['address']['@id']) {
+            return false;
+        }
+
+        $diff = array_diff($newTask['address'], $oldTask['address']);
+
+        return !empty($diff);
+    }
+
+    private function _handleAddressChange($oldTask, $task, EntityManagerInterface $em): ?Address
+    {
+        // when editing an address of a RRule we should recreate a new address
+        // https://github.com/coopcycle/coopcycle-web/issues/3306#issuecomment-1192525281
+        if ($this->_hasChangedAddress($oldTask, $task)) {
+
+            $addressObj = $this->geocoder->geocode($task['address']['streetAddress']);
+
+            $this->_populateAddressDetails($addressObj, $task['address']);
+
+            $em->persist($addressObj);
+
+            return $addressObj;
+        }
+
+        return null;
+    }
+
+    private function _populateAddressDetails(Address $address, $payload)
+    {
+        if (isset($payload['telephone'])) {
+            $address->setTelephone(
+                $this->phoneNumberNormalizer->denormalize(
+                    $payload['telephone'],
+                    PhoneNumber::class
+                )
+            );
+        }
+
+        if (isset($payload['contactName'])) {
+            $address->setContactName(
+                $payload['contactName']
+            );
+        }
+
+        if (isset($payload['description'])) {
+            $address->setDescription(
+                $payload['description']
+            );
+        }
     }
 }
