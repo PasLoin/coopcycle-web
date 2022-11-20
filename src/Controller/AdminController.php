@@ -168,7 +168,8 @@ class AdminController extends AbstractController
         FactoryInterface $promotionFactory,
         HttpClientInterface $browserlessClient,
         bool $optinExportUsersEnabled,
-        TypesenseShopsClient $typesenseShopsClient
+        TypesenseShopsClient $typesenseShopsClient,
+        bool $adhocOrderEnabled,
     )
     {
         $this->orderRepository = $orderRepository;
@@ -180,6 +181,7 @@ class AdminController extends AbstractController
         $this->browserlessClient = $browserlessClient;
         $this->optinExportUsersEnabled = $optinExportUsersEnabled;
         $this->typesenseShopsClient = $typesenseShopsClient;
+        $this->adhocOrderEnabled = $adhocOrderEnabled;
     }
 
     /**
@@ -658,23 +660,7 @@ class AdminController extends AbstractController
             throw $this->createNotFoundException();
         }
 
-        $anonymousEmail = sprintf('anon%s@coopcycle.org', bin2hex(random_bytes(8)));
-
-        $user->setEmail($anonymousEmail);
-        $user->setEmailCanonical($anonymousEmail);
-        $user->setEnabled(false);
-
-        $customer = $user->getCustomer();
-        if (null !== $customer) {
-            $customer->setEmail($anonymousEmail);
-            $customer->setEmailCanonical($anonymousEmail);
-            $customer->setFullName('');
-            $customer->setPhoneNumber('');
-        }
-
-        $userManager->updateUser($user, false);
-
-        $this->entityManager->flush();
+        $userManager->deleteUser($user);
 
         $this->addFlash(
             'notice',

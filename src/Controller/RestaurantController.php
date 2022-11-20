@@ -241,12 +241,18 @@ class RestaurantController extends AbstractController
             $geotools = new Geotools();
             $geohash = $request->query->get('geohash');
 
-            $decoded = $geotools->geohash()->decode($geohash);
+            try {
 
-            $latitude = $decoded->getCoordinate()->getLatitude();
-            $longitude = $decoded->getCoordinate()->getLongitude();
+                $decoded = $geotools->geohash()->decode($geohash);
 
-            $matches = $this->restaurantFilter->matchingLatLng($matches, $latitude, $longitude);
+                $latitude = $decoded->getCoordinate()->getLatitude();
+                $longitude = $decoded->getCoordinate()->getLongitude();
+
+                $matches = $this->restaurantFilter->matchingLatLng($matches, $latitude, $longitude);
+
+            } catch (\InvalidArgumentException|\RuntimeException $e) {
+                // Some funny guys may have tried a SQL injection
+            }
         }
 
         $iterator = new SortableRestaurantIterator($matches, $timingRegistry);
@@ -292,7 +298,7 @@ class RestaurantController extends AbstractController
             'addresses_normalized' => $this->getUserAddresses(),
             'address' => $request->query->has('address') ? $request->query->get('address') : null,
             'types' => $types,
-            'cuisines' => $this->get('serializer')->normalize($cuisines, 'jsonld'),
+            'cuisines' => $cuisines,
         ));
     }
 
