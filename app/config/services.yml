@@ -860,6 +860,7 @@ services:
   AppBundle\Api\DataTransformer\RemotePushTokenInputDataTransformer: ~
   AppBundle\Api\DataTransformer\UrbantzWebhookInputDataTransformer: ~
   AppBundle\Api\DataTransformer\BioDeliverInputDataTransformer: ~
+  AppBundle\Api\DataTransformer\TourInputDataTransformer: ~
 
   AppBundle\Api\DataTransformer\CartItemInputDataTransformer:
     arguments:
@@ -1121,6 +1122,7 @@ services:
 
   AppBundle\Spreadsheet\DeliveryDataExporter: ~
   AppBundle\Spreadsheet\DV4CULDataExporter: ~
+  AppBundle\Spreadsheet\ColisActivDataExporter: ~
 
   AppBundle\Edenred\Authentication:
     arguments:
