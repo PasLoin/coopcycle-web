@@ -70,6 +70,7 @@
         "ADMIN_DASHBOARD_TASK_ASSIGNED_TO": "Assigned to {{username}}",
         "ADMIN_DASHBOARD_UNASSIGN_TASK": "Unassign task #{{id}}",
         "ADMIN_DASHBOARD_UNASSIGN_TASKS_MULTI": "Unassign {{count}} task(s)",
+        "ADMIN_DASHBOARD_UNASSIGN_TOUR": "Unassign tour: {{name}}",
         "ADMIN_DASHBOARD_NAV_IMPORT": "Import",
         "ADMIN_DASHBOARD_NAV_EXPORT": "Export",
         "ADMIN_DASHBOARD_NAV_FILTERS": "Filters",
@@ -307,6 +308,17 @@
         "SEARCH_PLACEHOLDER": "A shop, a dish…",
         "SEARCH_PRODUCT_ITEM_SUBTITLE": "In {{- shop}}",
         "ADMIN_DASHBOARD_CREATE_TOUR": "Create tour",
-        "ADMIN_DASHBOARD_TOUR_NAME": "Tour name"
+        "ADMIN_DASHBOARD_TOUR_NAME": "Tour name",
+        "SAVE_CREDIT_CARD": "Save credit card",
+        "PAY_WITH_SAVED_CREDIT_CARD": "Pay with a saved credit card",
+        "ADD_NEW_CREDIT_CARD": "Add a new credit card",
+        "ADD_OR_SELECT_A_CARD_TO_PAY": "Please select or enter a new credit card to pay",
+        "EXPIRATION": "Expiration",
+        "ORDERS_RATE_LIMIT": {
+          "ORDER_UNIT": "order(s)",
+          "TIME_UNIT": "minute(s)",
+          "NO_LIMIT": "No order limit",
+          "LIMIT": "A maximum of {{command}} orders every {{time}}"
+        }
     }
 }

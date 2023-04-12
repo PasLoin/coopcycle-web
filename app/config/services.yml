@@ -110,6 +110,7 @@ services:
   ACSEO\TypesenseBundle\Manager\CollectionManager: '@typesense.collection_manager'
   ACSEO\TypesenseBundle\Manager\DocumentManager: '@typesense.document_manager'
   ACSEO\TypesenseBundle\Client\CollectionClient: '@typesense.collection_client'
+  ACSEO\TypesenseBundle\Client\TypesenseClient: '@typesense.client'
 
   AppBundle\Routing\FoodtechEnabledAwareLoader:
     arguments:
@@ -1050,6 +1051,9 @@ services:
   AppBundle\Security\StoreVoter:
     tags: [ 'security.voter' ]
 
+  AppBundle\Security\UserVoter:
+    tags: [ 'security.voter' ]
+
   AppBundle\Security\CartSessionVoter:
     tags: [ 'security.voter' ]
 
@@ -1237,3 +1241,9 @@ services:
   AppBundle\Dabba\Context:
     tags:
       - { name: monolog.logger, channel: dabba }
+
+  AppBundle\Typesense\Converter\:
+    resource: '../../src/Typesense/Converter/*'
+    public: true
+
+  AppBundle\Utils\OrdersRateLimit: ~
