@@ -1,10 +1,10 @@
-import { createAction } from 'redux-actions'
+import {createAction} from 'redux-actions'
 import _ from 'lodash'
 import axios from 'axios'
 import qs from 'qs'
 
-import i18n, { getCountry } from '../../i18n'
-import { geocode } from '../../components/AddressAutosuggest'
+import i18n, {getCountry} from '../../i18n'
+import {geocode} from '../../components/AddressAutosuggest'
 
 export const FETCH_REQUEST = 'FETCH_REQUEST'
 export const FETCH_SUCCESS = 'FETCH_SUCCESS'
@@ -28,6 +28,24 @@ export const OPEN_PRODUCT_OPTIONS_MODAL = 'OPEN_PRODUCT_OPTIONS_MODAL'
 export const CLOSE_PRODUCT_OPTIONS_MODAL = 'CLOSE_PRODUCT_OPTIONS_MODAL'
 export const OPEN_PRODUCT_DETAILS_MODAL = 'OPEN_PRODUCT_DETAILS_MODAL'
 export const CLOSE_PRODUCT_DETAILS_MODAL = 'CLOSE_PRODUCT_DETAILS_MODAL'
+
+export const OPEN_INVITE_PEOPLE_TO_ORDER_MODAL = 'OPEN_INVITE_PEOPLE_TO_ORDER_MODAL'
+export const CLOSE_INVITE_PEOPLE_TO_ORDER_MODAL = 'CLOSE_INVITE_PEOPLE_TO_ORDER_MODAL'
+
+export const INVITE_PEOPLE_REQUEST = 'INVITE_PEOPLE_REQUEST'
+export const INVITE_PEOPLE_REQUEST_SUCCESS = 'INVITE_PEOPLE_REQUEST_SUCCESS'
+export const INVITE_PEOPLE_REQUEST_FAILURE = 'INVITE_PEOPLE_REQUEST_FAILURE'
+
+export const OPEN_SET_PLAYER_EMAIL_MODAL = 'OPEN_SET_PLAYER_EMAIL_MODAL'
+export const CLOSE_SET_PLAYER_EMAIL_MODAL = 'CLOSE_SET_PLAYER_EMAIL_MODAL'
+export const SET_PLAYER_TOKEN = 'SET_PLAYER_TOKEN'
+export const SET_PLAYER_FAILURE = 'SET_PLAYER_FAILURE'
+
+export const PLAYER_UPDATE_EVENT = 'PLAYER_UPDATE_EVENT'
+
+export const STOP_ASKING_ENABLE_REUSABLE_PACKAGING = 'STOP_ASKING_ENABLE_REUSABLE_PACKAGING'
+export const DISABLE_REUSABLE_PACKAGING = 'DISABLE_REUSABLE_PACKAGING'
+export const ENABLE_REUSABLE_PACKAGING = 'ENABLE_REUSABLE_PACKAGING'
 
 export const fetchRequest = createAction(FETCH_REQUEST)
 export const fetchSuccess = createAction(FETCH_SUCCESS)
@@ -53,11 +71,24 @@ export const closeProductDetailsModal = createAction(CLOSE_PRODUCT_DETAILS_MODAL
 export const openProductDetailsModal =
   createAction(OPEN_PRODUCT_DETAILS_MODAL, (name, images, price, formAction) => ({ name, images, price, formAction }))
 
+export const openInvitePeopleToOrderModal = createAction(OPEN_INVITE_PEOPLE_TO_ORDER_MODAL)
+export const closeInvitePeopleToOrderModal = createAction(CLOSE_INVITE_PEOPLE_TO_ORDER_MODAL)
+
+export const invitePeopleRequest = createAction(INVITE_PEOPLE_REQUEST)
+export const invitePeopleSuccess = createAction(INVITE_PEOPLE_REQUEST_SUCCESS)
+export const invitePeopleFailure = createAction(INVITE_PEOPLE_REQUEST_FAILURE)
+
+export const openSetPlayerEmailModal = createAction(OPEN_SET_PLAYER_EMAIL_MODAL)
+export const closeSetPlayerEmailModal = createAction(CLOSE_SET_PLAYER_EMAIL_MODAL)
+export const setPlayerToken = createAction(SET_PLAYER_TOKEN)
+
+export const setPlayerFailure = createAction(SET_PLAYER_FAILURE)
+
+export const playerUpdateEvent = createAction(PLAYER_UPDATE_EVENT)
+
+export const stopAskingToEnableReusablePackaging = createAction(STOP_ASKING_ENABLE_REUSABLE_PACKAGING)
+
 const httpClient = axios.create()
-
-httpClient.defaults.headers.common['Content-Type']     = 'application/x-www-form-urlencoded'
-httpClient.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest'
-
 function getRoutingParams(params) {
 
   const urlParams = qs.parse(window.location.search.substring(1))
@@ -93,6 +124,10 @@ function postForm() {
 
   return httpClient.request({
     method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-Requested-With': 'XMLHttpRequest'
+    },
     url: $form.data('cartUrl'),
     data: serializeForm().toString(),
   }).then(res => res.data)
@@ -104,6 +139,10 @@ function postFormWithTime() {
 
   return httpClient.request({
     method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-Requested-With': 'XMLHttpRequest'
+    },
     url: $form.data('cartUrl'),
     data: serializeForm(true).toString(),
   }).then(res => res.data)
@@ -127,21 +166,36 @@ function handleAjaxError(e, dispatch) {
   dispatch(fetchFailure())
 }
 
+function playerHeader({player: {token}}, headers = {}) {
+  if (token !== null) {
+    headers = {
+      ...headers,
+      'X-Player-Token': token
+    }
+  }
+  return headers
+}
+
 const QUEUE_CART_ITEMS = 'QUEUE_CART_ITEMS'
 
 export function addItem(itemURL, quantity = 1) {
 
-  return dispatch => {
+  return (dispatch, getState) => {
 
     dispatch(fetchRequest())
     dispatch(setLastAddItemRequest(itemURL, { quantity }))
 
-    return $.post(itemURL, { quantity })
-      .then(res => {
-        window._paq.push(['trackEvent', 'Checkout', 'addItem'])
-        handleAjaxResponse(res, dispatch)
-      })
-      .fail(e => handleAjaxResponse(e.responseJSON, dispatch))
+    return httpClient.request({
+      method: "post",
+      url: itemURL,
+      data: {quantity},
+      headers: playerHeader(getState()),
+    }).then(res => {
+      window._paq.push(['trackEvent', 'Checkout', 'addItem'])
+      handleAjaxResponse(res.data, dispatch)
+    }).catch(e => {
+      handleAjaxError(e, dispatch)
+    })
   }
 }
 
@@ -149,28 +203,31 @@ export function queueAddItem(itemURL, quantity = 1) {
 
   return {
     queue: QUEUE_CART_ITEMS,
-    callback: (next, dispatch) => {
+    callback: (next, dispatch, getState) => {
 
       dispatch(fetchRequest())
       dispatch(setLastAddItemRequest(itemURL, { quantity }))
 
-      $.post(itemURL, { quantity })
-        .then(res => {
-          window._paq.push(['trackEvent', 'Checkout', 'addItem'])
-          handleAjaxResponse(res, dispatch)
-          next()
-        })
-        .fail(e => {
-          handleAjaxResponse(e.responseJSON, dispatch)
-          next()
-        })
+      httpClient.request({
+        method: "post",
+        url: itemURL,
+        data: {quantity},
+        headers: playerHeader(getState()),
+      }).then(res => {
+        window._paq.push(['trackEvent', 'Checkout', 'addItem'])
+        handleAjaxResponse(res.data, dispatch)
+        next()
+      }).catch(e => {
+        handleAjaxError(e, dispatch)
+        next()
+      })
     }
   }
 }
 
 export function addItemWithOptions(itemURL, data, quantity = 1) {
 
-  return dispatch => {
+  return (dispatch, getState) => {
 
     dispatch(fetchRequest())
     dispatch(setLastAddItemRequest(itemURL, data))
@@ -181,12 +238,22 @@ export function addItemWithOptions(itemURL, data, quantity = 1) {
       data = { ...data, quantity }
     }
 
-    return $.post(itemURL, data)
-      .then(res => {
-        window._paq.push(['trackEvent', 'Checkout', 'addItemWithOptions'])
-        handleAjaxResponse(res, dispatch)
-      })
-      .fail(e => handleAjaxResponse(e.responseJSON, dispatch))
+    data = _.reduce(data, (acc, k) => {
+      acc[k.name] = k.value
+      return acc
+    }, {})
+
+    return httpClient.request({
+      method: "post",
+      url: itemURL,
+      data: qs.stringify(data),
+      headers: playerHeader(getState()),
+    }).then(res => {
+      window._paq.push(['trackEvent', 'Checkout', 'addItemWithOptions'])
+      handleAjaxResponse(res.data, dispatch)
+    }).catch(e => {
+      handleAjaxError(e, dispatch)
+    })
   }
 }
 
@@ -201,9 +268,16 @@ export function updateItemQuantity(itemID, quantity) {
 
     dispatch(fetchRequest())
 
-    $.post(url, { quantity })
-      .then(res => handleAjaxResponse(res, dispatch))
-      .fail(e   => handleAjaxError(e, dispatch))
+    httpClient.request({
+      method: "post",
+      url,
+      data: {quantity},
+      headers: playerHeader(getState()),
+    }).then(res => {
+      handleAjaxResponse(res.data, dispatch)
+    }).catch(e => {
+      handleAjaxError(e, dispatch)
+    })
   }
 }
 
@@ -218,14 +292,15 @@ export function removeItem(itemID) {
     const restaurant = getState().restaurant
     const url = window.Routing.generate('restaurant_remove_from_cart', getRoutingParams({ id: restaurant.id, cartItemId: itemID }))
 
-    const fetchParams = {
+    return httpClient.request({
+      method: "delete",
       url,
-      type: 'DELETE',
-    }
-
-    return $.ajax(fetchParams)
-      .then(res => handleAjaxResponse(res, dispatch))
-      .fail(e   => handleAjaxError(e, dispatch))
+      headers: playerHeader(getState()),
+    }).then(res => {
+      handleAjaxResponse(res.data, dispatch)
+    }).catch(e => {
+      handleAjaxError(e, dispatch)
+    })
   }
 }
 
@@ -233,7 +308,13 @@ function geocodeAndSync() {
 
   return (dispatch, getState) => {
 
-    const { cart } = getState()
+    const { cart, isPlayer } = getState()
+
+    // No need to sync address for guests
+    if (isPlayer) {
+      $('#menu').LoadingOverlay('hide')
+      return
+    }
 
     dispatch(fetchRequest())
 
@@ -266,7 +347,7 @@ export function sync() {
 
   return (dispatch, getState) => {
 
-    const { cart } = getState()
+    const { cart, player: {player} } = getState()
 
     if (cart.takeaway) {
       $('#menu').LoadingOverlay('hide')
@@ -280,6 +361,10 @@ export function sync() {
         .catch(e  => handleAjaxError(e, dispatch))
     } else {
       dispatch(geocodeAndSync())
+    }
+
+    if (cart.invitation && !player) {
+      dispatch(setPlayer())
     }
   }
 }
@@ -467,5 +552,95 @@ export function retryLastAddItemRequest() {
         handleAjaxResponse(res, dispatch)
       })
       .fail(e => handleAjaxError(e, dispatch))
+  }
+}
+
+export function setPlayer({email, name} = {}) {
+  return async (dispatch, getState) => {
+
+    const {isAuth, user} = window._auth
+
+    if (!isAuth && !email && !name) {
+      return dispatch(openSetPlayerEmailModal())
+    }
+
+    if (!email || !name) {
+      email = user.email
+      name = user.username
+    }
+
+    const { cart: {id, invitation: slug} } = getState()
+    const url = window.Routing.generate('api_orders_add_player_item', getRoutingParams({id}))
+
+    // Set player
+    if (email && slug && name) {
+      httpClient.request({
+        method: "post",
+        url,
+        data: {email, slug, name},
+        headers: {
+          'Accept': 'application/ld+json',
+          'Content-Type': 'application/ld+json'
+        }
+      }).then(res => {
+        dispatch(setPlayerToken(res.data))
+        dispatch(closeSetPlayerEmailModal())
+      })
+    }
+  }
+}
+
+export function createInvitation() {
+
+  return (dispatch, getState) => {
+    dispatch(invitePeopleRequest())
+
+    const { cart: {id} } = getState()
+    const {jwt, user} = window._auth
+    const url = window.Routing.generate('api_orders_create_invitation_item', getRoutingParams({id}))
+    httpClient.request({
+      method: 'post',
+      url,
+      data: {},
+      headers: {
+        'Authorization': `Bearer ${jwt}`,
+        'Accept': 'application/ld+json',
+        'Content-Type': 'application/ld+json'
+      }
+    })
+      .then(res => {
+        dispatch(invitePeopleSuccess(res.data.invitation))
+        dispatch(setPlayer({email: user.email, name: user.username}))
+      })
+      .catch(e => dispatch(invitePeopleFailure(e)))
+  }
+}
+
+const _enableReusablePackaging = createAction(ENABLE_REUSABLE_PACKAGING)
+const _disableReusablePackaging = createAction(DISABLE_REUSABLE_PACKAGING)
+
+export function toggleReusablePackaging(checked = true) {
+
+  return (dispatch) => {
+
+    const $form = $('form[name="cart"]')
+    const $reusablePackagingEnabled = $form.find('input[name="cart[reusablePackagingEnabled]"]')
+
+    if ($reusablePackagingEnabled.length === 1) {
+
+      $reusablePackagingEnabled.prop('checked', checked)
+
+      if (checked) {
+        dispatch(_enableReusablePackaging())
+      } else {
+        dispatch(_disableReusablePackaging())
+      }
+
+      dispatch(fetchRequest())
+      postForm()
+        .then(res => handleAjaxResponse(res, dispatch))
+        .catch(e  => handleAjaxError(e, dispatch))
+
+    }
   }
 }

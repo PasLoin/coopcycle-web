@@ -21,6 +21,7 @@
     </field>
     <field name="metadata" type="json_array" column="metadata" nullable="true"/>
     <field name="weight" type="integer" column="weight" nullable="true"/>
+    <field name="failureReason" type="string" length="32" nullable="true" />
     <field name="createdAt" type="datetime" column="created_at">
       <gedmo:timestampable on="create"/>
     </field>
@@ -97,6 +98,9 @@
       <entity-listener class="AppBundle\Entity\Listener\TaskListener">
         <lifecycle-callback type="prePersist" method="prePersist"/>
         <lifecycle-callback type="preUpdate" method="preUpdate"/>
+      </entity-listener>
+      <entity-listener class="AppBundle\LoopEat\TaskListener">
+        <lifecycle-callback type="prePersist" method="prePersist"/>
       </entity-listener>
     </entity-listeners>
   </entity>

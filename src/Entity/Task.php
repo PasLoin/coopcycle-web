@@ -10,9 +10,11 @@ use AppBundle\Action\Task\BulkAssign as TaskBulkAssign;
 use AppBundle\Action\Task\Cancel as TaskCancel;
 use AppBundle\Action\Task\Done as TaskDone;
 use AppBundle\Action\Task\Events as TaskEvents;
+use AppBundle\Action\Task\FailureReasons as TaskFailureReasons;
 use AppBundle\Action\Task\Failed as TaskFailed;
 use AppBundle\Action\Task\Unassign as TaskUnassign;
 use AppBundle\Action\Task\Duplicate as TaskDuplicate;
+use AppBundle\Action\Task\Reschedule as TaskReschedule;
 use AppBundle\Action\Task\Restore as TaskRestore;
 use AppBundle\Action\Task\Start as TaskStart;
 use AppBundle\Action\Task\RemoveFromGroup;
@@ -24,6 +26,8 @@ use AppBundle\Api\Filter\TaskFilter;
 use AppBundle\Api\Filter\OrganizationFilter;
 use AppBundle\DataType\TsRange;
 use AppBundle\Domain\Task\Event as TaskDomainEvent;
+use AppBundle\Entity\Delivery\FailureReason;
+use AppBundle\Entity\Delivery\PricingRule;
 use AppBundle\Entity\Package;
 use AppBundle\Entity\Package\PackagesAwareInterface;
 use AppBundle\Entity\Task\Group as TaskGroup;
@@ -34,12 +38,15 @@ use AppBundle\Entity\Model\TaggableTrait;
 use AppBundle\Entity\Model\OrganizationAwareInterface;
 use AppBundle\Entity\Model\OrganizationAwareTrait;
 use AppBundle\Entity\Package\PackagesAwareTrait;
+use AppBundle\ExpressionLanguage\PackagesResolver;
+use AppBundle\Pricing\PricingRuleMatcherInterface;
 use AppBundle\Validator\Constraints\Task as AssertTask;
 use AppBundle\Vroom\Job as VroomJob;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\Common\Collections\Criteria;
 use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
+use Symfony\Component\ExpressionLanguage\ExpressionLanguage;
 use Symfony\Component\Serializer\Annotation\Groups;
 use Symfony\Component\Serializer\Annotation\SerializedName;
 use Symfony\Component\Validator\Constraints as Assert;
@@ -228,6 +235,36 @@ use Symfony\Component\Validator\Constraints as Assert;
  *         "summary"="Duplicates a Task"
  *       }
  *     },
+ *     "task_reschedule"={
+ *        "method"="PUT",
+ *        "path"="/tasks/{id}/reschedule",
+ *        "controller"=TaskReschedule::class,
+ *        "denormalization_context"={"groups"={"task_operation"}},
+ *        "access_control"="is_granted('ROLE_DISPATCHER')",
+ *        "openapi_context"={
+ *          "summary"="Reschedules a Task",
+ *          "parameters"={
+ *            {
+ *              "in"="body",
+ *              "name"="N/A",
+ *              "schema"={"type"="object", "properties"={
+ *                  "after"={"type"="string","format"="date-time"},
+ *                  "before"={"type"="string","format"="date-time"},
+ *              }},
+ *              "style"="form"
+ *            }
+ *          }
+ *        }
+ *      },
+ *      "task_failure_reasons"={
+ *        "method"="GET",
+ *        "path"="/tasks/{id}/failure_reasons",
+ *        "controller"=TaskFailureReasons::class,
+ *        "security"="is_granted('view', object)",
+ *        "openapi_context"={
+ *          "summary"="Retrieves possible failure reasons for a Task"
+ *        }
+ *      },
  *     "task_events"={
  *       "method"="GET",
  *       "path"="/tasks/{id}/events",
@@ -263,7 +300,7 @@ use Symfony\Component\Validator\Constraints as Assert;
  * @ApiFilter(OrganizationFilter::class, properties={"organization"})
  * @UniqueEntity(fields={"organization", "ref"}, errorPath="ref")
  */
-class Task implements TaggableInterface, OrganizationAwareInterface, PackagesAwareInterface
+class Task implements TaggableInterface, OrganizationAwareInterface, PackagesAwareInterface, PricingRuleMatcherInterface
 {
     use TaggableTrait;
     use OrganizationAwareTrait;
@@ -399,6 +436,12 @@ class Task implements TaggableInterface, OrganizationAwareInterface, PackagesAwa
      * @Groups({"task", "task_create", "task_edit", "delivery", "delivery_create", "pricing_deliveries"})
      */
     private $weight;
+
+    /**
+     * @var string|null
+     * @Groups({"task"})
+     */
+    private $failureReason;
 
     public function __construct()
     {
@@ -776,21 +819,39 @@ class Task implements TaggableInterface, OrganizationAwareInterface, PackagesAwa
 
     /* Legacy */
 
+    /**
+     * @deprecated
+     * @return mixed
+     */
     public function getDoneAfter()
     {
         return $this->getAfter();
     }
 
+    /**
+     * @deprecated
+     * @param \DateTime|null $after
+     * @return $this
+     */
     public function setDoneAfter(?\DateTime $after)
     {
         return $this->setAfter($after);
     }
 
+    /**
+     * @deprecated
+     * @return mixed
+     */
     public function getDoneBefore()
     {
         return $this->getBefore();
     }
 
+    /**
+     * @deprecated
+     * @param \DateTime|null $before
+     * @return $this
+     */
     public function setDoneBefore(?\DateTime $before)
     {
         return $this->setBefore($before);
@@ -983,6 +1044,84 @@ class Task implements TaggableInterface, OrganizationAwareInterface, PackagesAwa
     {
         $this->tour = $tour;
 
+        return $this;
+    }
+
+    public function toExpressionLanguageObject()
+    {
+        $taskObject = new \stdClass();
+
+        $taskObject->address = $this->getAddress();
+        $taskObject->createdAt = $this->getCreatedAt();
+        $taskObject->after = $this->getAfter();
+        $taskObject->before = $this->getBefore();
+        $taskObject->doorstep = $this->isDoorstep();
+
+        return $taskObject;
+    }
+
+    public function toExpressionLanguageValues()
+    {
+        $values = Delivery::toExpressionLanguageValues($this->getDelivery());
+
+        $emptyObject = new \stdClass();
+        $emptyObject->address = null;
+        $emptyObject->createdAt = null;
+        $emptyObject->after = null;
+        $emptyObject->before = null;
+        $emptyObject->doorstep = false;
+
+        $values['distance'] = -1;
+        $values['weight'] = $this->getWeight();
+        $values['pickup'] = $this->isPickup() ? $this->toExpressionLanguageObject() : $emptyObject;
+        $values['dropoff'] = $this->isDropoff() ? $this->toExpressionLanguageObject() : $emptyObject;
+        $values['packages'] = new PackagesResolver($this);
+
+        $thisObj = new \stdClass();
+        $thisObj->type = $this->getType();
+        $values['task'] = $thisObj;
+
+        return $values;
+    }
+
+    public function matchesPricingRule(PricingRule $pricingRule, ExpressionLanguage $language = null)
+    {
+        if (null === $language) {
+            $language = new ExpressionLanguage();
+        }
+
+        $expression = $pricingRule->getExpression();
+
+        return $language->evaluate($expression, $this->toExpressionLanguageValues());
+    }
+
+    public function appendToComments($comments)
+    {
+        $this->comments = ($this->comments ?? '') . "\n\n" . $comments;
+    }
+
+    public function evaluatePrice(PricingRule $pricingRule, ExpressionLanguage $language = null)
+    {
+        if (null === $language) {
+            $language = new ExpressionLanguage();
+        }
+
+        return $language->evaluate($pricingRule->getPrice(), $this->toExpressionLanguageValues());
+    }
+
+    public function getFailureReasons(): array
+    {
+        return [];
+    }
+
+    public function getFailureReason(): ?string
+    {
+        return $this->failureReason;
+    }
+
+    public function setFailureReason(?string $failureReason): Task
+    {
+        $this->failureReason = $failureReason;
         return $this;
     }
 }

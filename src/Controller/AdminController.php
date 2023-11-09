@@ -19,6 +19,7 @@ use AppBundle\Entity\Nonprofit;
 use AppBundle\Entity\User;
 use AppBundle\Entity\Delivery;
 use AppBundle\Entity\DeliveryForm;
+use AppBundle\Entity\DeliveryRepository;
 use AppBundle\Entity\Delivery\PricingRuleSet;
 use AppBundle\Entity\Hub;
 use AppBundle\Entity\Invitation;
@@ -50,6 +51,7 @@ use AppBundle\Form\DeliveryImportType;
 use AppBundle\Form\EmbedSettingsType;
 use AppBundle\Form\GeoJSONUploadType;
 use AppBundle\Form\HubType;
+use AppBundle\Form\FailureReasonSetType;
 use AppBundle\Form\WoopitIntegrationType;
 use AppBundle\Form\InviteUserType;
 use AppBundle\Form\MaintenanceType;
@@ -82,13 +84,16 @@ use AppBundle\Sylius\Promotion\Action\FixedDiscountPromotionActionCommand;
 use AppBundle\Sylius\Promotion\Action\PercentageDiscountPromotionActionCommand;
 use AppBundle\Sylius\Promotion\Checker\Rule\IsCustomerRuleChecker;
 use AppBundle\Sylius\Promotion\Checker\Rule\IsRestaurantRuleChecker;
+use Carbon\Carbon;
 use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\DBAL\Exception\ForeignKeyConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\QueryBuilder;
 use Doctrine\ORM\Tools\Pagination\Paginator;
 use Doctrine\ORM\Query\Expr;
-use Nucleos\UserBundle\Model\UserManagerInterface;
-use Nucleos\UserBundle\Util\TokenGeneratorInterface;
-use Nucleos\UserBundle\Util\CanonicalizerInterface;
+use Nucleos\UserBundle\Model\UserManager as UserManagerInterface;
+use Nucleos\UserBundle\Util\TokenGenerator as TokenGeneratorInterface;
+use Nucleos\UserBundle\Util\Canonicalizer as CanonicalizerInterface;
 use Nucleos\ProfileBundle\Mailer\Mail\RegistrationMail;
 use Knp\Component\Pager\PaginatorInterface;
 use Ramsey\Uuid\Uuid;
@@ -291,6 +296,8 @@ class AdminController extends AbstractController
 
         foreach ($form->get('payments') as $paymentForm) {
             if ($paymentForm->isSubmitted() && $paymentForm->isValid()) {
+                // https://github.com/symfony/symfony/issues/35277
+                /** @var \Symfony\Component\Form\Form $paymentForm */
                 $hasClickedRefund =
                     $paymentForm->getClickedButton() && 'refund' === $paymentForm->getClickedButton()->getName();
 
@@ -445,30 +452,29 @@ class AdminController extends AbstractController
 
         $attributes = [];
 
+        $countOrders = $this->orderRepository->createQueryBuilder('o');
+        $countOrders->select('COUNT(o)');
+        $countOrders->andWhere('o.customer = :customer');
+        $countOrders->andWhere('o.state != :state');
+
+        $lastOrder = $this->orderRepository->createQueryBuilder('o');
+        $lastOrder->andWhere('o.customer = :customer');
+        $lastOrder->andWhere('o.state != :state');
+        $lastOrder->orderBy('o.updatedAt', 'DESC');
+        $lastOrder->setMaxResults(1);
+
         foreach ($customers as $customer) {
             $key = $customer->getEmailCanonical();
 
-            $qb = $this->orderRepository->createQueryBuilder('o');
-            $qb->andWhere('o.customer = :customer');
-            $qb->andWhere('o.state != :state');
-            $qb->setParameter('customer', $customer);
-            $qb->setParameter('state', OrderInterface::STATE_CART);
+            $countOrders->setParameter('customer', $customer);
+            $countOrders->setParameter('state', OrderInterface::STATE_CART);
 
-            $res = $qb->getQuery()->getResult();
+            $attributes[$key]['orders_count'] = $countOrders->getQuery()->getSingleScalarResult();
 
-            $attributes[$key]['orders_count'] = count($res);
+            $lastOrder->setParameter('customer', $customer);
+            $lastOrder->setParameter('state', OrderInterface::STATE_CART);
 
-            $qb = $this->orderRepository->createQueryBuilder('o');
-            $qb->andWhere('o.customer = :customer');
-            $qb->andWhere('o.state != :state');
-            $qb->setParameter('customer', $customer);
-            $qb->setParameter('state', OrderInterface::STATE_CART);
-            $qb->orderBy('o.updatedAt', 'DESC');
-            $qb->setMaxResults(1);
-
-            $res = $qb->getQuery()->getOneOrNullResult();
-
-            $attributes[$key]['last_order'] = $res;
+            $attributes[$key]['last_order'] = $lastOrder->getQuery()->getOneOrNullResult();
         }
 
         $parameters = [
@@ -733,7 +739,9 @@ class AdminController extends AbstractController
         PaginatorInterface $paginator,
         DeliveryManager $deliveryManager,
         OrderFactory $orderFactory,
-        OrderManager $orderManager)
+        OrderManager $orderManager,
+        DeliveryRepository $deliveryRepository
+    )
     {
         $deliveryImportForm = $this->createForm(DeliveryImportType::class, null, [
             'with_store' => true
@@ -744,7 +752,18 @@ class AdminController extends AbstractController
             $store = $deliveryImportForm->get('store')->getData();
 
             return $this->handleDeliveryImportForStore($store, $deliveryImportForm, 'admin_deliveries',
-                $orderManager, $deliveryManager, $orderFactory,);
+                $orderManager, $deliveryManager, $orderFactory);
+        } else if ($deliveryImportForm->isSubmitted() && !$deliveryImportForm->isValid()) {
+            if (count($deliveryImportForm->getData()) > 0) {
+                // This is the case when some rows have errors and some others were parsed successfuly and have to be persisted
+                $importedDeliveries = $this->persistImportedDeliveries($deliveryImportForm, $orderManager,
+                    $deliveryManager, $orderFactory);
+
+                $importedRowsMessage = $this->translator->trans('import.successful.rows', [
+                    '%count%' => count(array_keys($importedDeliveries)),
+                    '%rows%' => implode(", ", array_keys($importedDeliveries))
+                ]);
+            }
         }
 
         $dataExportForm = $this->createForm(DataExportType::class);
@@ -767,11 +786,45 @@ class AdminController extends AbstractController
             return $response;
         }
 
-        $sections = $this->getDoctrine()
-            ->getRepository(Delivery::class)
-            ->getSections();
+        /** @var QueryBuilder $qb */
+        $qb = $deliveryRepository->createQueryBuilderWithTasks();
 
-        $qb = $sections['past'];
+        $filters = [
+            'query' => null,
+            'range' => null,
+        ];
+
+        if ($request->query->get('q')) {
+
+            $filters['query'] = $request->query->get('q');
+
+            // Redirect startin with #
+            if (str_starts_with($filters['query'], '#')) {
+                $searchId = intval(trim($filters['query'], '#'));
+                if (null !== $deliveryRepository->find($searchId)) {
+                    return $this->redirectToRoute($this->getDeliveryRoutes()['view'], ['id' => $searchId]);
+                }
+            }
+
+            $deliveryRepository->searchWithSonic($qb, $filters['query'], $request->getLocale());
+
+        } else {
+            if ($request->query->has('section') && is_callable([ $deliveryRepository, $request->query->get('section') ])) {
+                $qb = call_user_func([ $deliveryRepository, $request->query->get('section') ], $qb);
+            } else {
+                $qb = $deliveryRepository->today($qb);
+            }
+        }
+
+        if ($request->query->has('start_at') && $request->query->has('end_at')) {
+            $start = Carbon::parse($request->query->get('start_at'))->setTime(0, 0, 0)->toDateTime();
+            $end = Carbon::parse($request->query->get('end_at'))->setTime(23, 59, 59)->toDateTime();
+            $filters['range'] = [$start, $end];
+
+            $qb->andWhere('d.createdAt BETWEEN :start AND :end')
+            ->setParameter('start', $start)
+            ->setParameter('end', $end);
+        }
 
         // Allow filtering by store & restaurant with KnpPaginator
         $qb->leftJoin(Store::class, 's', Expr\Join::WITH, 's.id = d.store');
@@ -793,10 +846,10 @@ class AdminController extends AbstractController
         );
 
         return $this->render('admin/deliveries.html.twig', [
-            'today' => $sections['today']->getQuery()->getResult(),
-            'upcoming' => $sections['upcoming']->getQuery()->getResult(),
             'deliveries' => $deliveries,
+            'filters' => $filters,
             'routes' => $this->getDeliveryRoutes(),
+            'imported_rows_message' => $importedRowsMessage ?? null,
             'stores' => $this->getDoctrine()->getRepository(Store::class)->findBy([], ['name' => 'ASC']),
             'delivery_import_form' => $deliveryImportForm->createView(),
             'delivery_export_form' => $dataExportForm->createView(),
@@ -1043,6 +1096,117 @@ class AdminController extends AbstractController
         $duplicated = $ruleSet->duplicate($this->translator);
 
         return $this->renderPricingRuleSetForm($duplicated, $request);
+    }
+
+    private function renderFailureReasonSetForm(Delivery\FailureReasonSet $failureReasonSet, Request $request)
+    {
+        $this->denyAccessUnlessGranted('ROLE_ADMIN');
+        $originalReasons = new ArrayCollection();
+
+        foreach ($failureReasonSet->getReasons() as $reason) {
+            $originalReasons->add($reason);
+        }
+
+        $form = $this->createForm(FailureReasonSetType::class, $failureReasonSet);
+
+        $form->handleRequest($request);
+        if ($form->isSubmitted() && $form->isValid()) {
+            $failureReasonSet = $form->getData();
+
+            $em = $this->getDoctrine()->getManagerForClass(Delivery\PricingRule::class);
+
+            foreach ($originalReasons as $originalReason) {
+                if (!$failureReasonSet->getReasons()->contains($originalReason)) {
+                    $em->remove($originalReason);
+                }
+            }
+
+            foreach ($failureReasonSet->getReasons() as $reason) {
+                $reason->setFailureReasonSet($failureReasonSet);
+            }
+
+            if (null === $failureReasonSet->getId()) {
+                $em->persist($failureReasonSet);
+            }
+
+            $em->flush();
+
+            $this->addFlash(
+                'notice',
+                $this->translator->trans('global.changesSaved')
+            );
+
+            return $this->redirectToRoute('admin_deliveries_failures_failurereasonset', ['id' => $failureReasonSet->getId()]);
+        }
+
+        return $this->render('admin/failure_reason_set.html.twig', [
+            'form' => $form->createView(),
+        ]);
+    }
+
+    /**
+     * @Route("/admin/deliveries/failures", name="admin_failures_list")
+     */
+    public function failuresAction()
+    {
+        $this->denyAccessUnlessGranted('ROLE_ADMIN');
+        $failureReasonSets = $this->getDoctrine()
+            ->getRepository(Delivery\FailureReasonSet::class)
+            ->findAll();
+        return $this->render('admin/failures.html.twig', [
+            'failureReasonSets' => $failureReasonSets
+        ]);
+    }
+
+    /**
+     * @Route("/admin/deliveries/failures/new", name="admin_deliveries_failures_failurereasonset_new")
+     */
+    public function newFailureReasonSetAction(Request $request)
+    {
+        $this->denyAccessUnlessGranted('ROLE_ADMIN');
+        $failureReasonSet = new Delivery\FailureReasonSet();
+
+        return $this->renderFailureReasonSetForm($failureReasonSet, $request);
+    }
+
+    /**
+     * @Route("/admin/deliveries/failures/{id}", name="admin_deliveries_failures_failurereasonset")
+     */
+    public function failureReasonSetAction($id, Request $request)
+    {
+        $this->denyAccessUnlessGranted('ROLE_ADMIN');
+        $failureReasonSet = $this->getDoctrine()
+            ->getRepository(Delivery\FailureReasonSet::class)
+            ->find($id);
+
+        return $this->renderFailureReasonSetForm($failureReasonSet, $request);
+    }
+
+    /**
+     * @Route("/admin/deliveries/failures/{id}/delete", methods={"POST"}, name="admin_failures_delete")
+     */
+    public function deleteFailureReasonSetAction($id)
+    {
+        $this->denyAccessUnlessGranted('ROLE_ADMIN');
+        $failureReasonSet = $this->getDoctrine()->getRepository(Delivery\FailureReasonSet::class)->find($id);
+
+        $em = $this->getDoctrine()->getManagerForClass(Delivery\FailureReason::class);
+
+        try {
+            $em->remove($failureReasonSet);
+            $em->flush();
+            $this->addFlash(
+                'notice',
+                $this->translator->trans('global.changesSaved')
+            );
+        } catch (ForeignKeyConstraintViolationException $_) {
+            $this->addFlash(
+                'error',
+                $this->translator->trans('adminDashboard.failureSet.cant_delete_failure_reason_used')
+            );
+        }
+
+        return $this->redirectToRoute('admin_failures_list');
     }
 
     /**
@@ -1349,10 +1513,20 @@ class AdminController extends AbstractController
     {
         $this->denyAccessUnlessGranted('ROLE_ADMIN');
         $deliveryForm = new DeliveryForm();
+
         $form = $this->createForm(EmbedSettingsType::class, $deliveryForm);
 
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
+
+            // Disable "Show on Home Page" on all forms ONLY if this new form is setted true
+            if($deliveryForm->getShowHomepage()){
+                $forms = $this->getDoctrine()->getRepository(DeliveryForm::class)->findAll();
+                foreach ($forms as $formTemp) {
+                    $formTemp->setShowHomepage(false);
+                }
+            }
+
             $this->getDoctrine()
                 ->getManagerForClass(DeliveryForm::class)
                 ->persist($deliveryForm);
@@ -1380,6 +1554,17 @@ class AdminController extends AbstractController
 
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
+
+            // Disable "Show on Home Page" on all forms except current form if setted true
+            if($deliveryForm->getShowHomepage()){
+                $forms = $this->getDoctrine()->getRepository(DeliveryForm::class)->findAll();
+                foreach ($forms as $formTemp) {
+                    if($deliveryForm->getId() != $formTemp->getId()){ //except current form
+                        $formTemp->setShowHomepage(false);
+                    }
+                }
+            }
+
             $this->getDoctrine()
                 ->getManagerForClass(DeliveryForm::class)
                 ->flush();

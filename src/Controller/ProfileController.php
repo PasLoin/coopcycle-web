@@ -5,6 +5,7 @@ namespace AppBundle\Controller;
 use ApiPlatform\Core\Api\IriConverterInterface;
 use AppBundle\Controller\Utils\AccessControlTrait;
 use AppBundle\Controller\Utils\DeliveryTrait;
+use AppBundle\Controller\Utils\InjectAuthTrait;
 use AppBundle\Controller\Utils\OrderTrait;
 use AppBundle\Controller\Utils\RestaurantTrait;
 use AppBundle\Controller\Utils\StoreTrait;
@@ -26,7 +27,9 @@ use AppBundle\Service\TaskManager;
 use AppBundle\Utils\OrderEventCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\EntityManagerInterface;
-use Nucleos\UserBundle\Model\UserManagerInterface;
+use Doctrine\ORM\EntityRepository;
+use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
+use Nucleos\UserBundle\Model\UserManager as UserManagerInterface;
 use Knp\Component\Pager\PaginatorInterface;
 use League\Csv\Writer as CsvWriter;
 use Lexik\Bundle\JWTAuthenticationBundle\Exception\JWTDecodeFailureException;
@@ -50,6 +53,7 @@ use Symfony\Component\Routing\Exception\ExceptionInterface as RoutingException;
 use Symfony\Component\Routing\RouterInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
+use Webmozart\Assert\Assert;
 
 class ProfileController extends AbstractController
 {
@@ -57,11 +61,13 @@ class ProfileController extends AbstractController
 
     use OrderTrait;
     use UserTrait;
+    use InjectAuthTrait;
 
-    public function __construct(OrderRepositoryInterface $orderRepository)
-    {
-        $this->orderRepository = $orderRepository;
-    }
+    public function __construct(
+        protected OrderRepositoryInterface $orderRepository,
+        protected JWTTokenManagerInterface $JWTTokenManager
+    )
+    { }
 
     public function indexAction(Request $request,
         SlugifyInterface $slugify,
@@ -149,13 +155,15 @@ class ProfileController extends AbstractController
             return $this->redirectToRoute('nucleos_profile_profile_show');
         }
 
-        return $this->render('profile/edit_profile.html.twig', array(
+        return $this->render('profile/edit_profile.html.twig', $this->auth(array(
             'form' => $editForm->createView()
-        ));
+        )));
     }
 
     protected function getOrderList(Request $request, $showCanceled = false)
     {
+        Assert::isInstanceOf($this->orderRepository, EntityRepository::class);
+
         $qb = $this->orderRepository
             ->createQueryBuilder('o')
             ->andWhere('o.customer = :customer')
@@ -405,18 +413,83 @@ class ProfileController extends AbstractController
      */
     public function notificationsAction(Request $request, TopBarNotifications $topBarNotifications, NormalizerInterface $normalizer)
     {
-        $notifications = $topBarNotifications->getLastNotifications($this->getUser());
+        $unread = (int) $topBarNotifications->countNotifications($this->getUser());
 
         if ($request->query->has('format') && 'json' === $request->query->get('format')) {
+            $notifications = $topBarNotifications->getNotifications($this->getUser());
 
             return new JsonResponse([
                 'notifications' => $normalizer->normalize($notifications, 'json'),
-                'unread' => (int) $topBarNotifications->countNotifications($this->getUser())
+                'unread' => $unread
             ]);
         }
 
+        $page = $request->query->getInt('page', 1);
+
+        $notifications = $topBarNotifications->getNotifications($this->getUser(), $page);
+
         return $this->render('profile/notifications.html.twig', [
-            'notifications' => $notifications
+            'notifications' => $notifications,
+            'currentPage' => $page,
+            'nextPage' => $page + 1,
+            'hasNextPage' => ($unread / TopBarNotifications::NOTIFICATIONS_OFFSET) > $page,
+        ]);
+    }
+
+    /**
+     * @Route("/profile/notifications/remove", methods={"POST"}, name="profile_notifications_remove")
+     */
+    public function removeNotificationsAction(Request $request, TopBarNotifications $topBarNotifications, NormalizerInterface $normalizer)
+    {
+        if ($request->query->has('all') && 'true' === $request->query->get('all')) {
+            $topBarNotifications->markAllAsRead($this->getUser());
+        } else {
+            $ids = [];
+            $content = $request->getContent();
+            if (!empty($content)) {
+                parse_str($content, $ids);
+            }
+            $topBarNotifications->markAsRead($this->getUser(), array_keys($ids));
+        }
+
+        return $this->notificationsAction($request, $topBarNotifications, $normalizer);
+    }
+
+    /**
+     * @Route("/profile/notification/{id}", methods={"DELETE"}, name="profile_notification_remove")
+     */
+    public function removeNotificationAction(Request $request, TopBarNotifications $topBarNotifications, NormalizerInterface $normalizer)
+    {
+        $topBarNotifications->markAsRead($this->getUser(), [$request->get('id')]);
+        $unread = (int) $topBarNotifications->countNotifications($this->getUser());
+
+        if ($request->query->has('format') && 'json' === $request->query->get('format')) {
+            $notifications = $topBarNotifications->getNotifications($this->getUser());
+
+            return new JsonResponse([
+                'notifications' => $normalizer->normalize($notifications, 'json'),
+                'unread' => $unread
+            ]);
+        }
+
+        /** @var int $page */
+        $page = 1;
+        $content = $request->getContent();
+        if (!empty($content)) {
+            $contentArray = [];
+            parse_str($content, $contentArray);
+            if (array_key_exists('page', $contentArray)) {
+                $page = (int) $contentArray['page'];
+            }
+        }
+
+        $notifications = $topBarNotifications->getNotifications($this->getUser(), $page);
+
+        return $this->render('profile/notifications.html.twig', [
+            'notifications' => $notifications,
+            'currentPage' => $page,
+            'nextPage' => $page + 1,
+            'hasNextPage' => ($unread / TopBarNotifications::NOTIFICATIONS_OFFSET) > $page,
         ]);
     }
 

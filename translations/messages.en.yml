@@ -177,7 +177,7 @@ restaurant.form.exclusive.label: This restaurant is exclusive
 restaurant.form.quotes_allowed.label: 'This restaurant also accepts quotes (e.g.:
   catering)'
 restaurant.form.loopeat_enabled.label: Enable LoopEat deposit-refund system
-restaurant.form.loopeat_disconnect.label: Disconnect LoopEat
+restaurant.form.loopeat_disconnect.label: Disconnect %name%
 restaurant.form.featured.label: This restaurant is featured on homepage
 restaurant.form.giropay_enabled.label: Enable Giropay
 restaurant.form.fulfillment_methods.label: Fulfillment methods
@@ -187,7 +187,6 @@ restaurant.form.section.fulfillment: Fulfillment
 restaurant.form.section.payment: Payment
 restaurant.form.section.settlement: Settlement
 restaurant.form.section.taxonomy: Taxonomy
-restaurant.form.section.loopeat: LoopEat
 restaurant.form.cuisines.label: Cuisines
 restaurant.contract.title: Contract
 restaurant.deliveryPerimeterExpression.title: Delivery perimeter
@@ -731,6 +730,7 @@ form.credit_note.restaurant.help: The promotion will only be usable when orderin
 form.resend_confirmation_email.submit.label: Send email again
 form.embed_settings.with_vehicle.label: Add vehicle choice
 form.embed_settings.with_weight.label: Ask for weight of goods
+form.embed_settings.show_home_page.label: Show on Home Page
 form.time_slot.name.label: Name
 form.time_slot.interval.label: Interval
 form.time_slot.working_days_only.label: Allow selecting only working days
@@ -824,6 +824,7 @@ activity.order.dropped: "@%owner% has dropped order #order/%aggregate_id%\n"
 activity.order.fulfilled: "Order #order/#%aggregate_id% is fulfilled\n"
 activity.order.cancelled: "Order #order/#%aggregate_id% is cancelled\n"
 activity.order.delayed: "Order #order/#%aggregate_id% has been delayed\n"
+activity.order.updated: "Order #order/%aggregate_id% has been updated\n"
 social.sign_in_with_facebook: Sign in with Facebook
 embed.delivery.summary: "You have requested a delivery on <strong>%dropoff_date%</strong>\
   \ at the following address: <strong>%dropoff_address%</strong> <br> We calculated\
@@ -868,6 +869,8 @@ basics.send_invitation: Send an invitation
 basics.send_invitation.confirm: Your invitation has been sent! You can now edit the
   settings of the new user.
 basics.configure: Configure
+basics.select_all: Select all
+basics.delete_selected: Delete selected
 profile.password.change: Change your password
 authentication.forgot_password: Forgot password?
 authentication.not_registered_yet: Not registered yet?
@@ -965,9 +968,9 @@ form.delivery_import.file.label: File
 form.delivery_import.store.label: Store
 basics.view_example: View example
 notifications.restaurant.new_order: New order to accept
-profile.loopeat.connect: Connect my LoopEat account
-profile.loopeat.connected: LoopEat account connected
-profile.loopeat.disconnect: Disconnect LoopEat
+profile.loopeat.connect: Connect my %name% account
+profile.loopeat.connected: '%name% account connected'
+profile.loopeat.disconnect: Disconnect %name%
 basics.free: free
 task.receipt.greeting: Dear customer,
 task.receipt.message: Hereby we confirm that we have delivered your parcel at <strong>%address%</strong>
@@ -1119,7 +1122,7 @@ refund.list.disclaimer.admin: "When the platform is responsible for the incident
   \ merchant actually refunded the customer."
 form.time_slot.choices.error.empty: The list of choices cannot be empty
 form.attach_to_org.modal.title: Attach to store
-loopeat.oauth_connect.success: LoopEat account connected successfully!
+loopeat.oauth_connect.success: '%name% account connected successfully!'
 loopeat.oauth_redirect.warning: You will be redirected to the LoopEat website to login
   or create your account
 authentication.register_benefits: Register for a faster checkout experience. You will
@@ -1297,3 +1300,70 @@ integration.created.message: The integration has been created.
 profile.dabba.disconnect: Disconnect Dabba
 form.task_export.colisactiv.label: Export using ColivActiv format
 form.task_export.format.label: Export format
+tasks.mark_as_done.has_previous: 'Task #%failed_task% could not be completed because it has a previous task #%previous_task% which must be completed first.'
+import.errors.at.row: Errors at row %row_number%
+import.address.geocode.error: Could not geocode address %failed_address%
+import.time.range.error: Time range "%value%" in %key% is not valid
+import.successful.rows: 'Your file was processed and %count% deliveries were created for rows: %rows%'
+import.delivery.price.error.priceCalculation.row: The delivery price could not be calculated for row %row_number%
+import.unsuccessful.rows: "There were errors and deliveries could not be created for rows: %rows%."
+security.login.remember_me: Remember me
+stores.filters.input.placeholder: "Search by address, name or #id"
+basics.filter: "Filter"
+stores.search.results_for: 'Search results for <mark>%query%</mark>'
+activity.task.rescheduled: "@%owner% has rescheduled task #task/%aggregate_id%\n"
+delivery.failure_reason:
+  damaged: "Damaged"
+  lost: "Lost"
+  late: "Late Delivery"
+  incorrect_address: "Incorrect Address"
+  customer_refused: "Customer Refused Delivery"
+  item_missing: "Item Missing"
+  incorrect_item: "Incorrect Item Delivered"
+  bad_weather: "Bad Weather Conditions"
+  vehicle_breakdown: "Vehicle Breakdown"
+  traffic_delays: "Traffic Delays"
+  routing_problems: "Routing Problems"
+  customs_issues: "Customs Clearance Issues"
+  inventory_shortage: "Inventory Shortage"
+  address_unreachable: "Address Unreachable"
+  insufficient_funds: "Insufficient Funds"
+  data_entry_error: "Data Entry Error"
+  packaging_problems: "Packaging Problems"
+  holiday_closure: "Holiday Closure"
+  closed_store: "Closed Store"
+adminDashboard.failureSet.title: "Failure Reasons"
+adminDashboard.failureSet.help: "Set the reasons for which your deliveries can fail."
+adminDashboard.failureSet.nofailureSet: "No failure reasons"
+adminDashboard.failureSet.createNew: "Create a new reason"
+adminDashboard.failureSet.settings: "Settings"
+adminDashboard.failureSet.cant_delete_failure_reason_used: "This reason cannot be deleted as it is used in stores."
+form.failure_reason_set.name.label: Name
+form.failure_reason.code.label: Code
+form.failure_reason.description.label: Description
+basics.manage: Manage
+basics.settings: Settings
+form.store_type.failure_reason_set.label: "Failure Reasons"
+profile.delete_my_account: "Delete my account"
+profile.type_username_to_confirm: "Type your username to confirm the account deletion"
+form.pricing_rule_set.options.label: Options
+form.pricing_rule_set.options.map_all_tasks.label: Apply to all the tasks
+form.settings.notifications.title: Notifications
+form.settings.notifications.order.created: Order created
+form.settings.notifications.order.accepted: Order accepted
+form.settings.notifications.order.refused: Order refused
+form.settings.notifications.order.delayed: Order deyaled
+form.settings.notifications.order.cancelled: Order cancelled
+form.settings.notifications.order.picked: Order picked
+form.settings.notifications.order.dropped: Order dropped
+form.settings.notifications.order.fulfilled: Order fulfilled
+form.settings.notifications.order.updated: Order updated
+form.settings.notifications.task.created: Task created
+form.settings.notifications.task.assigned: Task assigned
+form.settings.notifications.task.unassigned: Task unassigned
+form.settings.notifications.task.started: Task started
+form.settings.notifications.task.done: Task done
+form.settings.notifications.task.failed: Task failed
+form.settings.notifications.task.cancelled: Task cancelled
+form.settings.notifications.task.rescheduled: Task rescheduled
+form.settings.notifications.help: When disabling notifications for events below, administrators won't receive emails, nor top bar notifications.

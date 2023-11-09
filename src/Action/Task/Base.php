@@ -52,4 +52,30 @@ abstract class Base
 
         return '';
     }
+
+    protected function getReason(Request $request)
+    {
+        $data = [];
+        $content = $request->getContent();
+        if (!empty($content)) {
+            $data = json_decode($content, true);
+        }
+
+        if (isset($data['reason'])) {
+            return $data['reason'];
+        }
+
+        return null;
+    }
+
+    /**
+     * @throws \Exception
+     */
+    protected function getDateTimeKey(Request $request, string $key): ?\DateTime
+    {
+        $content = $request->getContent();
+        $data = !empty($content) ? json_decode($content, true) : [];
+
+        return isset($data[$key]) ? new \DateTime($data[$key]) : null;
+    }
 }

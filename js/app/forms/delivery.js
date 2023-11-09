@@ -20,6 +20,8 @@ const selectLastDropoff = createSelector(
   }
 )
 
+const collectionHolder = document.querySelector('#delivery_tasks')
+
 class DeliveryForm {
   disable() {
     $('#delivery-submit').attr('disabled', true)
@@ -148,6 +150,7 @@ function createDateRangePickerWidget(name, type) {
 
   new DateRangePicker(document.querySelector(`#${name}_${type}_doneBefore_widget`), {
     defaultValue,
+    showTime: true,
     onChange: function({after, before}) {
       doneAfterPickerEl.value = after.format('YYYY-MM-DD HH:mm:ss')
       doneBeforePickerEl.value = before.format('YYYY-MM-DD HH:mm:ss')
@@ -477,6 +480,7 @@ function initSubForm(name, taskEl, preloadedState, userAdmin) {
           type: 'REMOVE_DROPOFF',
           taskIndex,
         })
+        collectionHolder.dataset.index--
       })
     }
   }
@@ -581,9 +585,6 @@ export default function(name, options) {
     const addTaskButton = el.querySelector('[data-add="dropoff"]')
     if (addTaskButton) {
       addTaskButton.addEventListener('click', () => {
-
-        const collectionHolder =
-          document.querySelector('#delivery_tasks')
 
         const newHtml = collectionHolder
           .dataset

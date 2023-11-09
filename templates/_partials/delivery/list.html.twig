@@ -11,6 +11,7 @@
     {% if with_order is defined and with_order %}
     <th class="text-center">{{ 'delivery.table.heading.order'|trans }}</th>
     {% endif %}
+    <th>{% trans %}basics.price{% endtrans %}</th>
     <th></th>
     <th></th>
     <th></th>
@@ -65,7 +66,7 @@
       <td width="10%">
         <small>
           {% if delivery.dropoff.before|date('Ymd') == 'now'|date('Ymd') %}
-            {{ delivery.dropoff.before|ago }}
+            {{ delivery.dropoff.before|time_diff }}
           {% else %}
             {{ delivery.dropoff.before|format_datetime('short', 'short') }}
           {% endif %}
@@ -89,6 +90,20 @@
         {% endif %}
       </td>
       {% endif %}
+      <td width="12%">
+        {% if delivery.order is defined and delivery.order is not empty %}
+          <p>
+            <span class="label label-default">{% trans %}order.total_excluding_tax{% endtrans %}</span>
+            {{ (delivery.order.itemsTotal - delivery.order.itemsTaxTotal)|price_format }}
+          </p>
+          <p>
+            <span class="label label-primary">{% trans %}order.total_including_tax{% endtrans %}</span>
+            {{ delivery.order.total|price_format }}
+          </p>
+          {% else %}
+          <p>-</p>
+        {% endif %}
+      </td>
       <td class="text-center">
         {% if delivery.hasImages() and store is defined %}
           <a href="{{ path(routes.download_images, { storeId: store.id, deliveryId: delivery.id }) }}">
@@ -97,7 +112,7 @@
         {% endif %}
       </td>
       <td class="text-center" width="10%">
-        <small class="text-muted">{{ delivery.createdAt|ago }}</small>
+        <small class="text-muted">{{ delivery.createdAt|time_diff }}</small>
       </td>
       <td class="text-right">
         <a href="{{ path(routes.view, { id: delivery.id }) }}">{{ 'basics.view'|trans }}</a>

@@ -45,6 +45,7 @@ Feature: Tasks
             "recurrenceRule":null,
             "metadata":[],
             "weight":null,
+            "failureReason":null,
             "orgName":"",
             "images":[],
             "next":null,
@@ -53,7 +54,8 @@ Feature: Tasks
             "createdAt":"@string@.isDateTime()",
             "tour":{
               "@id":"/api/tours/1",
-              "name":"Example tour"
+              "name":"Example tour",
+              "position":@integer@
             }
           },
           {
@@ -79,6 +81,7 @@ Feature: Tasks
             "recurrenceRule":null,
             "metadata":[],
             "weight":null,
+            "failureReason":null,
             "orgName":"",
             "images":[],
             "next":null,
@@ -113,6 +116,7 @@ Feature: Tasks
             "recurrenceRule":null,
             "metadata":[],
             "weight":null,
+            "failureReason":null,
             "orgName":"",
             "images":[],
             "next":null,
@@ -121,7 +125,8 @@ Feature: Tasks
             "createdAt":"@string@.isDateTime()",
             "tour":{
               "@id":"/api/tours/1",
-              "name":"Example tour"
+              "name":"Example tour",
+              "position":@integer@
             }
           },
           {
@@ -147,6 +152,7 @@ Feature: Tasks
             "recurrenceRule":null,
             "metadata":[],
             "weight":null,
+            "failureReason":null,
             "orgName":"",
             "images":[],
             "next":null,
@@ -288,6 +294,60 @@ Feature: Tasks
         "updatedAt":"@string@.isDateTime()",
         "isAssigned":true,
         "assignedTo":"bob",
+        "previous":null,
+        "group":{
+          "id":@integer@,
+          "name":"Group #1",
+          "tags":[{
+            "name":"Important",
+            "slug":"important",
+            "color":"#FF0000"
+          }]
+        },
+        "tags":@array@
+      }
+      """
+
+  Scenario: Reschedule failed or cancelled task
+    Given the fixtures files are loaded:
+      | sylius_channels.yml |
+      | tasks.yml           |
+    And the courier "bob" is loaded:
+      | email     | bob@coopcycle.org |
+      | password  | 123456            |
+      | telephone | 0033612345678     |
+    And the user "bob" has role "ROLE_ADMIN"
+    And the user "bob" is authenticated
+    And the tasks with comments matching "#bob" are assigned to "bob"
+    When I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And the user "bob" sends a "PUT" request to "/api/tasks/2/reschedule" with body:
+      """
+      {
+	      "after": "2023-09-13T12:00:00+02:00",
+	      "before": "2023-09-13T12:45:00+02:00"
+      }
+      """
+    Then the response status code should be 200
+    And the response should be in JSON
+    And the JSON should match:
+      """
+      {
+        "@context":"/api/contexts/Task",
+        "@id":"/api/tasks/2",
+        "@type":"Task",
+        "id":2,
+        "type":"DROPOFF",
+        "status":"TODO",
+        "address":@...@,
+        "after":"2023-09-13T12:00:00+02:00",
+        "before":"2023-09-13T12:45:00+02:00",
+        "doneAfter":"2023-09-13T12:00:00+02:00",
+        "doneBefore":"2023-09-13T12:45:00+02:00",
+        "comments":@string@,
+        "updatedAt":"@string@.isDateTime()",
+        "isAssigned":false,
+        "assignedTo":null,
         "previous":null,
         "group":{
           "id":@integer@,
@@ -485,11 +545,13 @@ Feature: Tasks
         "recurrenceRule": null,
         "metadata": [],
         "weight":null,
+        "failureReason":null,
         "packages": [],
         "createdAt":"@string@.isDateTime()",
         "tour":{
           "@id":"/api/tours/1",
-          "name":"Example tour"
+          "name":"Example tour",
+          "position":@integer@
         }
       }
       """
@@ -534,6 +596,54 @@ Feature: Tasks
         "assignedTo":"bob",
         "previous":null,
         "group":null,
+        "tags":@array@
+      }
+      """
+
+  Scenario: Mark task as failed with failure reason
+    Given the fixtures files are loaded:
+      | sylius_channels.yml |
+      | tasks.yml           |
+    And the courier "bob" is loaded:
+      | email     | bob@coopcycle.org |
+      | password  | 123456            |
+      | telephone | 0033612345678     |
+    And the user "bob" is authenticated
+    And the tasks with comments matching "#bob" are assigned to "bob"
+    When the user "bob" sends a "GET" request to "/api/tasks/2"
+    Then the response status code should be 200
+    And the response should be in JSON
+    When I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And the user "bob" sends a "PUT" request to "/api/tasks/2/failed" with body:
+      """
+      {
+        "reason": "DAMAGED"
+      }
+      """
+    Then the response status code should be 200
+    And the response should be in JSON
+    And the JSON should match:
+      """
+      {
+        "@context":"/api/contexts/Task",
+        "@id":"/api/tasks/2",
+        "@type":"Task",
+        "id":2,
+        "type":"DROPOFF",
+        "status":"FAILED",
+        "address":@...@,
+        "after":"2018-03-02T11:30:00+01:00",
+        "before":"2018-03-02T12:00:00+01:00",
+        "doneAfter":"2018-03-02T11:30:00+01:00",
+        "doneBefore":"2018-03-02T12:00:00+01:00",
+        "comments":@string@,
+        "updatedAt":"@string@.isDateTime()",
+        "isAssigned":true,
+        "assignedTo":"bob",
+        "previous":null,
+        "group":null,
+        "failureReason": "DAMAGED",
         "tags":@array@
       }
       """
@@ -782,6 +892,7 @@ Feature: Tasks
         "recurrenceRule": null,
         "metadata": [],
         "weight": 800,
+        "failureReason":null,
         "packages": [],
         "createdAt":"@string@.isDateTime()",
         "tour":null
@@ -863,6 +974,7 @@ Feature: Tasks
         "recurrenceRule": null,
         "metadata": [],
         "weight":null,
+        "failureReason":null,
         "packages": [],
         "createdAt":"@string@.isDateTime()",
         "tour":null
@@ -994,6 +1106,7 @@ Feature: Tasks
               "baz":"bat"
             },
             "weight":null,
+            "failureReason":null,
             "packages": [],
             "createdAt":"@string@.isDateTime()",
             "tour":null
@@ -1024,6 +1137,7 @@ Feature: Tasks
             "recurrenceRule":null,
             "metadata":[],
             "weight":null,
+            "failureReason":null,
             "packages": [],
             "createdAt":"@string@.isDateTime()",
             "tour":null
@@ -2010,7 +2124,8 @@ Feature: Tasks
         "status":"TODO",
         "tour":{
           "@id":"/api/tours/1",
-          "name":"Example tour"
+          "name":"Example tour",
+          "position":@integer@
         },
         "@*@":"@*@"
       }
@@ -2042,10 +2157,7 @@ Feature: Tasks
     And the JSON should match:
       """
         {
-          "@context":"/api/contexts/Task",
-          "@id":"/api/tasks",
-          "@type":"hydra:Collection",
-          "hydra:member": [
+          "success": [
             {
               "@id":"/api/tasks/1",
               "@type":"Task",
@@ -2061,8 +2173,48 @@ Feature: Tasks
               "@*@":"@*@"
             }
           ],
-          "hydra:totalItems": 2,
-          "@*@":"@*@"
+          "failed": []
+        }
+      """
+
+  Scenario: Mark one tasks as done and another one as failed
+    Given the fixtures files are loaded:
+      | sylius_channels.yml |
+      | tasks.yml           |
+    And the courier "bob" is loaded:
+      | email     | bob@coopcycle.org |
+      | password  | 123456            |
+      | telephone | 0033612345678     |
+    And the user "bob" is authenticated
+    And the tasks with comments matching "#bob" are assigned to "bob"
+    When I add "Content-Type" header equal to "application/ld+json"
+    And I add "Accept" header equal to "application/ld+json"
+    And the user "bob" sends a "PUT" request to "/api/tasks/done" with body:
+      """
+      {
+        "tasks": [
+          "/api/tasks/1",
+          "/api/tasks/5"
+        ]
+      }
+      """
+    Then the response status code should be 200
+    And the response should be in JSON
+    And the JSON should match:
+      """
+        {
+          "success": [
+            {
+              "@id":"/api/tasks/1",
+              "@type":"Task",
+              "id":1,
+              "status": "DONE",
+              "@*@":"@*@"
+            }
+          ],
+          "failed": {
+            "/api/tasks/5": @string@
+          }
         }
       """
 
@@ -2117,4 +2269,84 @@ Feature: Tasks
           "hydra:totalItems": 2,
           "@*@":"@*@"
         }
+      """
+
+  Scenario: Upload image
+    Given the fixtures files are loaded:
+      | sylius_channels.yml |
+      | tasks.yml           |
+    And the courier "bob" is loaded:
+      | email     | bob@coopcycle.org |
+      | password  | 123456            |
+      | telephone | 0033612345678     |
+    And the user "bob" is authenticated
+    When I add "Content-Type" header equal to "multipart/form-data"
+    And the user "bob" sends a "POST" request to "/api/task_images" with parameters:
+      | key      | value              |
+      | file     | @beer.jpg |
+    Then the response status code should be 201
+    And the response should be in JSON
+    And the JSON should match:
+      """
+      {
+        "@context":"/api/contexts/TaskImage",
+        "@id":@string@,
+        "@type":"http://schema.org/MediaObject",
+        "imageName":@string@,
+        "thumbnail":@string@
+      }
+      """
+
+  Scenario: Upload image with task in header
+    Given the fixtures files are loaded:
+      | sylius_channels.yml |
+      | tasks.yml           |
+    And the courier "bob" is loaded:
+      | email     | bob@coopcycle.org |
+      | password  | 123456            |
+      | telephone | 0033612345678     |
+    And the user "bob" is authenticated
+    When I add "Content-Type" header equal to "multipart/form-data"
+    When I add "X-Attach-To" header equal to "/api/tasks/1"
+    And the user "bob" sends a "POST" request to "/api/task_images" with parameters:
+      | key      | value              |
+      | file     | @beer.jpg |
+    Then the response status code should be 201
+    And the response should be in JSON
+    And the JSON should match:
+      """
+      {
+        "@context":"/api/contexts/TaskImage",
+        "@id":@string@,
+        "@type":"http://schema.org/MediaObject",
+        "imageName":@string@,
+        "thumbnail":@string@
+      }
+      """
+
+  Scenario: Upload image with tasks in header
+    Given the fixtures files are loaded:
+      | sylius_channels.yml |
+      | tasks.yml           |
+    And the courier "bob" is loaded:
+      | email     | bob@coopcycle.org |
+      | password  | 123456            |
+      | telephone | 0033612345678     |
+    And the user "bob" is authenticated
+    When I add "Content-Type" header equal to "multipart/form-data"
+    When I add "X-Attach-To" header equal to "/api/tasks/1;/api/tasks/2"
+    And the user "bob" sends a "POST" request to "/api/task_images" with parameters:
+      | key      | value              |
+      | file     | @beer.jpg |
+    Then the response status code should be 201
+    And the response should be in JSON
+    And the JSON should match:
+      """
+      {
+        "@context":"/api/contexts/TaskImage",
+        "@id":@string@,
+        "@type":"http://schema.org/MediaObject",
+        "imageName":@string@,
+        "thumbnail":@string@
+      }
       """
