@@ -3,6 +3,10 @@ var webpack = require('webpack')
 var path = require('path')
 var ESLintPlugin = require('eslint-webpack-plugin')
 
+if (!Encore.isRuntimeEnvironmentConfigured()) {
+    Encore.configureRuntimeEnvironment(process.env.NODE_ENV || 'dev');
+}
+
 Encore
 
   .setOutputPath(__dirname + '/web/build')
@@ -15,6 +19,7 @@ Encore
 
   .addEntry('app', './assets/app.js')
   .addEntry('adhoc-order', './js/app/adhoc_order/index.js')
+  .addEntry('admin-cube', './js/app/admin/cube.js')
   .addEntry('admin-orders', './js/app/admin/orders.js')
   .addEntry('admin-restaurants', './js/app/admin/restaurants.js')
   .addEntry('common', './js/app/common.js')

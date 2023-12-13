@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.19.0] - 2023-12-04
+
+### Added
+
+- Implement new design for restaurant cards.
+- Allow searching stock photos for restaurant banners.
+
+## [1.18.0] - 2023-11-29
+
+### Added
+
+- Allow configuring packages in recurrent rules ([#3884](https://github.com/coopcycle/coopcycle-web/issues/3884)).
+- Introduce business accounts ([#3848](https://github.com/coopcycle/coopcycle-web/pull/3848)).
+- Add chart with map of orders per zone.
+
+## [1.17.0] - 2023-11-21
+
+### Added
+
+- Use [Base 32](https://www.crockford.com/base32.html) to generate order numbers.
+- Create orders from recurring tasks.
+- Display delivery state in lists.
+
+## [1.16.3] - 2023-11-14
+
+### Added
+
+- Embed Cube Playground into admin.
+
+## [1.16.2] - 2023-11-10
+
+### Fixed
+
+- Fix error when saving a shop that can't be found in the search engine.
+
 ## [1.16.0] - 2023-11-08
 
 ### Added
