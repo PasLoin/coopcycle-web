@@ -16,7 +16,7 @@ class CartSessionInputDataTransformer implements DataTransformerInterface
     public function __construct(
         FactoryInterface $orderFactory,
         TokenStorageInterface $tokenStorage,
-        private LoggerInterface $logger
+        private LoggerInterface $checkoutLogger
     )
     {
         $this->orderFactory = $orderFactory;
@@ -53,9 +53,13 @@ class CartSessionInputDataTransformer implements DataTransformerInterface
         } else {
             $cart = $this->orderFactory->createForRestaurant($data->restaurant);
 
-            $this->logger->info(sprintf('Order (cart) object created (created_at = %s) | CartSessionInputDataTransformer',
+            $this->checkoutLogger->info(sprintf('Order (cart) object created (created_at = %s) | CartSessionInputDataTransformer',
                 $cart->getCreatedAt()->format(\DateTime::ATOM)));
         }
+
+        // TODO When in business context
+        // - Associate to the business account with setBusinessAccount
+        // - Set default address if not set
 
         if (null === $cart->getCustomer() && $user = $this->getUserFromToken()) {
             $cart->setCustomer($user->getCustomer());

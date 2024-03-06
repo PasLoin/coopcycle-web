@@ -26,6 +26,7 @@ use AppBundle\Action\Order\Pay as OrderPay;
 use AppBundle\Action\Order\PaymentDetails as PaymentDetailsController;
 use AppBundle\Action\Order\PaymentMethods as PaymentMethodsController;
 use AppBundle\Action\Order\Refuse as OrderRefuse;
+use AppBundle\Action\Order\Restore as OrderRestore;
 use AppBundle\Action\Order\Tip as OrderTip;
 use AppBundle\Action\Order\UpdateLoopeatFormats as UpdateLoopeatFormatsController;
 use AppBundle\Action\Order\UpdateLoopeatReturns as UpdateLoopeatReturnsController;
@@ -36,9 +37,9 @@ use AppBundle\Api\Dto\LoopeatFormats as LoopeatFormatsOutput;
 use AppBundle\Api\Dto\LoopeatReturns;
 use AppBundle\DataType\TsRange;
 use AppBundle\Entity\Address;
+use AppBundle\Entity\BusinessAccount;
 use AppBundle\Entity\Delivery;
 use AppBundle\Entity\LocalBusiness;
-use AppBundle\Entity\LocalBusiness\FulfillmentMethod;
 use AppBundle\Entity\LoopEat\OrderCredentials;
 use AppBundle\Entity\Vendor;
 use AppBundle\Filter\OrderDateFilter;
@@ -190,6 +191,15 @@ use Webmozart\Assert\Assert as WMAssert;
  *       "security"="is_granted('cancel', object)",
  *       "openapi_context"={
  *         "summary"="Cancels a Order resource."
+ *       }
+ *     },
+ *     "restore"={
+ *       "method"="PUT",
+ *       "path"="/orders/{id}/restore",
+ *       "controller"=OrderRestore::class,
+ *       "security"="is_granted('restore', object)",
+ *       "openapi_context"={
+ *         "summary"="Restores a cancelled Order resource."
  *       }
  *     },
  *     "assign"={
@@ -412,8 +422,6 @@ class Order extends BaseOrder implements OrderInterface
 
     protected $customer;
 
-    protected $vendor;
-
     /**
      * @Assert\Valid
      * @AssertShippingAddress
@@ -458,7 +466,7 @@ class Order extends BaseOrder implements OrderInterface
 
     /**
      * @Assert\Expression(
-     *   "!this.isTakeaway() or (this.isTakeaway() and this.getRestaurant().isFulfillmentMethodEnabled('collection'))",
+     *   "!this.isTakeaway() or (this.isTakeaway() and this.getVendor().isFulfillmentMethodEnabled('collection'))",
      *   message="order.collection.not_available",
      *   groups={"cart"}
      * )
@@ -472,6 +480,8 @@ class Order extends BaseOrder implements OrderInterface
     protected $loopeatDetails;
 
     protected ?OrderCredentials $loopeatCredentials = null;
+
+    protected $businessAccount;
 
     const SWAGGER_CONTEXT_TIMING_RESPONSE_SCHEMA = [
         "type" => "object",
@@ -642,12 +652,12 @@ class Order extends BaseOrder implements OrderInterface
      */
     public function getRestaurant(): ?LocalBusiness
     {
-        if (null === $this->vendor) {
+        if (!$this->hasVendor() || $this->isMultiVendor()) {
 
             return null;
         }
 
-        return $this->vendor->getRestaurant();
+        return $this->getRestaurants()->first();
     }
 
     /**
@@ -655,14 +665,7 @@ class Order extends BaseOrder implements OrderInterface
      */
     public function setRestaurant(?LocalBusiness $restaurant): void
     {
-        $currentRestaurant = $this->getRestaurant();
-
-        $vendor = new Vendor();
-        $vendor->setRestaurant($restaurant);
-
-        $this->vendor = $vendor;
-
-        if (null !== $restaurant && $restaurant !== $currentRestaurant) {
+        if (null !== $restaurant && $restaurant !== $this->getRestaurant()) {
 
             $this->vendors->clear();
 
@@ -675,7 +678,7 @@ class Order extends BaseOrder implements OrderInterface
 
     public function hasVendor(): bool
     {
-        return null !== $this->getVendor();
+        return count($this->getVendors()) > 0;
     }
 
     /**
@@ -1157,33 +1160,6 @@ class Order extends BaseOrder implements OrderInterface
         $this->setTakeaway($fulfillmentMethod === 'collection');
     }
 
-    public function getFulfillmentMethodObject(): ?FulfillmentMethod
-    {
-        $restaurants = $this->getRestaurants();
-
-        if (count($restaurants) === 0) {
-
-            // Vendors may not have been processed yet
-            $restaurant = $this->getRestaurant();
-
-            if (null !== $restaurant) {
-
-                return $restaurant->getFulfillmentMethod(
-                    $this->getFulfillmentMethod()
-                );
-            }
-
-            return null;
-        }
-
-        $first = $restaurants->first();
-        $target = count($restaurants) === 1 ? $first : $first->getHub();
-
-        return $target->getFulfillmentMethod(
-            $this->getFulfillmentMethod()
-        );
-    }
-
     public function getRefundTotal(): int
     {
         $refundTotal = 0;
@@ -1260,12 +1236,18 @@ class Order extends BaseOrder implements OrderInterface
 
     public function getVendor(): ?Vendor
     {
-        return $this->vendor;
-    }
+        if (!$this->hasVendor()) {
 
-    public function setVendor(?Vendor $vendor): void
-    {
-        $this->vendor = $vendor;
+            return null;
+        }
+
+        if (null !== $this->getBusinessAccount()) {
+            return $this->getBusinessAccount()->getBusinessRestaurantGroup();
+        }
+
+        $first = $this->getRestaurants()->first();
+
+        return $this->isMultiVendor() ? $first->getHub() : $first;
     }
 
     public function getItemsGroupedByVendor(): \SplObjectStorage
@@ -1402,7 +1384,7 @@ class Order extends BaseOrder implements OrderInterface
 
     public function isMultiVendor(): bool
     {
-        return $this->hasVendor() && $this->getVendor()->isHub();
+        return $this->hasVendor() && count($this->getVendors()) > 1;
     }
 
     public function getPickupAddress(): ?Address
@@ -1727,5 +1709,36 @@ class Order extends BaseOrder implements OrderInterface
         }
 
         return false;
+    }
+
+    public function hasEvent(string $type): bool
+    {
+        foreach ($this->getEvents() as $event) {
+            if ($event->getType() === $type) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function getBusinessAccount(): ?BusinessAccount
+    {
+        return $this->businessAccount;
+    }
+
+    public function setBusinessAccount(?BusinessAccount $businessAccount): void
+    {
+        $this->businessAccount = $businessAccount;
+    }
+
+    public function isBusiness(): bool
+    {
+        return null !== $this->businessAccount;
+    }
+
+    public function getPickupAddresses(): Collection
+    {
+        return $this->getRestaurants()->map(fn (LocalBusiness $restaurant): Address => $restaurant->getAddress());
     }
 }

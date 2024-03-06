@@ -85,6 +85,7 @@ services:
 
   League\Flysystem\Filesystem $taskImportsFilesystem: '@task_imports_filesystem'
   League\Flysystem\Filesystem $receiptsFilesystem: '@receipts_filesystem'
+  League\Flysystem\Filesystem $ediMessagesFilesystem: '@edi_messages_filesystem'
   Nucleos\UserBundle\Util\Canonicalizer: '@nucleos_user.util.canonicalizer.simple'
 
   Spatie\GuzzleRateLimiterMiddleware\Store: '@AppBundle\Geocoder\RateLimiterStore'
@@ -113,6 +114,7 @@ services:
   ACSEO\TypesenseBundle\Client\TypesenseClient: '@typesense.client'
   Symfony\Bridge\PsrHttpMessage\HttpMessageFactoryInterface: '@league.oauth2_server.factory.psr_http'
   League\Flysystem\Filesystem $restaurantImagesFilesystem: '@restaurant_images_filesystem'
+  League\Flysystem\Filesystem $deliveryImportsFilesystem: '@delivery_imports_filesystem'
 
   AppBundle\Routing\FoodtechEnabledAwareLoader:
     arguments:
@@ -123,7 +125,6 @@ services:
     arguments:
       $objectManager: '@sylius.manager.order'
       $orderFactory: '@sylius.factory.order'
-      $sessionKeyName: "%sylius_cart_restaurant_session_key_name%"
 
   AppBundle\LoopEat\Client:
     arguments:
@@ -220,8 +221,6 @@ services:
       - { name: kernel.event_listener, event: kernel.request, method: onKernelRequest }
 
   AppBundle\EventListener\DeauthenticatedListener:
-    arguments:
-      $sessionKeyName: "%sylius_cart_restaurant_session_key_name%"
     tags:
       - { name: kernel.event_listener, event: Symfony\Component\Security\Http\Event\DeauthenticatedEvent, method: logoutOnChange }
 
@@ -270,6 +269,11 @@ services:
     tags:
       - { name: monolog.logger, channel: coopcycle.order_processing }
 
+  # should be executed before any other processor
+  AppBundle\Sylius\OrderProcessing\OrderLogStartProcessor:
+    tags:
+      - { name: sylius.order_processor, priority: 1000 }
+
   AppBundle\Sylius\OrderProcessing\OrderDisabledProductProcessor:
     tags:
       - { name: sylius.order_processor, priority: 96 }
@@ -313,6 +317,11 @@ services:
     class: AppBundle\Sylius\OrderProcessing\OrderPaymentProcessor
     tags:
       - { name: sylius.order_processor, priority: 16 }
+
+  # should be executed after any other processor
+  AppBundle\Sylius\OrderProcessing\OrderLogFinishProcessor:
+    tags:
+      - { name: sylius.order_processor, priority: -100 }
 
   sylius.promotion_action.delivery_percentage:
     class: AppBundle\Sylius\Promotion\Action\DeliveryPercentageDiscountPromotionActionCommand
@@ -402,12 +411,17 @@ services:
       - "@sylius.factory.product_variant"
     public: true
 
-  AppBundle\Sylius\Cart\RestaurantResolver: ~
+  AppBundle\Sylius\Cart\RestaurantResolver:
+    tags:
+      - { name: monolog.logger, channel: coopcycle.order_processing }
+
+  AppBundle\Sylius\Cart\SessionStorage:
+    arguments:
+      $sessionKeyName: "%sylius_cart_restaurant_session_key_name%"
 
   AppBundle\Sylius\Cart\RestaurantCartContext:
     arguments:
       $orderFactory: "@sylius.factory.order"
-      $sessionKeyName: "%sylius_cart_restaurant_session_key_name%"
     tags:
       - { name: sylius.context.cart, priority: 32 }
 
@@ -506,10 +520,6 @@ services:
     tags:
       - { name: doctrine.orm.entity_listener }
 
-  AppBundle\Entity\Listener\OrderListener:
-    tags:
-      - { name: doctrine.orm.entity_listener }
-
   AppBundle\Entity\Listener\OrderInvitationListener:
     tags:
       - { name: doctrine.orm.entity_listener }
@@ -517,6 +527,13 @@ services:
   AppBundle\LoopEat\TaskListener:
     tags:
       - { name: doctrine.orm.entity_listener }
+
+  AppBundle\EventListener\Edifact\TaskChangedNotifier:
+    tags:
+      -
+        name: 'doctrine.orm.entity_listener'
+        event: 'postUpdate'
+        entity: AppBundle\Entity\Task
 
   AppBundle\EventListener\JwtListener:
     tags:
@@ -657,6 +674,10 @@ services:
     tags:
       - { name: doctrine.event_subscriber }
 
+  AppBundle\Doctrine\EventSubscriber\CheckoutSubscriber:
+    tags:
+      - { name: doctrine.event_subscriber }
+
   AppBundle\Api\EventSubscriber\SubresourceDenyAccessListener:
     arguments:
         $denyAccessListener: '@api_platform.security.listener.request.deny_access'
@@ -709,6 +730,11 @@ services:
       $country: '%country_iso%'
       $locale: '%env(COOPCYCLE_LOCALE)%'
       $splitTermsAndConditionsAndPrivacyPolicy: '%env(SPLIT_TERMS_AND_CONDITIONS_AND_PRIVACY_POLICY)%'
+
+  AppBundle\Command\SyncTransportersCommand:
+    public: true
+    arguments:
+      $edifactFs: '@edi_messages_filesystem'
 
   AppBundle\Action\Register:
     public: true
@@ -816,6 +842,10 @@ services:
 
   AppBundle\Api\DataProvider\UrbantzWebhookEventDataProvider: ~
 
+  AppBundle\Api\DataProvider\TaxRateCollectionDataProvider:
+    tags: [ { name: 'api_platform.collection_data_provider', priority: 2 } ]
+    autoconfigure: false
+
   AppBundle\Utils\RestaurantFilter:
     arguments:
       - '@routing_service'
@@ -842,14 +872,11 @@ services:
     tags:
       - { name: 'sylius.context.channel', priority: -64 }
 
-  AppBundle\Sylius\Channel\ProChannelContext:
-    tags:
-      - { name: 'sylius.context.channel', priority: 128 }
-
-
-  AppBundle\EventListener\ChangeChannelListener:
+  AppBundle\EventListener\BusinessListener:
     tags:
       - { name: kernel.event_listener, event: kernel.response }
+
+  AppBundle\Business\Context: ~
 
   AppBundle\EventSubscriber\ApiLogSubscriber:
     tags:
@@ -1037,7 +1064,7 @@ services:
 
   AppBundle\Payment\Gateway: ~
 
-  AppBundle\Security\ProVoter:
+  AppBundle\Security\BusinessVoter:
     tags: [ 'security.voter' ]
 
   AppBundle\EventSubscriber\RegistrationInitializeListener:
@@ -1084,6 +1111,9 @@ services:
   AppBundle\Security\DeliveryQuoteVoter:
     tags: [ 'security.voter' ]
 
+  AppBundle\Security\DeliveryImportQueueVoter:
+    tags: [ 'security.voter' ]
+
   # While adding a priority is optional, it’s recommended to add one to make sure the expected value is injected.
   # The built-in RequestAttributeValueResolver, which fetches attributes from the Request, has a priority of 100.
   # If your resolver also fetches Request attributes, set a priority of 100 or more.
@@ -1097,11 +1127,9 @@ services:
 
   AppBundle\Sylius\Cart\SessionSubscriber:
     arguments:
-      $sessionKeyName: "%sylius_cart_restaurant_session_key_name%"
       $enabled: "%foodtech_enabled%"
     tags:
       - { name: kernel.event_subscriber }
-      - { name: monolog.logger, channel: checkout }
 
   AppBundle\Utils\OptionsPayloadConverter:
     arguments:
@@ -1176,7 +1204,8 @@ services:
   AppBundle\Sylius\Taxation\TaxesHelper:
     arguments:
       $country: '%region_iso%'
-      # $legacyTaxes: '%env(bool:COOPCYCLE_LEGACY_TAXES)%'
+      $locale: '%env(COOPCYCLE_LOCALE)%'
+      $legacyTaxes: '%env(bool:COOPCYCLE_LEGACY_TAXES)%'
 
   AppBundle\Api\DataPersister\UrbantzWebhookDataPersister: ~
 
@@ -1211,6 +1240,7 @@ services:
   AppBundle\CubeJs\TokenFactory:
     arguments:
       $databaseName: '%database_name%'
+      $baseUrl: '%router.request_context.scheme%://%router.request_context.host%'
 
   AppBundle\Translation\DatePeriodFormatter:
     arguments:
@@ -1266,6 +1296,10 @@ services:
     class: AppBundle\Sylius\Order\OrderModifier
     decorates: sylius.order_modifier
 
+  coopcycle.sylius.order_item_quantity_modifier:
+    class: AppBundle\Sylius\Order\OrderItemQuantityModifier
+    decorates: sylius.order_item_quantity_modifier
+
   AppBundle\CubeJs\HttpClient:
     decorates: cubejs.client
 
@@ -1308,3 +1342,5 @@ services:
       $pixabayApiKey: '%env(PIXABAY_API_KEY)%'
 
   AppBundle\Utils\RestaurantDecorator: ~
+
+  AppBundle\Fulfillment\FulfillmentMethodResolver: ~

@@ -18,11 +18,10 @@ use AppBundle\Form\Checkout\CheckoutTipType;
 use AppBundle\Form\Checkout\CheckoutVytalType;
 use AppBundle\Form\Checkout\LoopeatReturnsType;
 use AppBundle\Form\Order\CartType;
-use AppBundle\Service\LoggingUtils;
 use AppBundle\Service\OrderManager;
 use AppBundle\Service\SettingsManager;
 use AppBundle\Service\StripeManager;
-use AppBundle\Sylius\Order\AdjustmentInterface;
+use AppBundle\Sylius\Cart\SessionStorage as CartStorage;
 use AppBundle\Sylius\Order\OrderInterface;
 use AppBundle\Utils\OrderEventCollection;
 use AppBundle\Utils\OrderTimeHelper;
@@ -42,7 +41,6 @@ use Sylius\Component\Resource\Factory\FactoryInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Session\Flash\FlashBagInterface;
 use Symfony\Component\HttpFoundation\Session\SessionInterface;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
@@ -63,14 +61,12 @@ class OrderController extends AbstractController
         EntityManagerInterface $objectManager,
         FactoryInterface $orderFactory,
         protected JWTTokenManagerInterface $JWTTokenManager,
-        string $sessionKeyName,
-        private LoggerInterface $logger,
-        private LoggingUtils $loggingUtils
+        private ValidatorInterface $validator,
+        private LoggerInterface $checkoutLogger,
     )
     {
         $this->objectManager = $objectManager;
         $this->orderFactory = $orderFactory;
-        $this->sessionKeyName = $sessionKeyName;
     }
 
     /**
@@ -81,7 +77,6 @@ class OrderController extends AbstractController
         CartContextInterface $cartContext,
         OrderProcessorInterface $orderProcessor,
         TranslatorInterface $translator,
-        ValidatorInterface $validator,
         SettingsManager $settingsManager,
         EmbedContext $embedContext,
         SessionInterface $session)
@@ -99,17 +94,15 @@ class OrderController extends AbstractController
             return $this->redirectToRoute('homepage');
         }
 
-        $errors = $validator->validate($order);
+        $errors = $this->validator->validate($order);
 
         // @see https://github.com/coopcycle/coopcycle-web/issues/2069
         if (count($errors->findByCodes(ShippingAddressConstraint::ADDRESS_NOT_SET)) > 0) {
 
             $vendor = $order->getVendor();
-            if ($order->isMultiVendor()) {
-                return $this->redirectToRoute('hub', ['id' => $vendor->getHub()->getId()]);
-            }
+            $routeName = $order->isMultiVendor() ? 'hub' : 'restaurant';
 
-            return $this->redirectToRoute('restaurant', ['id' => $vendor->getRestaurant()->getId()]);
+            return $this->redirectToRoute($routeName, ['id' => $vendor->getId()]);
         }
 
         $user = $this->getUser();
@@ -136,7 +129,6 @@ class OrderController extends AbstractController
             }
 
             $this->objectManager->flush();
-            $this->logFlushOrder($order);
 
             if ($session->has($dabbaAccessTokenKey) && $session->has($dabbaRefreshTokenKey)) {
                 $session->remove($dabbaAccessTokenKey);
@@ -158,7 +150,6 @@ class OrderController extends AbstractController
 
             $orderProcessor->process($order);
             $this->objectManager->flush();
-            $this->logFlushOrder($order);
 
             return $this->redirectToRoute('order');
         }
@@ -187,7 +178,6 @@ class OrderController extends AbstractController
 
             $orderProcessor->process($order);
             $this->objectManager->flush();
-            $this->logFlushOrder($order);
 
             return $this->redirectToRoute('order');
         }
@@ -204,7 +194,6 @@ class OrderController extends AbstractController
 
             $orderProcessor->process($order);
             $this->objectManager->flush();
-            $this->logFlushOrder($order);
 
             return $this->redirectToRoute('order');
         }
@@ -220,7 +209,6 @@ class OrderController extends AbstractController
 
             $orderProcessor->process($order);
             $this->objectManager->flush();
-            $this->logFlushOrder($order);
 
             return $this->redirectToRoute('order');
         }
@@ -254,7 +242,6 @@ class OrderController extends AbstractController
 
                 $orderProcessor->process($order);
                 $this->objectManager->flush();
-                $this->logFlushOrder($order);
 
                 return $this->redirectToRoute('order');
             }
@@ -279,7 +266,6 @@ class OrderController extends AbstractController
                 }
 
                 $this->objectManager->flush();
-                $this->logFlushOrder($order);
 
                 if ($isFreeOrder || $isQuote) {
 
@@ -343,6 +329,22 @@ class OrderController extends AbstractController
         ];
 
         $form->handleRequest($request);
+
+        /**
+         * added to debug issues with stripe payment:
+         * https://github.com/coopcycle/coopcycle-web/issues/3688
+         * https://github.com/coopcycle/coopcycle-app/issues/1603
+         */
+        if ($request->isMethod('POST')) {
+            if ($form->isSubmitted()) {
+                $this->checkoutLogger->info(sprintf('Order #%d | OrderController::paymentAction | isSubmitted: true, isValid: %d errors: %s',
+                    $order->getId(), $form->isValid(), json_encode($form->getErrors()->__toString())));
+            } else {
+                $this->checkoutLogger->info(sprintf('Order #%d | OrderController::paymentAction | isSubmitted: false, errors: %s',
+                    $order->getId(), json_encode($form->getErrors()->__toString())));
+            }
+        }
+
         if ($form->isSubmitted() && $form->isValid()) {
 
             $payment = $order->getLastPayment(PaymentInterface::STATE_CART);
@@ -361,7 +363,6 @@ class OrderController extends AbstractController
             $orderManager->checkout($order, $data);
 
             $this->objectManager->flush();
-            $this->logFlushOrder($order);
 
             if (PaymentInterface::STATE_FAILED === $payment->getState()) {
 
@@ -383,21 +384,6 @@ class OrderController extends AbstractController
             }
 
             return $this->redirectToOrderConfirm($order);
-        }
-
-        /**
-         * added to debug issues with stripe payment:
-         * https://github.com/coopcycle/coopcycle-web/issues/3688
-         * https://github.com/coopcycle/coopcycle-app/issues/1603
-         */
-        if ($request->isMethod('POST')) {
-            if ($form->isSubmitted()) {
-                $this->logger->info(sprintf('Order #%d | OrderController::paymentAction | isSubmitted: true, isValid: %d errors: %s',
-                    $order->getId(), $form->isValid(), json_encode($form->getErrors()->__toString())));
-            } else {
-                $this->logger->info(sprintf('Order #%d | OrderController::paymentAction | isSubmitted: false, errors: %s',
-                    $order->getId(), json_encode($form->getErrors()->__toString())));
-            }
         }
 
         $parameters['form'] = $form->createView();
@@ -536,7 +522,6 @@ class OrderController extends AbstractController
             );
 
             $this->objectManager->flush();
-            $this->logFlushOrder($order);
 
             $session->remove($loopeatAccessTokenKey);
             $session->remove($loopeatRefreshTokenKey);
@@ -557,7 +542,6 @@ class OrderController extends AbstractController
             );
 
             $this->objectManager->flush();
-            $this->logFlushOrder($order);
 
             $session->remove($dabbaAccessTokenKey);
             $session->remove($dabbaRefreshTokenKey);
@@ -598,9 +582,9 @@ class OrderController extends AbstractController
      */
     public function reorderAction($hashid,
         OrderRepository $orderRepository,
-        SessionInterface $session,
         OrderProcessorInterface $orderProcessor,
-        OrderModifierInterface $orderModifier)
+        OrderModifierInterface $orderModifier,
+        CartStorage $cartStorage)
     {
         $hashids = new Hashids($this->getParameter('secret'), 16);
 
@@ -620,7 +604,7 @@ class OrderController extends AbstractController
         $restaurant = $order->getRestaurant();
 
         $cart = $this->orderFactory->createForRestaurant($restaurant);
-        $this->logger->info(sprintf('Order (cart) object created (created_at = %s) | OrderController',
+        $this->checkoutLogger->info(sprintf('Order (cart) object created (created_at = %s) | OrderController',
             $cart->getCreatedAt()->format(\DateTime::ATOM)));
 
         $cart->setCustomer($this->getUser()->getCustomer());
@@ -634,10 +618,10 @@ class OrderController extends AbstractController
         $this->objectManager->persist($cart);
         $this->objectManager->flush();
 
-        $this->logger->info(sprintf('Order #%d (created_at = %s) created in the database (id = %d) | OrderController',
+        $this->checkoutLogger->info(sprintf('Order #%d (created_at = %s) created in the database (id = %d) | OrderController',
             $cart->getId(), $cart->getCreatedAt()->format(\DateTime::ATOM), $cart->getId()));
 
-        $session->set($this->sessionKeyName, $cart->getId());
+        $cartStorage->set($cart);
 
         return $this->redirectToRoute('order');
     }
@@ -699,9 +683,8 @@ class OrderController extends AbstractController
      * @Route("/order/share/{slug}", name="public_share_order")
      */
     public function shareOrderAction($slug, Request $request,
-        RequestStack $requestStack,
-        SessionInterface $session,
-        OrderTimeHelper $orderTimeHelper)
+        OrderTimeHelper $orderTimeHelper,
+        CartStorage $cartStorage)
     {
         $invitation =
             $this->objectManager->getRepository(OrderInvitation::class)->findOneBy(['slug' => $slug]);
@@ -719,11 +702,11 @@ class OrderController extends AbstractController
         // $this->denyAccessUnlessGranted('view_public', $order);
 
         // Hacky fix to correctly set the session and reload all the context
-        if (!$session->has($this->sessionKeyName) || $session->get($this->sessionKeyName) != $order->getId()) {
-            $session->set($this->sessionKeyName, $order->getId());
+        if (!$cartStorage->has() || $cartStorage->get() !== $order) {
+            $cartStorage->set($order);
+
             return $this->redirectToRoute($request->attributes->get('_route'), ['slug' => $slug]);
         }
-
 
         $cartForm = $this->createForm(CartType::class, $order);
 
@@ -734,20 +717,5 @@ class OrderController extends AbstractController
             'addresses_normalized' => $this->getUserAddresses(),
             'is_player' => true,
         ]));
-    }
-
-    private function logFlushOrder($order): void {
-        $this->logger->info(sprintf('Order #%d updated in the database | OrderController | triggered by %s',
-            $order->getId(),  $this->loggingUtils->getCaller()));
-
-        // added to debug the issue with multiple delivery fees: https://github.com/coopcycle/coopcycle-web/issues/3929
-        $deliveryAdjustments = $order->getAdjustments(AdjustmentInterface::DELIVERY_ADJUSTMENT);
-        if (count($deliveryAdjustments) > 1) {
-            $message = sprintf('Order #%d has multiple delivery fees: %d | OrderController | triggered by %s',
-                $order->getId(), count($deliveryAdjustments), $this->loggingUtils->getCaller());
-
-            $this->logger->error($message);
-            \Sentry\captureException(new \Exception($message));
-        }
     }
 }

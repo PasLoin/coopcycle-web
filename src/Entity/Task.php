@@ -11,6 +11,7 @@ use AppBundle\Action\Task\Cancel as TaskCancel;
 use AppBundle\Action\Task\Done as TaskDone;
 use AppBundle\Action\Task\Events as TaskEvents;
 use AppBundle\Action\Task\FailureReasons as TaskFailureReasons;
+use AppBundle\Action\Task\Incident as TaskIncident;
 use AppBundle\Action\Task\Failed as TaskFailed;
 use AppBundle\Action\Task\Unassign as TaskUnassign;
 use AppBundle\Action\Task\Duplicate as TaskDuplicate;
@@ -28,6 +29,7 @@ use AppBundle\DataType\TsRange;
 use AppBundle\Domain\Task\Event as TaskDomainEvent;
 use AppBundle\Entity\Delivery\FailureReason;
 use AppBundle\Entity\Delivery\PricingRule;
+use AppBundle\Entity\Edifact\EDIFACTMessageAwareTrait;
 use AppBundle\Entity\Package;
 use AppBundle\Entity\Package\PackagesAwareInterface;
 use AppBundle\Entity\Task\Group as TaskGroup;
@@ -265,6 +267,15 @@ use Symfony\Component\Validator\Constraints as Assert;
  *          "summary"="Retrieves possible failure reasons for a Task"
  *        }
  *      },
+ *     "task_incident"={
+ *       "method"="PUT",
+ *       "path"="/tasks/{id}/incidents",
+ *       "controller"=TaskIncident::class,
+ *       "security"="is_granted('view', object)",
+ *       "openapi_context"={
+ *         "summary"="Creates an incident for a Task"
+ *       }
+ *     },
  *     "task_events"={
  *       "method"="GET",
  *       "path"="/tasks/{id}/events",
@@ -305,6 +316,7 @@ class Task implements TaggableInterface, OrganizationAwareInterface, PackagesAwa
     use TaggableTrait;
     use OrganizationAwareTrait;
     use PackagesAwareTrait;
+    use EDIFACTMessageAwareTrait;
 
     const TYPE_DROPOFF = 'DROPOFF';
     const TYPE_PICKUP = 'PICKUP';
@@ -438,16 +450,17 @@ class Task implements TaggableInterface, OrganizationAwareInterface, PackagesAwa
     private $weight;
 
     /**
-     * @var string|null
-     * @Groups({"task"})
-     */
-    private $failureReason;
+    * @var bool
+    * @Groups({"task"})
+    */
+    private $hasIncidents = false;
 
     public function __construct()
     {
         $this->events = new ArrayCollection();
         $this->images = new ArrayCollection();
         $this->packages = new ArrayCollection();
+        $this->edifactMessages = new ArrayCollection();
     }
 
     public function getId()
@@ -955,6 +968,16 @@ class Task implements TaggableInterface, OrganizationAwareInterface, PackagesAwa
         return $this->metadata;
     }
 
+    public function getImportedFrom(): ?string {
+        return collect($this->getMetadata())->get('imported_from');
+    }
+
+    public function setImportedFrom(?string $importedFrom): self
+    {
+        // Not updating metadata, read-only property
+        return $this;
+    }
+
     public function getPackages()
     {
         return $this->packages;
@@ -1109,19 +1132,13 @@ class Task implements TaggableInterface, OrganizationAwareInterface, PackagesAwa
         return $language->evaluate($pricingRule->getPrice(), $this->toExpressionLanguageValues());
     }
 
-    public function getFailureReasons(): array
+    public function setHasIncidents(bool $hasIncidents): void
     {
-        return [];
+        $this->hasIncidents = $hasIncidents;
     }
 
-    public function getFailureReason(): ?string
+    public function getHasIncidents(): bool
     {
-        return $this->failureReason;
-    }
-
-    public function setFailureReason(?string $failureReason): Task
-    {
-        $this->failureReason = $failureReason;
-        return $this;
+        return $this->hasIncidents;
     }
 }

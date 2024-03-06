@@ -22,6 +22,7 @@ import 'react-phone-number-input/style.css'
 import './dashboard.scss'
 
 import { taskListUtils, taskAdapter, taskListAdapter, tourAdapter } from '../coopcycle-frontend-js/logistics/redux'
+import _ from 'lodash'
 
 function start() {
 
@@ -30,7 +31,7 @@ function start() {
   let date = moment(dashboardEl.dataset.date)
   let allTasks = JSON.parse(dashboardEl.dataset.allTasks)
   let taskLists = JSON.parse(dashboardEl.dataset.taskLists)
-  let tours = JSON.parse(dashboardEl.dataset.tours)  
+  let tours = JSON.parse(dashboardEl.dataset.tours)
 
   // normalize data, keep only task ids, instead of the whole objects
   taskLists = taskLists.map(taskList => taskListUtils.replaceTasksWithIds(taskList))
@@ -129,6 +130,19 @@ function start() {
       }
     }
   }
+
+  // the empty tour panels are initially open
+  let expandedToursIds = []
+  tours.forEach((tour) => {if (tour.itemIds.length == 0) {expandedToursIds.push(tour['@id'])}})
+
+  _.merge(preloadedState, {
+    logistics: {
+      ui: {
+        expandedTourPanelsIds: expandedToursIds,
+        loadingTourPanelsIds: []
+      }
+    }
+  })
 
   const store = createStoreFromPreloadedState(preloadedState)
 
