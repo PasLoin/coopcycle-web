@@ -11,6 +11,7 @@ import { selectUnassignedTasks, selectAllTasks, selectSelectedDate, taskListAdap
 import { filter, forEach, find, reduce, map, differenceWith, includes, mapValues } from 'lodash'
 import { isTaskVisible, isOffline, recurrenceTemplateToArray } from './utils'
 import { taskUtils } from '../../coopcycle-frontend-js/logistics/redux';
+import { selectAllTours, selectTaskIdToTourIdMap } from '../../../shared/src/logistics/redux/selectors'
 
 const taskListSelectors = taskListAdapter.getSelectors((state) => state.logistics.entities.taskLists)
 export const taskSelectors = taskAdapter.getSelectors((state) => state.logistics.entities.tasks)
@@ -23,20 +24,33 @@ export const recurrenceRulesAdapter = createEntityAdapter({
 
 // UI selectors
 export const selectCurrentTask = state => state.logistics.ui.currentTask
-export const selectAreToursDroppable = state => state.logistics.ui.areToursDroppable
+export const selectIsTourDragging = state => state.logistics.ui.isTourDragging
 export const selectExpandedTourPanelsIds = state => state.logistics.ui.expandedTourPanelsIds
+export const selectExpandedTaskListPanelsIds = state => state.logistics.ui.expandedTaskListPanelsIds
+export const selectExpandedTasksGroupsPanelsIds = state => state.logistics.ui.expandedTasksGroupPanelIds
+export const selectTaskToShow = state => state.logistics.ui.taskToShow
 export const selectLoadingTourPanelsIds = state => state.logistics.ui.loadingTourPanelsIds
 export const selectTaskListsLoading = state => state.logistics.ui.taskListsLoading
+export const selectUnassignedTasksLoading = state => state.logistics.ui.unassignedTasksLoading
+export const selectOrderOfUnassignedTasks = state => state.logistics.ui.unassignedTasksIdsOrder
+export const selectOrderOfUnassignedToursAndGroups = state => state.logistics.ui.unassignedToursOrGroupsOrderIds
 
 // Settings selectors
+export const selectSettings = state => state.settings
 export const selectFiltersSetting = state => state.settings.filters
 export const selectHiddenCouriersSetting = state => state.settings.filters.hiddenCouriers
 export const selectAreToursEnabled = state => state.settings.toursEnabled
 export const selectIsRecurrenceRulesVisible = state => state.settings.isRecurrenceRulesVisible
 export const selectTaskListGroupMode = state => state.taskListGroupMode
 export const selectSplitDirection = state => state.rightPanelSplitDirection
-export const selectSearchIsOn = state => state.searchIsOn
+export const selectPolylineEnabledByUsername = username => state => state.polylineEnabled[username]
+export const selectTourPolylinesEnabledById = tourId => state => state.tourPolylinesEnabled[tourId]
+export const selectAllTags = state => state.config.tags
 
+export const getProductNameById = id => store => {
+  return store.dashboard.dashboards.filter(({ Id }) => Id === id)[0]
+    .Name;
+}
 
 export const selectCouriers = state => state.config.couriersList
 export const selectTaskEvents = state => state.taskEvents
@@ -45,13 +59,16 @@ export const selectTaskLists = taskListSelectors.selectAll
 
 export const selectBookedUsernames = taskListSelectors.selectIds
 
+
 export const belongsToGroup = task => Object.prototype.hasOwnProperty.call(task, 'group') && task.group
-export const belongsToTour = task => Object.prototype.hasOwnProperty.call(task, 'tour') && task.tour
+export const belongsToTour = task => state => selectTaskIdToTourIdMap(state).has(task['@id'])
+
 
 export const selectGroups = createSelector(
   selectUnassignedTasks,
   state => state.taskListGroupMode,
-  (unassignedTasks, taskListGroupMode) => {
+  selectTaskIdToTourIdMap,
+  (unassignedTasks, taskListGroupMode, taskIdToTourIdMap) => {
 
     if (taskListGroupMode !== 'GROUP_MODE_FOLDERS') {
       return []
@@ -62,7 +79,7 @@ export const selectGroups = createSelector(
 
     const tasksWithGroup = filter(
       unassignedTasks,
-      task => belongsToGroup(task) && !belongsToTour(task) // if the task is in a tour we don't want it to be displayed in "Unassigned > Group"
+      task => belongsToGroup(task) && !taskIdToTourIdMap.has(task['@id']) // if the task is in a tour we don't want it to be displayed in "Unassigned > Group"
     )
 
     forEach(tasksWithGroup, task => {
@@ -89,12 +106,13 @@ export const selectGroups = createSelector(
 export const selectStandaloneTasks = createSelector(
   selectUnassignedTasks,
   state => state.taskListGroupMode,
-  (unassignedTasks, taskListGroupMode) => {
+  selectTaskIdToTourIdMap,
+  (unassignedTasks, taskListGroupMode, taskIdToTourIdMap) => {
 
     let standaloneTasks = unassignedTasks
 
     if (taskListGroupMode === 'GROUP_MODE_FOLDERS') {
-      standaloneTasks = filter(unassignedTasks, task => !belongsToGroup(task) && !belongsToTour(task))
+      standaloneTasks = filter(unassignedTasks, task => !belongsToGroup(task))
     }
 
     // Order by dropoff desc, with pickup before
@@ -124,11 +142,16 @@ export const selectStandaloneTasks = createSelector(
       standaloneTasks = grouped
     } else {
       standaloneTasks.sort((a, b) => {
-        return moment(a.before).isBefore(b.before) ? -1 : 1
+        if (moment(a.before).isSame(b.before) && a.type === 'PICKUP') {
+          return -1
+        } else {
+          // put on top of the list the tasks that have an end of delivery window that finishes sooner
+          return moment(a.before).isBefore(b.before) ? -1 : 1
+        }
       })
     }
 
-    return standaloneTasks
+    return filter(standaloneTasks, t => !taskIdToTourIdMap.has(t['@id']))
   }
 )
 
@@ -153,10 +176,11 @@ export const selectPolylines = createSelector(
 export const selectAsTheCrowFlies = createSelector(
   taskSelectors.selectEntities,
   taskListSelectors.selectEntities,
-  (tasksById, taskListsByUsername) => {
+  tourSelectors.selectEntities,
+  (tasksById, taskListsByUsername, allTours) => {
+    const asTheCrowFliesTaskLists = mapValues(taskListsByUsername, taskList => {
+      const polyline = map(taskList.items, itemId => {
 
-    return mapValues(taskListsByUsername, taskList => {
-      const polyline = map(taskList.itemIds, itemId => {
         const item = tasksById[itemId]
 
         return item ? [
@@ -167,6 +191,21 @@ export const selectAsTheCrowFlies = createSelector(
 
       return filter(polyline, (coords) => coords.length === 2)
     })
+
+    const asTheCrowFliesTours = mapValues(allTours, tour => {
+      const polyline = map(tour.items, itemId => {
+        const item = tasksById[itemId]
+
+        return item ? [
+          item.address.geo.latitude,
+          item.address.geo.longitude
+        ] : []
+      })
+
+      return filter(polyline, (coords) => coords.length === 2)
+    })
+
+    return Object.assign({}, asTheCrowFliesTaskLists, asTheCrowFliesTours)
   }
 )
 
@@ -179,25 +218,14 @@ export const selectHiddenTaskIds = createSelector(
   }
 )
 
+
 const fuseOptions = {
   shouldSort: true,
   includeScore: true,
-  keys: [{
-    name: 'id',
-    weight: 0.6
-  }, {
-    name: 'tags.slug',
-    weight: 0.1
-  }, {
-    name: 'address.name',
-    weight: 0.1
-  }, {
-    name: 'address.streetAddress',
-    weight: 0.1
-  }, {
-    name: 'comments',
-    weight: 0.1
-  }]
+  threshold: 0.4,
+  minMatchCharLength: 3,
+  ignoreLocation: true,
+  keys: ['id', 'metadata.order_number', 'tags.name', 'tags.slug', 'address.contactName', 'address.name','address.streetAddress','comments', 'orgName']
 }
 
 export const selectFuseSearch = createSelector(
@@ -317,3 +345,20 @@ export const selectLinkedTasksIds = createSelector(
     return Object.keys(groups)
   }
 )
+
+export const selectTagsSelectOptions = createSelector(
+  selectAllTags,
+  (allTags) => allTags.map((tag) => {return {...tag, isTag: true, label: tag.name, value: tag.slug}})
+)
+
+const tourColorPalette = ["#556b2f","#8b4513","#8b0000","#808000","#483d8b","#008000","#3cb371","#bc8f8f","#b8860b","#4682b4","#d2691e","#9acd32","#20b2aa","#00008b","#32cd32","#8b008b","#d2b48c","#9932cc","#ff0000","#ff8c00","#ffd700","#6a5acd","#c71585","#0000cd","#00ff00","#00fa9a","#dc143c","#00ffff","#f4a460","#0000ff","#a020f0","#adff2f","#ff6347","#da70d6","#ff00ff","#db7093","#f0e68c","#fa8072","#ffff54","#6495ed","#dda0dd","#90ee90","#87cefa","#ff69b4"]
+
+export const selectTourIdToColorMap = createSelector(
+  selectAllTours,
+  (allTours) => {
+    let toColorMap = new Map()
+    allTours.forEach((tour, index) => {
+        toColorMap.set(tour["@id"], tourColorPalette[index % tourColorPalette.length])
+  })
+  return toColorMap
+})

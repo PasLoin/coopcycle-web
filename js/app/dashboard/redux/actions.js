@@ -1,91 +1,17 @@
 import _ from 'lodash'
-import axios from 'axios'
 import moment from 'moment'
 
-import { taskComparator, withoutTasks, withLinkedTasks, isInDateRange } from './utils'
+import { taskComparator, isInDateRange, withoutItemsIRIs } from './utils'
 import {
   selectSelectedDate,
-  selectTaskLists,
-  selectAllTasks,
   createTaskListRequest,
   createTaskListSuccess,
   createTaskListFailure
 } from '../../coopcycle-frontend-js/logistics/redux'
-import { selectNextWorkingDay, selectSelectedTasks } from './selectors'
-
-
-function createClient(dispatch) {
-
-  const client = axios.create({
-    baseURL: location.protocol + '//' + location.hostname
-  })
-
-  let subscribers = []
-  let isRefreshingToken = false
-
-  function onTokenFetched(token) {
-    subscribers.forEach(callback => callback(token))
-    subscribers = []
-  }
-
-  function addSubscriber(callback) {
-    subscribers.push(callback)
-  }
-
-  function refreshToken() {
-    return new Promise((resolve) => {
-      // TODO Check response is OK, reject promise
-      $.getJSON(window.Routing.generate('profile_jwt')).then(result => resolve(result.jwt))
-    })
-  }
-
-  // @see https://gist.github.com/Godofbrowser/bf118322301af3fc334437c683887c5f
-  // @see https://www.techynovice.com/setting-up-JWT-token-refresh-mechanism-with-axios/
-  client.interceptors.response.use(
-    response => response,
-    error => {
-
-      if (error.response && error.response.status === 401) {
-
-        try {
-
-          const req = error.config
-
-          const retry = new Promise(resolve => {
-            addSubscriber(token => {
-              req.headers['Authorization'] = `Bearer ${token}`
-              resolve(axios(req))
-            })
-          })
-
-          if (!isRefreshingToken) {
-
-            isRefreshingToken = true
-
-            refreshToken()
-              .then(token => {
-                dispatch(tokenRefreshSuccess(token))
-                return token
-              })
-              .then(token => onTokenFetched(token))
-              .catch(error => Promise.reject(error))
-              .finally(() => {
-                isRefreshingToken = false
-              })
-          }
-
-          return retry
-        } catch (e) {
-          return Promise.reject(e)
-        }
-      }
-
-      return Promise.reject(error)
-    }
-  )
-
-  return client
-}
+import { selectExpandedTaskListPanelsIds, selectNextWorkingDay, selectSelectedTasks, selectTaskLists } from './selectors'
+import { createAction } from '@reduxjs/toolkit'
+import { selectTaskById, selectTaskListByUsername } from '../../../shared/src/logistics/redux/selectors'
+import { createClient } from '../utils/client'
 
 export const UPDATE_TASK = 'UPDATE_TASK'
 export const OPEN_ADD_USER = 'OPEN_ADD_USER'
@@ -97,7 +23,6 @@ export const TOGGLE_POLYLINE = 'TOGGLE_POLYLINE'
 export const TOGGLE_TASK = 'TOGGLE_TASK'
 export const SELECT_TASK = 'SELECT_TASK'
 export const SELECT_TASKS = 'SELECT_TASKS'
-export const SELECT_TASKS_BY_IDS = 'SELECT_TASKS_BY_IDS'
 export const CLEAR_SELECTED_TASKS = 'CLEAR_SELECTED_TASKS'
 export const SET_TASK_LIST_GROUP_MODE = 'SET_TASK_LIST_GROUP_MODE'
 export const REMOVE_TASK = 'REMOVE_TASK'
@@ -112,7 +37,6 @@ export const CREATE_TASK_SUCCESS = 'CREATE_TASK_SUCCESS'
 export const CREATE_TASK_FAILURE = 'CREATE_TASK_FAILURE'
 export const COMPLETE_TASK_FAILURE = 'COMPLETE_TASK_FAILURE'
 export const CANCEL_TASK_FAILURE = 'CANCEL_TASK_FAILURE'
-export const TOKEN_REFRESH_SUCCESS = 'TOKEN_REFRESH_SUCCESS'
 export const RESTORE_TASK_FAILURE = 'RESTORE_TASK_FAILURE'
 
 export const OPEN_FILTERS_MODAL = 'OPEN_FILTERS_MODAL'
@@ -120,21 +44,12 @@ export const CLOSE_FILTERS_MODAL = 'CLOSE_FILTERS_MODAL'
 export const SET_FILTER_VALUE = 'SET_FILTER_VALUE'
 export const RESET_FILTERS = 'RESET_FILTERS'
 
-export const TOGGLE_SEARCH = 'TOGGLE_SEARCH'
-export const OPEN_SEARCH = 'OPEN_SEARCH'
-export const CLOSE_SEARCH = 'CLOSE_SEARCH'
-
 export const OPEN_SETTINGS = 'OPEN_SETTINGS'
 export const CLOSE_SETTINGS = 'CLOSE_SETTINGS'
-export const SET_POLYLINE_STYLE = 'SET_POLYLINE_STYLE'
-export const SET_CLUSTERS_ENABLED = 'SET_CLUSTERS_ENABLED'
-export const SET_USE_AVATAR_COLORS = 'SET_USE_AVATAR_COLORS'
 
 export const LOAD_TASK_EVENTS_REQUEST = 'LOAD_TASK_EVENTS_REQUEST'
 export const LOAD_TASK_EVENTS_SUCCESS = 'LOAD_TASK_EVENTS_SUCCESS'
 export const LOAD_TASK_EVENTS_FAILURE = 'LOAD_TASK_EVENTS_FAILURE'
-
-export const SET_TASK_LISTS_LOADING = 'SET_TASK_LISTS_LOADING'
 
 export const ADD_IMPORT = 'ADD_IMPORT'
 export const IMPORT_SUCCESS = 'IMPORT_SUCCESS'
@@ -165,6 +80,9 @@ export const EDIT_GROUP_SUCCESS = 'EDIT_GROUP_SUCCESS'
 export const OPEN_CREATE_GROUP_MODAL = 'OPEN_CREATE_GROUP_MODAL'
 export const CLOSE_CREATE_GROUP_MODAL = 'CLOSE_CREATE_GROUP_MODAL'
 
+export const OPEN_REPORT_INCIDENT_MODAL = 'OPEN_REPORT_INCIDENT_MODAL'
+export const CLOSE_REPORT_INCIDENT_MODAL = 'CLOSE_REPORT_INCIDENT_MODAL'
+
 export const OPEN_ADD_TASK_TO_GROUP_MODAL = 'OPEN_ADD_TASK_TO_GROUP_MODAL'
 export const CLOSE_ADD_TASK_TO_GROUP_MODAL = 'CLOSE_ADD_TASK_TO_GROUP_MODAL'
 export const ADD_TASK_TO_GROUP_REQUEST = 'ADD_TASK_TO_GROUP_REQUEST'
@@ -187,66 +105,94 @@ export const CLOSE_TASK_RESCHEDULE_MODAL = 'CLOSE_TASK_RESCHEDULE_MODAL'
 
 export const CREATE_TOUR_REQUEST = 'CREATE_TOUR_REQUEST'
 export const CREATE_TOUR_REQUEST_SUCCESS = 'CREATE_TOUR_REQUEST_SUCCESS'
-
 export const MODIFY_TOUR_REQUEST = 'MODIFY_TOUR_REQUEST'
 export const MODIFY_TOUR_REQUEST_SUCCESS = 'MODIFY_TOUR_REQUEST_SUCCESS'
 export const MODIFY_TOUR_REQUEST_ERROR = 'MODIFY_TOUR_REQUEST_ERROR'
-export const TOGGLE_TOUR_PANEL_EXPANDED = 'TOGGLE_EXPANDED_TOUR_PANEL'
 export const TOGGLE_TOUR_LOADING = 'TOGGLE_TOUR_LOADING'
-
 export const UPDATE_TOUR = 'UPDATE_TOUR'
 export const DELETE_TOUR_SUCCESS = 'DELETE_TOUR_SUCCESS'
 
+export const INSERT_IN_UNASSIGNED_TOURS = 'INSERT_IN_UNASSIGNED_TOURS'
+
 export const SET_TOURS_ENABLED = 'SET_TOURS_ENABLED'
 
-export function setTaskListsLoading(loading = true) {
-  return { type: SET_TASK_LISTS_LOADING, loading }
+export const setUnassignedTasksLoading = createAction('SET_UNASSIGNEDTASKS_LOADING')
+export const appendToUnassignedTasks = createAction('APPEND_TO_UNASSIGNED_TASKS')
+export const insertInUnassignedTasks = createAction('INSERT_IN_UNASSIGNED_TASKS')
+export const appendToUnassignedTours = createAction('APPEND_TO_UNASSIGNED_TOURS')
+export const insertInUnassignedTours = createAction('INSERT_IN_UNASSIGNED_TOURS')
+
+export const startTaskFailure = createAction('START_TASK_FAILURE')
+
+export const loadOrganizationsSuccess = createAction('LOAD_ORGANIZATIONS_SUCCESS')
+
+export const toggleTourPanelExpanded = createAction('TOGGLE_TOUR_PANEL_EXPANDED')
+export const toggleTaskListPanelExpanded = createAction('TASKLIST_PANEL_EXPANDED')
+export const toggleTasksGroupPanelExpanded = createAction('TASKS_GROUP_PANEL_EXPANDED')
+export const setTaskToShow = createAction('SET_TASK_TO_SHOW')
+
+export const openTaskTaskList = function(task) {
+  return function(dispatch, getState) {
+    if (task.isAssigned) {
+      const taskList = selectTaskListByUsername(getState(), {username: task.assignedTo})
+      const expandedTaskListPanelsIds = selectExpandedTaskListPanelsIds(getState())
+      if (!expandedTaskListPanelsIds.includes(taskList['@id'])) {
+        dispatch(toggleTaskListPanelExpanded(taskList['@id']))
+      }
+    }
+  }
 }
 
+/**
+ * This action assign a task after another when you linked the two markers on the map
+ * @param {string} username - Username of the rider to which we assign
+ * @param {Object} task - Task we want to assign after the "after" task
+ * @param {Object} task - Task pointed on the map
+ */
 export function assignAfter(username, task, after) {
 
   return function(dispatch, getState) {
 
     let state = getState()
-    let allTasks = selectAllTasks(state)
     let taskLists = selectTaskLists(state)
 
     const taskList = _.find(taskLists, taskList => taskList.username === username)
-    const taskIndex = _.findIndex(taskList.items, t => taskComparator(t, after))
+    const taskIndex = _.findIndex(
+      taskList.items,
+      t => taskComparator(selectTaskById(getState(), t), after['@id'])
+    )
 
     if (-1 !== taskIndex) {
       const newTaskListItems = taskList.items.slice()
       Array.prototype.splice.apply(newTaskListItems,
-        Array.prototype.concat([ taskIndex + 1, 0 ], withLinkedTasks(task, allTasks))
+        Array.prototype.concat([ taskIndex + 1, 0 ], task['@id'])
       )
       dispatch(modifyTaskList(username, newTaskListItems))
     }
   }
 }
 
-export function unassignTasks(username, tasks, updateTourUI=null) {
-    /*
-      Unassign tasks.
+/**
+ * Unassign tasks or tours
+ * @param {string} username - Username of the rider
+ * @param {Array.Object} items - Items (tasks or tours) to be unassigned
+ */
+export function unassignTasks(username, items) {
 
-      We can pass a callback updateTourUI so we update the UI related to the tour before we do the AJAX call to modify the tasklist
-    */
-
-  if (!Array.isArray(tasks)) {
-    tasks = [ tasks ]
+  if (!Array.isArray(items)) {
+    items = [ items ]
   }
 
   return async function(dispatch, getState) {
 
-    if (tasks.length === 0) {
+    if (items.length === 0) {
       return
     }
 
-    let state = getState()
-    let taskLists = selectTaskLists(state)
+    const taskList = selectTaskListByUsername(getState(), {username: username}),
+      toRemove = items.map(i => i['@id'])
 
-    const taskList = _.find(taskLists, taskList => taskList.username === username)
-
-    await dispatch(modifyTaskList(username, withoutTasks(taskList.items, tasks), updateTourUI))
+    await dispatch(modifyTaskList(username, withoutItemsIRIs(taskList.items, toRemove)))
   }
 }
 
@@ -262,8 +208,13 @@ export function closeAddUserModal() {
   return {type: CLOSE_ADD_USER}
 }
 
-export function modifyTaskListRequest(username, tasks) {
-  return { type: MODIFY_TASK_LIST_REQUEST, username, tasks }
+/**
+ * @param {string} Username - Username of the rider to which we assign
+ * @param {Array.string} items - Items to be assigned, list of tasks and tours URIs to be assigned
+ * @param {Array.string} previousItems - Items to be assigned, list of tasks and tours URIs to be assigned
+ */
+export function modifyTaskListRequest(username, items, previousItems) {
+  return { type: MODIFY_TASK_LIST_REQUEST, username, items, previousItems }
 }
 
 export function modifyTaskListRequestSuccess(taskList) {
@@ -290,51 +241,47 @@ export function importError(token, message) {
   return { type: IMPORT_ERROR, token, message }
 }
 
-export function modifyTaskList(username, tasks, updateTourUI=null) {
-  /*
-    Modify a TaskList
-
-    We can pass a callback updateTourUI so we update the UI related to the tour before we do the AJAX call to modify the tasklist
-  */
+/**
+ * Modify a TaskList
+ * @param {string} Username - Username of the rider to which we assign
+ * @param {Array.Objects} items - Items to be assigned, list of tasks and tours to be assigned
+ */
+export function modifyTaskList(username, items) {
 
   return async function(dispatch, getState) {
 
-    if (updateTourUI) updateTourUI()
+    const state = getState()
 
-    const data = tasks.map((task, index) => ({
-      task: task['@id'],
-      position: index,
-    }))
+    const tasksList = selectTaskListByUsername(getState(), {username: username})
+    const previousItems = tasksList.items
 
-    let state = getState()
-    let allTasks = selectAllTasks(state)
-    let date = selectSelectedDate(state)
+    // support passing URIs directly - TODO uniformize behaviour
+    const newItems = items.map((item) => item['@id'] || item)
 
-    const url = window.Routing.generate('admin_task_list_modify', {
+    dispatch(modifyTaskListRequest(username, newItems, previousItems))
+
+    const date = selectSelectedDate(state)
+
+    const url = window.Routing.generate('api_task_lists_set_items_item', {
       date: date.format('YYYY-MM-DD'),
       username,
     })
 
-    const newTasks = tasks.map((task, position) => {
-      const rt = _.find(allTasks, t => t['@id'] === task['@id'])
-
-      return {
-        ...rt,
-        isAssigned: true,
-        position,
-      }
-    })
-
-    dispatch(modifyTaskListRequest(username, newTasks))
+    const { jwt } = getState()
+    const httpClient = createClient(dispatch)
 
     let response
 
     try {
-      response =  await axios.put(url, data, {
-        withCredentials: true,
+      response = await httpClient.request({
+        method: 'put',
+        url,
+        data: {'items': newItems},
         headers: {
+          'Authorization': `Bearer ${jwt}`,
+          'Accept': 'application/ld+json',
           'Content-Type': 'application/ld+json'
-        },
+        }
       })
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -349,25 +296,30 @@ export function modifyTaskList(username, tasks, updateTourUI=null) {
 export function togglePolyline(username) {
   return { type: TOGGLE_POLYLINE, username }
 }
+export const toggleTourPolyline = createAction('TOGGLE_TOUR_POLYLINE')
 
-export function taskListsUpdated(taskLists) {
-  return { type: TASK_LISTS_UPDATED, taskLists }
+export function taskListsUpdated(taskList) {
+  return { type: TASK_LISTS_UPDATED, taskList }
 }
 
 export function toggleTask(task, multiple = false) {
-  return { type: TOGGLE_TASK, task, multiple }
+  /*
+    Toggle the given task in the `selectedTasks` list.
+
+    Check the `TOGGLE_TASK` reducer for the exact behavior. Pass the `multiple` flag if you want to keep the already selected tasks in the list.
+  */
+  return { type: TOGGLE_TASK, taskId: task['@id'], multiple }
 }
 
 export function selectTask(task) {
-  return { type: SELECT_TASK, task }
-}
-
-export function selectTasks(tasks) {
-  return { type: SELECT_TASKS, tasks }
+  return { type: SELECT_TASK, taskId: task['@id'] }
 }
 
 export function selectTasksByIds(taskIds) {
-  return { type: SELECT_TASKS_BY_IDS, taskIds }
+  /*
+    Set selectedTasks to the given `taskIds`.
+  */
+  return { type: SELECT_TASKS, taskIds }
 }
 
 export function clearSelectedTasks() {
@@ -380,7 +332,7 @@ export function setTaskListGroupMode(mode) {
 
 export function createTaskList(date, username) {
 
-  return function(dispatch) {
+  return async function(dispatch) {
 
     const url = window.Routing.generate('admin_task_list_create', {
       date: date.format('YYYY-MM-DD'),
@@ -389,17 +341,29 @@ export function createTaskList(date, username) {
 
     dispatch(createTaskListRequest())
 
-    return axios.post(url, {}, {
-      withCredentials: true,
-      headers: {
-        'Content-Type': 'application/json'
-      },
-    })
-      .then(res => dispatch(createTaskListSuccess(res.data)))
-      .catch(error => dispatch(createTaskListFailure(error)))
+    let response
+    try {
+      response =  await createClient(dispatch).post(url, {}, {
+        withCredentials: true,
+        headers: {
+          'Content-Type': 'application/ld+json'
+        },
+      })
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      dispatch(createTaskListFailure(error))
+    }
+
+    dispatch(createTaskListSuccess(response.data))
+    return response.data
   }
 }
 
+/**
+ * Action to move task to top or bottom of tasklist
+ * @param {Object} task - Task we are moving
+ * @param {string} direction - Either 'top' or 'bottom'
+ */
 function moveTo(task, direction) {
 
   return function(dispatch, getState) {
@@ -408,16 +372,17 @@ function moveTo(task, direction) {
     const taskList = _.find(taskLists, taskList => taskList.username === task.assignedTo)
 
     if (taskList) {
-      const newTasks = taskList.items.filter(item => item['@id'] !== task['@id'])
+      const taskId = task['@id'],
+        newItems = taskList.items.filter(t => t !== taskId)
       switch (direction) {
         case 'top':
-          newTasks.unshift(task)
+          newItems.unshift(taskId)
           break
         case 'bottom':
-          newTasks.push(task)
+          newItems.push(taskId)
           break
       }
-      dispatch(modifyTaskList(taskList.username, newTasks))
+      dispatch(modifyTaskList(taskList.username, newItems))
     }
   }
 }
@@ -482,28 +447,12 @@ export function cancelTaskFailure(error) {
   return { type: CANCEL_TASK_FAILURE, error }
 }
 
-export function tokenRefreshSuccess(token) {
-  return { type: TOKEN_REFRESH_SUCCESS, token }
-}
-
 export function openFiltersModal() {
   return { type: OPEN_FILTERS_MODAL }
 }
 
 export function closeFiltersModal() {
   return { type: CLOSE_FILTERS_MODAL }
-}
-
-export function toggleSearch() {
-  return { type: TOGGLE_SEARCH }
-}
-
-export function openSearch() {
-  return { type: OPEN_SEARCH }
-}
-
-export function closeSearch() {
-  return { type: CLOSE_SEARCH }
 }
 
 export function openSettings() {
@@ -514,17 +463,7 @@ export function closeSettings() {
   return { type: CLOSE_SETTINGS }
 }
 
-export function setPolylineStyle(style) {
-  return {type: SET_POLYLINE_STYLE, style}
-}
-
-export function setClustersEnabled(enabled) {
-  return {type: SET_CLUSTERS_ENABLED, enabled}
-}
-
-export function setUseAvatarColors(useAvatarColors) {
-  return {type: SET_USE_AVATAR_COLORS, useAvatarColors}
-}
+export const setGeneralSettings = createAction('SET_FROM_SETTING_MODAL')
 
 export function loadTaskEventsRequest() {
   return { type: LOAD_TASK_EVENTS_REQUEST }
@@ -739,6 +678,39 @@ export function cancelTasks(tasks) {
   }
 }
 
+export function startTasks(tasks) {
+
+  return function(dispatch, getState) {
+
+    const { jwt } = getState()
+
+    dispatch(createTaskRequest())
+
+    const httpClient = createClient(dispatch)
+
+    const requests = tasks.map(task => {
+
+      return httpClient.request({
+        method: 'put',
+        url: `${task['@id']}/start`,
+        data: {},
+        headers: {
+          'Authorization': `Bearer ${jwt}`,
+          'Accept': 'application/ld+json',
+          'Content-Type': 'application/ld+json'
+        }
+      })
+    })
+
+    Promise.all(requests)
+      .then(values => {
+        dispatch(createTaskSuccess())
+        values.forEach(response => dispatch(updateTask(response.data)))
+      })
+      .catch(error => dispatch(startTaskFailure(error)))
+  }
+}
+
 export function duplicateTask(task) {
 
   return function(dispatch, getState) {
@@ -903,6 +875,7 @@ export function optimizeTaskList(taskList) {
       }
     })
       .then(response => {
+        // TODO : fix this
         dispatch(modifyTaskList(taskList.username, response.data.items))
       })
       // eslint-disable-next-line no-console
@@ -1227,6 +1200,14 @@ export function closeCreateGroupModal() {
   return { type: CLOSE_CREATE_GROUP_MODAL }
 }
 
+export function openReportIncidentModal() {
+  return { type: OPEN_REPORT_INCIDENT_MODAL }
+}
+
+export function closeReportIncidentModal() {
+  return { type: CLOSE_REPORT_INCIDENT_MODAL }
+}
+
 export function createGroup(name) {
 
   return function(dispatch, getState) {
@@ -1417,27 +1398,28 @@ export function createTourRequestSuccess() {
   return { type: CREATE_TOUR_REQUEST_SUCCESS }
 }
 
-export function modifyTourRequest(tour, tasks) {
-  return { type: MODIFY_TOUR_REQUEST, tour, tasks }
+/**
+ * @param {Object} tour - tour that will be modified
+ * @param {Array.string} items - list of tasks IRIs
+ */
+export function modifyTourRequest(tour, items) {
+  return { type: MODIFY_TOUR_REQUEST, tour, items }
 }
 
-export function modifyTourRequestSuccess(tour, tasks) {
-  return { type: MODIFY_TOUR_REQUEST_SUCCESS, tour, tasks }
+export function modifyTourRequestSuccess(tour) {
+  return { type: MODIFY_TOUR_REQUEST_SUCCESS, tour }
 }
 
 export function modifyTourRequestError(tour, tasks) {
   return { type: MODIFY_TOUR_REQUEST_ERROR, tour, tasks }
 }
 
-export function toggleTourPanelExpanded(tourId) {
-  return { type: TOGGLE_TOUR_PANEL_EXPANDED, tourId}
-}
 
 export function toggleTourLoading(tourId) {
   /*
     Block/unblock actions on tour while we are modifying it.
   */
-  return { type: TOGGLE_TOUR_LOADING, tourId}
+  return { type: TOGGLE_TOUR_LOADING, tourId }
 }
 
 export function createTour(tasks, name, date) {
@@ -1463,18 +1445,7 @@ export function createTour(tasks, name, date) {
       }
     })
       .then((response) => {
-        tasks.forEach(task =>
-          // we do a partial update here, because we don't want to mess with isAssigned/assignedTo which are handled somewhere else
-          dispatch(updateTask({
-            '@id': task['@id'],
-            tour: response.data, // the only property we want to update on the task
-            doneAfter: task.doneAfter, // pass this because `updateTask` is doing a date range check
-            doneBefore: task.doneBefore // pass this because `updateTask` is doing a date range check
-          }))
-        )
-        // flatten items to itmIds
         let tour = {...response.data}
-        tour.itemIds = tour.items.map(item => item['@id'])
 
         dispatch(updateTour(tour))
         dispatch(createTourRequestSuccess())
@@ -1489,22 +1460,26 @@ export function createTour(tasks, name, date) {
   }
 }
 
-export function updateTourInUI(dispatch, tour, tasks) {
-  dispatch(toggleTourLoading(tour['@id']))
-  dispatch(modifyTourRequest(tour, tasks))
+export function updateTourInUI(tour, tasks) {
+  return async function(dispatch) {
+    dispatch(toggleTourLoading(tour['@id']))
+    dispatch(modifyTourRequest(tour, tasks))
+  }
 }
 
-export function modifyTour(tour, tasks, isTourUIAlreadyUpdated=false) {
-  /*
-    When assigning a task to a tour which is already is assigned,
-    `modifyTaskList` would be responsible for updating the UI.
-  */
+/**
+ * @param {Object} tour - tour that will be modified
+ * @param {Array.string} tasks - list of tasks IRIs
+ */
+export function modifyTour(tour, tasks) {
 
   return async function(dispatch, getState) {
 
-    if (!isTourUIAlreadyUpdated) updateTourInUI(dispatch, tour, tasks)
-
     const { jwt } = getState()
+
+    tasks = _.map(tasks, t => t['@id'] || t)
+
+    dispatch(updateTourInUI(tour, tasks))
 
     let response
 
@@ -1514,7 +1489,7 @@ export function modifyTour(tour, tasks, isTourUIAlreadyUpdated=false) {
         url: tour['@id'],
         data: {
           name: tour.name,
-          tasks: _.map(tasks, t => t['@id'])
+          tasks: tasks
         },
         headers: {
           'Authorization': `Bearer ${jwt}`,
@@ -1529,11 +1504,7 @@ export function modifyTour(tour, tasks, isTourUIAlreadyUpdated=false) {
     }
 
     let _tour = response.data
-    // TODO: do this in the backend?
-    _tour.itemIds = _tour.items.map(item => item['@id'])
-
-    dispatch(updateTour(_tour))
-    dispatch(modifyTourRequestSuccess(_tour, tasks))
+    dispatch(modifyTourRequestSuccess(_tour))
     dispatch(toggleTourLoading(tour['@id']))
 
     return _tour
@@ -1552,6 +1523,8 @@ export function deleteTour(tour) {
 
     let resourceId = tour['@id'];
 
+    dispatch(toggleTourLoading(resourceId))
+
     createClient(dispatch).request({
       method: 'delete',
       url: resourceId,
@@ -1561,23 +1534,28 @@ export function deleteTour(tour) {
         'Content-Type': 'application/ld+json'
       }
     })
-      .then(() => dispatch(deleteTourSuccess(resourceId)))
+      .then(() => {
+        dispatch(deleteTourSuccess(resourceId))
+        dispatch(toggleTourLoading(resourceId))
+      })
       // eslint-disable-next-line no-console
       .catch(error => console.log(error))
   }
 }
 
-export function removeTaskFromTour(tour, task, username) {
+/**
+ * @param {Object} tour - tour that will be modified
+ * @param {Array.Object} tasks - list of tasks objects
+ */
+export function removeTasksFromTour(tour, tasks, modifyTourAction=modifyTour) {
+
+  if (!Array.isArray(tasks)) {
+    tasks = [ tasks ]
+  }
+
   return function(dispatch) {
-    if (username !== null) {
-      let newTourItems = withoutTasks(tour.items, [ task ])
-      let uiUpdate = () => updateTourInUI(dispatch, tour, newTourItems)
-      dispatch(unassignTasks(username, [task], uiUpdate)).then(() => {
-        dispatch(modifyTour(tour, newTourItems, true))
-      })
-    } else {
-      dispatch(modifyTour(tour, withoutTasks(tour.items, [ task ])))
-    }
+    let newTourItems = withoutItemsIRIs(tour.items, tasks.map(t => t['@id']))
+    dispatch(modifyTourAction(tour, newTourItems))
   }
 }
 
@@ -1594,5 +1572,26 @@ export function onlyFilter(filter) {
     dispatch(setFilterValue('onlyFilter', filter))
     dispatch(closeFiltersModal())
 
+  }
+}
+
+
+export function loadOrganizations() {
+
+  return async function(dispatch, getState) {
+
+    const { jwt } = getState()
+    const client = createClient(dispatch)
+
+    const data = await client.paginatedRequest({
+      method: 'GET',
+      url: window.Routing.generate('api_organizations_get_collection'),
+      headers: {
+        'Authorization': `Bearer ${jwt}`,
+        'Accept': 'application/ld+json',
+        'Content-Type': 'application/ld+json'
+      }
+    })
+    dispatch(loadOrganizationsSuccess(data))
   }
 }

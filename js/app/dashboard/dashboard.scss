@@ -17,7 +17,7 @@ html, body {
 }
 
 .content {
-  height: calc(100% - 50px);
+  height: calc(100vh - ($navbar-height));
 }
 
 .dashboard {
@@ -31,10 +31,8 @@ html, body {
     display: flex;
     flex: 1;
     width: 100%;
-    height: 100vh;
-  }
-  &--nav &__wrapper {
-    height: calc(100vh - 50px);
+    flex-direction: column;
+    height: 100%;
   }
 
   &__map, &__aside, &__map-container {
@@ -56,10 +54,16 @@ html, body {
 
   &__toolbar-container {
     width: 100%;
+    height: $navbar-height;
     .navbar {
+      height: $navbar-height;
       margin-bottom: 0;
       border-radius: 0;
     }
+  }
+
+  &__content {
+    height: calc(100vh - 2 * ($navbar-height));
   }
 
   &__loader {
@@ -80,7 +84,8 @@ html, body {
   &__panel {
     display: flex;
     flex-direction: column;
-    > h4 {
+
+    .dashboard__panel__header {
       padding: 15px;
       margin: 0;
       background-color: $dark-gray;
@@ -94,27 +99,80 @@ html, body {
       }
     }
 
+    &__collapsed {
+      text-align: center;
+      height: 100%;
+      padding: 5px;
+    }
+
     &__scroll {
       overflow: auto;
     }
 
-    &__search {
-      position: absolute;
-      max-height: 100%;
-      height: 100%;
-      z-index: 1;
-      left: 0;
-      right: 0;
-      transform: translateY(100%);
-      transition: transform 0.4s;
-      background-color: #fff;
-      &--on {
-        transform: translateY(0);
-      }
+    &__search-nav {
+      position: relative;
     }
 
     &__search-box {
-      padding: 15px;
+      margin: ($navbar-height - $input-height-small) / 2 0;
+      display: inline-block;
+
+      &__input-wrapper {
+        display: flex;
+        position: relative;
+        line-height: $input-height-small;
+        height: $input-height-small;
+
+        input {
+          text-indent: $input-height-small;
+          padding-right: $input-height-small;
+          &--addon {
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+          }
+        }
+
+        &:before {
+          font-family: 'FontAwesome';
+          content: '\F002';
+          color: white;
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          left: 0;
+
+          font-size: $font-size-base;
+          text-align: center;
+          width: $input-height-small;
+          line-height: $input-height-small;
+          background-color: $main-blue;
+
+          border-top-left-radius: $input-border-radius;
+          border-bottom-left-radius: $input-border-radius;
+        }
+      }
+
+      &__clear {
+        position: absolute;
+        right: 0;
+        top: 0;
+        border: none;
+        background-color: transparent;
+        cursor: pointer;
+        height: 100%;
+        width: $input-height-base;
+      }
+    }
+
+    &__search-results {
+      position: absolute;
+      right: 0;
+      z-index: 1;
+      padding: $base-margin-s;
+      max-height: calc(100vh / 3);
+      overflow-y: scroll;
+      background-color: white;
+      width: 300px;
     }
 
   }
@@ -161,7 +219,7 @@ html, body {
     flex-direction: column;
 
     min-width: 275px;
-    font-size: 11px;
+    font-size: 12px;
 
     overflow: hidden;
 
@@ -172,28 +230,51 @@ html, body {
     }
   }
 
-  .accordion__button {
+  .task-list__header {
+    cursor: pointer;
     padding: 1em 0.5em;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
     background-color: darken(#f5f5f5, 10%);
     border-bottom: 1px solid darken(#f5f5f5, 20%);
-    > span {
-      font-size: 16px;
-    }
+
     &:hover {
       background-color: darken(#f5f5f5, 15%);
+    }
+
+    & > div:first-child {
+      font-size: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
   }
 
   .panel--group, .panel--tour {
     border-color: $main-blue-dark;
-    border-size: 2px;
+    border-width: 2px;
     margin: 4px; // so it is easier to drag tasks between tours in the dashboard panel
   }
 }
 
+.dashboard__multi-value__label {
+  font-size: 100%;
+}
+
+.tasklist__actions--icon {
+  height: 30px;
+  width: 30px;
+  color: $dark;
+  fill: $dark;
+
+  &:hover {
+    color: $gray-300;
+    fill: $gray-300;
+    text-decoration: none;
+  }
+}
+
+.dashboard__map-container .leaflet-popup-content-wrapper {
+  min-width: 200px;
+}
 
 :not(.task-package).list-group-item {
 
@@ -245,13 +326,11 @@ html, body {
   border: 2px dashed #F1C40F;
   padding: 4px;
   background-color: $light-gray;
+  box-sizing: border-box;
+  min-height: ($line-height-computed * 2) + (6 * 2);
 
   .list-group-item {
     padding: 8px 32px 8px 14px;
-  }
-  &--empty {
-    box-sizing: border-box;
-    min-height: ($line-height-computed * 2) + (6 * 2);
   }
 }
 
@@ -291,6 +370,16 @@ html, body {
 
 .task__highlighted {
   background-color: $yellow!important;
+}
+
+.task__has-incidents {
+  background: repeating-linear-gradient(
+    -45deg,
+    $white,
+    $white 10px,
+    lighten($yellow, 40%) 9px,
+    lighten($yellow, 40%) 18px
+    )
 }
 
 .task__eta {
@@ -340,6 +429,9 @@ html, body {
   padding: 0;
 }
 
+.ReactModal__Content--task-report-incident {
+  min-width: 40%;
+}
 .ReactModal__Content--filters {
   min-width: 66.666%;
 }
@@ -536,4 +628,9 @@ $pulse-color: #2ECC40;
       overflow: auto;
     }
   }
+}
+
+.contexify .contexify_submenu {
+  max-height: 160px;
+  overflow: auto;
 }

@@ -2,7 +2,6 @@ import React from 'react'
 import { connect } from 'react-redux'
 import _ from 'lodash'
 import { withTranslation } from 'react-i18next'
-import { Accordion } from 'react-accessible-accordion'
 
 import { openAddUserModal } from '../redux/actions'
 import TaskList from './TaskList'
@@ -17,18 +16,16 @@ class TaskLists extends React.Component {
 
     return (
       <div className="dashboard__panel dashboard__panel--assignees">
-        <h4>
+        <h4 className="dashboard__panel__header">
           <span>{ this.props.t('DASHBOARD_ASSIGNED') }</span>
           { taskListsLoading ?
-            (<span className="pull-right"><i className="fa fa-spinner"></i></span>) :
+            (<span className="pull-right"><span className="loader"></span></span>) :
             (<a className="pull-right" onClick={this.props.openAddUserModal}>
-              <i className="fa fa-plus"></i>&nbsp;<i className="fa fa-user"></i>
+              <i className="fa fa-plus" data-cypress-add-to-planning></i>&nbsp;<i className="fa fa-user"></i>
             </a>)
           }
         </h4>
-        <Accordion
-          allowZeroExpanded
-          id="accordion"
+        <div
           className="dashboard__panel__scroll"
           style={{ opacity: taskListsLoading ? 0.7 : 1, pointerEvents: taskListsLoading ? 'none' : 'initial' }}>
           {
@@ -44,11 +41,13 @@ class TaskLists extends React.Component {
                   username={ taskList.username }
                   distance={ taskList.distance }
                   duration={ taskList.duration }
-                  uri={ taskList['@id'] } />
+                  uri={ taskList['@id'] }
+                  taskListsLoading={ taskListsLoading }
+                />
               )
             })
           }
-        </Accordion>
+        </div>
       </div>
     )
   }

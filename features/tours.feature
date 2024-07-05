@@ -21,11 +21,6 @@ Feature: Tours
         "id":1,
         "type":"DROPOFF",
         "status":"TODO",
-        "tour":{
-          "@id":"/api/tours/1",
-          "name":"Example tour",
-          "position":@integer@
-        },
         "@*@":"@*@"
       }
       """
@@ -41,7 +36,7 @@ Feature: Tours
     And the user "bob" is authenticated
     When I add "Content-Type" header equal to "application/ld+json"
     And I add "Accept" header equal to "application/ld+json"
-    And the user "bob" sends a "DELETE" request to "api/tours/1"
+    And the user "bob" sends a "DELETE" request to "/api/tours/1"
     Then the response status code should be 403
 
     Scenario: Delete a tour
@@ -56,7 +51,7 @@ Feature: Tours
     And the user "sarah" is authenticated
     When I add "Content-Type" header equal to "application/ld+json"
     And I add "Accept" header equal to "application/ld+json"
-    And the user "sarah" sends a "DELETE" request to "api/tours/1"
+    And the user "sarah" sends a "DELETE" request to "/api/tours/1"
     Then the response status code should be 204
     When the user "sarah" sends a "GET" request to "/api/tasks/1"
     Then the response status code should be 200
@@ -70,8 +65,6 @@ Feature: Tours
         "id":1,
         "type":"DROPOFF",
         "status":"TODO",
-        "tour":null,
         "@*@":"@*@"
       }
       """
-

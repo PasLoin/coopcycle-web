@@ -54,9 +54,17 @@ services:
       - "@api_platform.jsonld.normalizer.item"
     tags: [ { name: serializer.normalizer, priority: 128 } ]
 
+  AppBundle\Serializer\JsonLd\ProductNormalizer:
+    arguments:
+      - "@api_platform.jsonld.normalizer.item"
+      - "@sylius.locale_provider"
+      - "@sylius.product_variant_resolver.default"
+    tags: [ { name: serializer.normalizer, priority: 128 } ]
+
   AppBundle\Serializer\JsonLd\RestaurantMenuNormalizer:
     arguments:
       - "@api_platform.jsonld.normalizer.item"
+      - '@AppBundle\Serializer\JsonLd\ProductNormalizer'
       - "@sylius.locale_provider"
       - "@sylius.product_variant_resolver.default"
     tags: [ { name: serializer.normalizer, priority: 128 } ]
@@ -113,4 +121,10 @@ services:
   AppBundle\Serializer\CustomerNormalizer:
     arguments:
       - "@api_platform.jsonld.normalizer.item"
+    tags: [ { name: serializer.normalizer, priority: 128 } ]
+
+  AppBundle\Serializer\ApplicationsNormalizer:
+    arguments:
+      $normalizer: "@serializer.normalizer.object"
+      $secret: '%secret%'
     tags: [ { name: serializer.normalizer, priority: 128 } ]

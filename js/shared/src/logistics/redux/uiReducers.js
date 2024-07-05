@@ -2,16 +2,17 @@ import {
   CREATE_TASK_LIST_FAILURE,
   CREATE_TASK_LIST_REQUEST,
   CREATE_TASK_LIST_SUCCESS,
-  ENABLE_DROP_IN_TOURS,
-  DISABLE_DROP_IN_TOURS,
+  SET_IS_TOUR_DRAGGING,
 } from './actions';
 
 const initialState = {
+  organizationsLoading: true,
   taskListsLoading: false,
-  areToursDroppable: true,
+  isTourDragging: true,
   currentTask: null,
   expandedTourPanelIds: [],
-  loadingTourPanelsIds: []
+  loadingTourPanelsIds: [],
+  unassignedTasksIdsOrder: []
 }
 
 export default (state = initialState, action) => {
@@ -29,18 +30,11 @@ export default (state = initialState, action) => {
         taskListsLoading: false,
       }
 
-    case ENABLE_DROP_IN_TOURS:
+    case SET_IS_TOUR_DRAGGING:
       return {
         ...state,
-        areToursDroppable: true,
+        isTourDragging: action.payload,
       }
-
-    case DISABLE_DROP_IN_TOURS:
-      return {
-        ...state,
-        areToursDroppable: false,
-      }
-
 
     default:
       return state

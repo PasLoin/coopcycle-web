@@ -1,13 +1,15 @@
-import React from 'react'
-import {connect} from 'react-redux'
+import React, { useEffect } from 'react'
+import {useDispatch, useSelector} from 'react-redux'
 import _ from 'lodash'
 import {useTranslation} from 'react-i18next'
-import {Item, Menu} from 'react-contexify'
+import {Item, Menu, Submenu, Separator, useContextMenu} from 'react-contexify'
 
 import moment from 'moment'
 
 import {
   cancelTasks,
+  createTaskList,
+  modifyTaskList,
   moveTasksToNextDay,
   moveTasksToNextWorkingDay,
   moveToBottom,
@@ -16,48 +18,75 @@ import {
   openCreateDeliveryModal,
   openCreateGroupModal,
   openCreateTourModal,
+  openReportIncidentModal,
   openTaskRescheduleModal,
+  openTaskTaskList,
   removeTasksFromGroup,
-  restoreTasks, setCurrentTask,
+  restoreTasks,
+  setCurrentTask,
+  setTaskToShow,
+  startTasks,
+  toggleTasksGroupPanelExpanded,
+  toggleTourPanelExpanded,
   unassignTasks
 } from '../../redux/actions'
-import {selectLinkedTasksIds, selectNextWorkingDay, selectSelectedTasks} from '../../redux/selectors'
+import {selectCouriersWithExclude, selectExpandedTasksGroupsPanelsIds, selectExpandedTourPanelsIds, selectLinkedTasksIds, selectNextWorkingDay, selectSelectedTasks, selectTaskListsLoading, selectTaskToShow} from '../../redux/selectors'
 import {selectUnassignedTasks} from '../../../coopcycle-frontend-js/logistics/redux'
 
 import 'react-contexify/dist/ReactContexify.css'
+import { selectAllTasks, selectSelectedDate, selectTaskIdToTourIdMap, taskListSelectors } from '../../../../shared/src/logistics/redux/selectors'
+import { isValidTasksMultiSelect, usePrevious, withOrderTasksForDragNDrop } from '../../redux/utils'
+import Avatar from '../../../components/Avatar'
 
-const UNASSIGN_SINGLE = 'UNASSIGN_SINGLE'
-const UNASSIGN_MULTI = 'UNASSIGN_MULTI'
-const CANCEL_MULTI = 'CANCEL_MULTI'
-const MOVE_TO_TOP = 'MOVE_TO_TOP'
-const MOVE_TO_BOTTOM = 'MOVE_TO_BOTTOM'
-const MOVE_TO_NEXT_DAY_MULTI = 'MOVE_TO_NEXT_DAY_MULTI'
-const MOVE_TO_NEXT_WORKING_DAY_MULTI = 'MOVE_TO_NEXT_WORKING_DAY_MULTI'
-const CREATE_GROUP = 'CREATE_GROUP'
-const ADD_TO_GROUP = 'ADD_TO_GROUP'
-const REMOVE_FROM_GROUP = 'REMOVE_FROM_GROUP'
-const RESTORE = 'RESTORE'
-const RESCHEDULE = 'RESCHEDULE'
-const CREATE_DELIVERY = 'CREATE_DELIVERY'
-const CREATE_TOUR = 'CREATE_TOUR'
+export const ASSIGN_MULTI = 'ASSIGN_MULTI'
+export const ASSIGN_WITH_LINKED_TASKS_MULTI = 'ASSIGN_WITH_LINKED_TASKS_MULTI'
+export const UNASSIGN_SINGLE = 'UNASSIGN_SINGLE'
+export const UNASSIGN_MULTI = 'UNASSIGN_MULTI'
+export const CANCEL_MULTI = 'CANCEL_MULTI'
+export const MOVE_TO_TOP = 'MOVE_TO_TOP'
+export const MOVE_TO_BOTTOM = 'MOVE_TO_BOTTOM'
+export const MOVE_TO_NEXT_DAY_MULTI = 'MOVE_TO_NEXT_DAY_MULTI'
+export const MOVE_TO_NEXT_WORKING_DAY_MULTI = 'MOVE_TO_NEXT_WORKING_DAY_MULTI'
+export const START_TASKS_MULTI = 'START_TASKS_MULTI'
+export const CREATE_GROUP = 'CREATE_GROUP'
+export const ADD_TO_GROUP = 'ADD_TO_GROUP'
+export const REMOVE_FROM_GROUP = 'REMOVE_FROM_GROUP'
+export const RESTORE = 'RESTORE'
+export const RESCHEDULE = 'RESCHEDULE'
+export const CREATE_DELIVERY = 'CREATE_DELIVERY'
+export const CREATE_TOUR = 'CREATE_TOUR'
+export const REPORT_INCIDENT = 'REPORT_INCIDENT'
+
+const { hideAll } = useContextMenu({
+  id: 'task-contextmenu',
+})
+
+const useAssignAction = function() {
+  const dispatch = useDispatch()
+  const date = useSelector(selectSelectedDate)
+  const taskLists = useSelector(taskListSelectors.selectAll)
+
+  return async function (username, tasksToAssign) {
+    let tasksList = taskLists.find(tl => tl.username === username)
+
+    if (!tasksList) {
+      tasksList= await dispatch(createTaskList(date, username))
+    }
+
+    const newTasksList = [...tasksList.items, ...tasksToAssign.map(t => t['@id'])]
+    return dispatch(modifyTaskList(tasksList.username, newTasksList))
+  }
+}
 
 function _unassign(tasksToUnassign, unassignTasks) {
-  const tasksByUsername = _.groupBy(tasksToUnassign, task => task.assignedTo)
+  const tasksByUsername = _.groupBy(tasksToUnassign, task => task.assignedTo) // legacy : work with tasks selected from several riders, but we limited this case with isValidTasksMultiSelect
   _.forEach(tasksByUsername, (tasks, username) => unassignTasks(username, tasks))
 }
 
-const DynamicMenu = ({
-  unassignedTasks, selectedTasks, setCurrentTask, nextWorkingDay, linkedTasksIds,
-  unassignTasks, cancelTasks, moveToTop, moveToBottom, moveTasksToNextDay, moveTasksToNextWorkingDay,
-  openCreateGroupModal, openAddTaskToGroupModal, removeTasksFromGroup, restoreTasks, openCreateDeliveryModal,
-  openCreateTourModal, openTaskRescheduleModal
-}) => {
-
-  const { t } = useTranslation()
-
+export function getAvailableActionsForTasks(selectedTasks, unassignedTasks, linkedTasksIds, selectedTasksBelongsToTour) {
   const tasksToUnassign =
-    _.filter(selectedTasks, selectedTask =>
-      !_.find(unassignedTasks, unassignedTask => unassignedTask['@id'] === selectedTask['@id']))
+  _.filter(selectedTasks, selectedTask =>
+    !_.find(unassignedTasks, unassignedTask => unassignedTask['@id'] === selectedTask['@id']))
 
   const containsOnlyUnassignedTasks = !_.find(selectedTasks, t => t.isAssigned)
   const containsOnlyCancelledTasks = _.every(selectedTasks, t => t.status === 'CANCELLED')
@@ -67,6 +96,10 @@ const DynamicMenu = ({
 
   const selectedTasksByType = _.countBy(selectedTasks, t => t.type)
   const containsOnePickupAndAtLeastOneDropoff = selectedTasksByType.PICKUP === 1 && selectedTasksByType.DROPOFF > 0
+
+  if (selectedTasksBelongsToTour) {
+    return []
+  }
 
   const actions = []
 
@@ -78,20 +111,23 @@ const DynamicMenu = ({
 
     if (isMultiple) {
 
+      actions.push(START_TASKS_MULTI)
+
       if (tasksToUnassign.length > 0) {
         actions.push(UNASSIGN_MULTI)
       }
 
       if (containsOnlyUnassignedTasks) {
+        actions.push(ASSIGN_MULTI)
+        actions.push(ASSIGN_WITH_LINKED_TASKS_MULTI)
         actions.push(CANCEL_MULTI)
         actions.push(CREATE_GROUP)
+        actions.push(CREATE_TOUR)
       }
 
       if (containsOnlyGroupedTasks) {
         actions.push(REMOVE_FROM_GROUP)
       }
-
-      actions.push(CREATE_TOUR)
 
       if (containsOnePickupAndAtLeastOneDropoff) {
         if (!containsOnlyLinkedTasks) {
@@ -110,7 +146,10 @@ const DynamicMenu = ({
         actions.push(MOVE_TO_TOP)
         actions.push(MOVE_TO_BOTTOM)
       } else {
+        actions.push(ASSIGN_MULTI)
+        actions.push(ASSIGN_WITH_LINKED_TASKS_MULTI)
         actions.push(CREATE_GROUP)
+        actions.push(CREATE_TOUR)
 
         const taskWithGroup = Object.prototype.hasOwnProperty.call(selectedTask, 'group') && selectedTask.group
 
@@ -120,10 +159,9 @@ const DynamicMenu = ({
       }
 
       actions.push(CANCEL_MULTI)
-
-      if (selectedTask.status === 'FAILED' || selectedTask.status === 'CANCELLED') {
-        actions.push(RESCHEDULE)
-      }
+      actions.push(START_TASKS_MULTI)
+      actions.push(RESCHEDULE)
+      actions.push(REPORT_INCIDENT)
 
     }
 
@@ -140,131 +178,238 @@ const DynamicMenu = ({
     }
   }
 
+  return actions
+}
+
+const DynamicMenu = () => {
+
+  const { t } = useTranslation()
+
+  const allTasks = useSelector(selectAllTasks)
+  const selectedTasks = useSelector(selectSelectedTasks)
+  const unassignedTasks = useSelector(selectUnassignedTasks)
+
+  const nextWorkingDay = useSelector(selectNextWorkingDay)
+  const linkedTasksIds = useSelector(selectLinkedTasksIds)
+  const taskIdToTourIdMap = useSelector(selectTaskIdToTourIdMap)
+  const selectedTasksBelongsToTour = selectedTasks.some(t => taskIdToTourIdMap.has(t['@id']))
+  const isValidMultiselect = isValidTasksMultiSelect(selectedTasks, taskIdToTourIdMap)
+  const couriers = useSelector(selectCouriersWithExclude)
+  const tasksListsLoading = useSelector(selectTaskListsLoading)
+
+  // selectors to handle the showing of selected tasks
+  const previouslySelectedTasks = usePrevious(selectedTasks || [])
+  const expandedTourPanelsIds = useSelector(selectExpandedTourPanelsIds)
+  const expandedGroupPanelsIds = useSelector(selectExpandedTasksGroupsPanelsIds)
+  const taskToShow = useSelector(selectTaskToShow)
+
+  let selectedOrders =  withOrderTasksForDragNDrop(selectedTasks, allTasks, taskIdToTourIdMap)
+
+  const assign = useAssignAction()
+  const assignSelectedOrders = (username) => assign(username, selectedOrders)
+  const assignSelectedTasks = (username) => assign(username, selectedTasks)
+
+  const actions = getAvailableActionsForTasks(selectedTasks, unassignedTasks, linkedTasksIds, selectedTasksBelongsToTour)
+
+  const dispatch = useDispatch()
+
+  useEffect(() => {
+    const newSelectedTasks = _.differenceBy(selectedTasks, previouslySelectedTasks, '@id')
+
+    if (newSelectedTasks.length > 0) {
+      const taskToShow = newSelectedTasks[0]
+
+      newSelectedTasks.forEach(task => {
+        // if task is in a closed tour, open the tour
+        if (taskIdToTourIdMap.has(task['@id']) && !expandedTourPanelsIds.includes(taskIdToTourIdMap.get(task['@id']))) {
+          dispatch(toggleTourPanelExpanded(taskIdToTourIdMap.get(task['@id'])))
+        }
+
+        if (task.group && !task.isAssigned && !expandedGroupPanelsIds.includes(task.group['@id'])) {
+          dispatch(toggleTasksGroupPanelExpanded(task.group['@id']))
+        }
+
+        if (task.isAssigned) {
+          dispatch(openTaskTaskList(task))
+        }
+      })
+
+      dispatch(setTaskToShow(taskToShow))
+
+    }
+  }, [selectedTasks])
+
+  useEffect(() => {
+    if(taskToShow) {
+      requestAnimationFrame(() => {
+        // detects if the 'task to show' is visible to the user
+        // it is quite fragile as it depends on the layout
+        const htmlEl = document.querySelector(`.dashboard__aside [data-task-id="${taskToShow['@id']}"]`)
+        const rect = htmlEl.getBoundingClientRect()
+
+        const parentPanel = $(htmlEl).closest('.dashboard__panel')[0]
+        const parentRect = parentPanel.getBoundingClientRect()
+
+        if (!(rect.top >= parentRect.top - 20 && rect.bottom <= parentRect.bottom + 20)) {
+          htmlEl.scrollIntoView()
+        }
+    })
+    }
+  }, [taskToShow])
+
+  const tasksToUnassign =
+  _.filter(selectedTasks, selectedTask =>
+    !_.find(unassignedTasks, unassignedTask => unassignedTask['@id'] === selectedTask['@id']))
+
+  const selectedTask = selectedTasks.length > 0 ? selectedTasks[0] : undefined
+
   return (
     <Menu id="task-contextmenu">
-      <Item
-        hidden={ !(actions.includes(UNASSIGN_SINGLE) && selectedTask) }
-        onClick={ () => _unassign([ selectedTask ], unassignTasks) }
-      >
-        { selectedTask && t('ADMIN_DASHBOARD_UNASSIGN_TASK', { id: selectedTask.id }) }
+      { isValidMultiselect ?
+      <>
+        <Item
+          hidden={ !(actions.includes(UNASSIGN_SINGLE) && selectedTask) }
+          onClick={ () => _unassign([ selectedTask ], (username, tasks) => dispatch(unassignTasks(username, tasks))) }
+        >
+          { selectedTask && t('ADMIN_DASHBOARD_UNASSIGN_TASK', { id: selectedTask.id }) }
+        </Item>
+        <Item
+          hidden={ !(actions.includes(MOVE_TO_TOP) && selectedTask) }
+          onClick={ () => dispatch(moveToTop(selectedTask)) }
+        >
+          { t('ADMIN_DASHBOARD_MOVE_TO_TOP') }
+        </Item>
+        <Item
+          hidden={ !(actions.includes(MOVE_TO_BOTTOM) && selectedTask) }
+          onClick={ () => dispatch(moveToBottom(selectedTask)) }
+        >
+          { t('ADMIN_DASHBOARD_MOVE_TO_BOTTOM') }
+        </Item>
+        <Item
+          hidden={ !actions.includes(UNASSIGN_MULTI) }
+          onClick={ () => _unassign(tasksToUnassign, (username, tasks) => dispatch(unassignTasks(username, tasks))) }
+        >
+          { t('ADMIN_DASHBOARD_UNASSIGN_TASKS_MULTI', { count: tasksToUnassign.length }) }
+
       </Item>
-      <Item
-        hidden={ !(actions.includes(MOVE_TO_TOP) && selectedTask) }
-        onClick={ () => moveToTop(selectedTask) }
-      >
-        { t('ADMIN_DASHBOARD_MOVE_TO_TOP') }
-      </Item>
-      <Item
-        hidden={ !(actions.includes(MOVE_TO_BOTTOM) && selectedTask) }
-        onClick={ () => moveToBottom(selectedTask) }
-      >
-        { t('ADMIN_DASHBOARD_MOVE_TO_BOTTOM') }
-      </Item>
-      <Item
-        hidden={ !actions.includes(UNASSIGN_MULTI) }
-        onClick={ () => _unassign(tasksToUnassign, unassignTasks) }
-      >
-        { t('ADMIN_DASHBOARD_UNASSIGN_TASKS_MULTI', { count: tasksToUnassign.length }) }
-      </Item>
+      <Submenu label={t('ADMIN_DASHBOARD_ASSIGN_TASKS', { count: selectedTasks.length })} hidden={ !actions.includes(ASSIGN_MULTI)}>
+        { tasksListsLoading
+          ? (<div className="text-center"><span className="loader loader--dark"></span>&nbsp;{t('ADMIN_DASHBOARD_WAIT_FOR_PREVIOUS_ASSIGN')}</div>)
+          : couriers.map((c) =>
+            <Item key={c.username} onClick={() => {
+                // hide manually menu and submenu
+                // https://github.com/fkhadra/react-contexify/issues/172
+                hideAll()
+                assignSelectedTasks(c.username)
+            }}>
+              <Avatar username={c.username} />  {c.username}
+            </Item>
+        )}
+      </Submenu>
+      <Submenu label={t('ADMIN_DASHBOARD_ASSIGN_DELIVERIES_ORDERS', { count: selectedTasks.length })} hidden={ !actions.includes(ASSIGN_WITH_LINKED_TASKS_MULTI)}>
+      { tasksListsLoading
+        ? (<div className="text-center"><span className="loader loader--dark"></span>&nbsp;{t('ADMIN_DASHBOARD_WAIT_FOR_PREVIOUS_ASSIGN')}</div>)
+        : couriers.map((c) =>
+          <Item key={c.username} onClick={() => {
+            // hide manually menu and submenu
+            // https://github.com/fkhadra/react-contexify/issues/172
+            hideAll()
+            assignSelectedOrders(c.username)
+        }}>
+            <Avatar username={c.username} />  {c.username}
+          </Item>
+      )}
+      </Submenu>
+     <Separator />
       <Item
         hidden={ !actions.includes(CANCEL_MULTI) }
-        onClick={ () => cancelTasks(selectedTasks) }
+        onClick={ () => dispatch(cancelTasks(selectedTasks)) }
       >
         { t('ADMIN_DASHBOARD_CANCEL_TASKS_MULTI', { count: selectedTasks.length }) }
       </Item>
       <Item
+        hidden={!actions.includes(START_TASKS_MULTI)}
+        onClick={() => dispatch(startTasks(selectedTasks))}
+      >
+        {t('ADMIN_DASHBOARD_START_TASKS_MULTI', {count: selectedTasks.length})}
+      </Item>
+      <Separator />
+      <Item
         hidden={ !actions.includes(MOVE_TO_NEXT_DAY_MULTI) }
-        onClick={ () => moveTasksToNextDay(selectedTasks) }
+        onClick={ () => dispatch(moveTasksToNextDay(selectedTasks)) }
       >
         { t('ADMIN_DASHBOARD_MOVE_TO_NEXT_DAY_MULTI', { count: selectedTasks.length }) }
       </Item>
       <Item
         hidden={ !actions.includes(MOVE_TO_NEXT_WORKING_DAY_MULTI) }
-        onClick={ () => moveTasksToNextWorkingDay(selectedTasks) }
+        onClick={ () => dispatch(moveTasksToNextWorkingDay(selectedTasks)) }
       >
         { t('ADMIN_DASHBOARD_MOVE_TO_NEXT_WORKING_DAY_MULTI', { count: selectedTasks.length, nextWorkingDay: moment(nextWorkingDay).format('LL') }) }
       </Item>
       <Item
         hidden={ !actions.includes(CREATE_GROUP) }
-        onClick={ () => openCreateGroupModal() }
+        onClick={ () => dispatch(openCreateGroupModal()) }
       >
         { t('ADMIN_DASHBOARD_CREATE_GROUP') }
       </Item>
       <Item
         hidden={ !actions.includes(ADD_TO_GROUP) }
-        onClick={ () => openAddTaskToGroupModal(selectedTasks) }
+        onClick={ () => dispatch(openAddTaskToGroupModal(selectedTasks)) }
       >
         { t('ADMIN_DASHBOARD_ADD_TO_GROUP') }
       </Item>
       <Item
         hidden={ !actions.includes(REMOVE_FROM_GROUP) }
-        onClick={ () => removeTasksFromGroup(selectedTasks) }
+        onClick={ () => dispatch(removeTasksFromGroup(selectedTasks)) }
       >
         { t('ADMIN_DASHBOARD_REMOVE_FROM_GROUP') }
       </Item>
       <Item
         hidden={ !actions.includes(RESTORE) }
-        onClick={ () => restoreTasks(selectedTasks) }
+        onClick={ () => dispatch(restoreTasks(selectedTasks)) }
       >
         { t('ADMIN_DASHBOARD_RESTORE') }
       </Item>
       <Item
         hidden={ !actions.includes(RESCHEDULE) }
         onClick={ () => {
-          setCurrentTask(selectedTasks[0])
-          openTaskRescheduleModal()
+          dispatch(setCurrentTask(selectedTasks[0]))
+          dispatch(openTaskRescheduleModal())
         }}
         >
         { t('ADMIN_DASHBOARD_RESCHEDULE') }
       </Item>
       <Item
         hidden={ !actions.includes(CREATE_DELIVERY) }
-        onClick={ () => openCreateDeliveryModal() }
+        onClick={ () => dispatch(openCreateDeliveryModal()) }
       >
         { t('ADMIN_DASHBOARD_CREATE_DELIVERY') }
       </Item>
       <Item
         hidden={ !actions.includes(CREATE_TOUR) }
-        onClick={ () => openCreateTourModal() }
+        onClick={ () => dispatch(openCreateTourModal()) }
       >
         { t('ADMIN_DASHBOARD_CREATE_TOUR') }
       </Item>
-      { actions.length === 0 && (
+      <Item
+            hidden={ !actions.includes(REPORT_INCIDENT) }
+            onClick={ () => dispatch(openReportIncidentModal()) }
+          >
+            {t("ADMIN_DASHBOARD_REPORT_INCIDENT")}
+      </Item>
+      { selectedTasks.length > 0 && actions.length === 0 && (
         <Item disabled>
           { t('ADMIN_DASHBOARD_NO_ACTION_AVAILABLE') }
         </Item>
       )}
+      { selectedTasks.length === 0 && (
+        <Item disabled>
+          { t('ADMIN_DASHBOARD_NO_SELECTED_TASKS') }
+        </Item>
+      )}
+      </> : <Item disabled={true}>{t('ADMIN_DASHBOARD_INVALID_TASKS_SELECTION')}</Item> }
     </Menu>
   )
 }
 
-function mapStateToProps(state) {
-
-  return {
-    unassignedTasks: selectUnassignedTasks(state),
-    selectedTasks: selectSelectedTasks(state),
-    nextWorkingDay: selectNextWorkingDay(state),
-    linkedTasksIds: selectLinkedTasksIds(state),
-  }
-}
-
-function mapDispatchToProps(dispatch) {
-  return {
-    unassignTasks: (username, tasks) => dispatch(unassignTasks(username, tasks)),
-    setCurrentTask: (task) => dispatch(setCurrentTask(task)),
-    cancelTasks: tasks => dispatch(cancelTasks(tasks)),
-    moveToTop: task => dispatch(moveToTop(task)),
-    moveToBottom: task => dispatch(moveToBottom(task)),
-    moveTasksToNextDay: tasks => dispatch(moveTasksToNextDay(tasks)),
-    moveTasksToNextWorkingDay: tasks => dispatch(moveTasksToNextWorkingDay(tasks)),
-    openCreateGroupModal: () => dispatch(openCreateGroupModal()),
-    openAddTaskToGroupModal: tasks => dispatch(openAddTaskToGroupModal(tasks)),
-    removeTasksFromGroup: tasks => dispatch(removeTasksFromGroup(tasks)),
-    restoreTasks: tasks => dispatch(restoreTasks(tasks)),
-    openCreateDeliveryModal: () => dispatch(openCreateDeliveryModal()),
-    openCreateTourModal: () => dispatch(openCreateTourModal()),
-    openTaskRescheduleModal: () => dispatch(openTaskRescheduleModal()),
-  }
-}
-
-export default connect(mapStateToProps, mapDispatchToProps)(DynamicMenu)
+export default DynamicMenu

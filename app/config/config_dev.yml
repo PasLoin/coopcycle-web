@@ -18,7 +18,7 @@ web_profiler:
     intercept_redirects: false
 
 monolog:
-    channels: ['checkout'] # channels to use with autowire; https://symfony.com/doc/current/logging/channels_handlers.html#how-to-autowire-logger-channels
+    channels: ['checkout', 'push_notification', 'real_time_message'] # channels to use with autowire; https://symfony.com/doc/current/logging/channels_handlers.html#how-to-autowire-logger-channels
     handlers:
         main:
             type: rotating_file
@@ -55,7 +55,7 @@ monolog:
             level: debug
             formatter: monolog.formatter.json
             max_files: 3
-            channels: [ checkout ]
+            channels: [ checkout, coopcycle.order_processing ]
         geofencing:
             type: rotating_file
             path: "%env(APP_LOG_DIR)%/geofencing.%kernel.environment%.log"
@@ -63,6 +63,20 @@ monolog:
             formatter: monolog.formatter.json
             max_files: 3
             channels: [geofencing]
+        push_notification:
+            type: rotating_file
+            path: "%env(APP_LOG_DIR)%/push_notification.%kernel.environment%.log"
+            level: debug
+            formatter: monolog.formatter.json
+            max_files: 3
+            channels: [ push_notification ]
+        real_time_message:
+            type: rotating_file
+            path: "%env(APP_LOG_DIR)%/real_time_message.%kernel.environment%.log"
+            level: debug
+            formatter: monolog.formatter.json
+            max_files: 3
+            channels: [ real_time_message ]
         stripe:
             type: rotating_file
             path: "%env(APP_LOG_DIR)%/stripe.%kernel.environment%.log"
@@ -87,6 +101,12 @@ monolog:
             level: info
             max_files: 3
             channels: [dabba]
+        edenred:
+            type: rotating_file
+            path: "%env(APP_LOG_DIR)%/edenred.%kernel.environment%.log"
+            level: info
+            max_files: 3
+            channels: [edenred]
         # uncomment to get logging in your browser
         # you may have to allow bigger header sizes in your Web server configuration
         #firephp:

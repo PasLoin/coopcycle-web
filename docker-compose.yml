@@ -44,7 +44,7 @@ services:
     build:
       dockerfile: './docker/php/Dockerfile'
       context: '.'
-    image: coopcycle/php:8.1
+    image: coopcycle/php:${PHP_VERSION:-8.3}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -64,9 +64,7 @@ services:
       - STRIPE_PUBLISHABLE_KEY
       - STRIPE_SECRET_KEY
       - STRIPE_CONNECT_CLIENT_ID
-      - ALGOLIA_PLACES_APP_ID
-      - ALGOLIA_PLACES_API_KEY
-      - ALGOLIA_PLACES_ADDRESS_TEMPLATE
+      - GEOCODE_EARTH_API_KEY
     volumes:
       - './:/var/www/html:cached'
       - 'php_logs:/var/www/html/var/logs'
@@ -248,6 +246,20 @@ services:
     logging:
       driver: none
 
+
+  storybook-react:
+    build:
+      dockerfile: './docker/storybook-react/Dockerfile'
+      context: '.'
+    ports:
+      - '6007:6007'
+    depends_on:
+      - webpack
+    volumes:
+      # https://stackoverflow.com/questions/29181032/add-a-volume-to-docker-but-exclude-a-sub-folder
+      - '.:/srv/coopcycle'
+      - 'node_modules_webpack:/srv/coopcycle/node_modules/'
+
   storybook:
     build:
       dockerfile: './docker/storybook/Dockerfile'
@@ -256,6 +268,7 @@ services:
       - '6006:6006'
     depends_on:
       - webpack
+      - storybook-react
     volumes:
       # https://stackoverflow.com/questions/29181032/add-a-volume-to-docker-but-exclude-a-sub-folder
       - '.:/srv/coopcycle'

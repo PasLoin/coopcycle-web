@@ -1,6 +1,5 @@
-import React, {useState, useRef, useEffect} from 'react'
-import { render, unmountComponentAtNode } from 'react-dom'
-import moment from 'moment'
+import React, { useState, useRef, useEffect, StrictMode } from 'react'
+import { createRoot } from 'react-dom/client';
 import Swiper from 'swiper'
 import { Navigation } from 'swiper/modules'
 import classNames from 'classnames'
@@ -8,12 +7,16 @@ import classNames from 'classnames'
 import { asText } from '../components/ShippingTimeRange'
 import { useIntersection } from '../hooks/useIntersection'
 
+import  _ from 'lodash'
+
 require('gasparesganga-jquery-loading-overlay')
 
 import 'swiper/css';
 import 'swiper/css/navigation'
 
 import './list.scss'
+
+import i18n from '../i18n'
 
 /**
  * Turn off automatic browser handle of scroll
@@ -30,7 +33,11 @@ import './list.scss'
  */
 window.history.scrollRestoration = 'manual'
 
-const FulfillmentBadge = ({ range, isPreOrder }) => {
+const FulfillmentBadge = ({ fulfilmentMethod, isPreOrder }) => {
+
+  if (!fulfilmentMethod) {
+    return i18n.t('NOT_AVAILABLE_ATM')
+  }
 
   return (
     <span className={ classNames('restaurant-item__time-range', 'rendered-badge', { 'pre-order': isPreOrder }) }>
@@ -55,7 +62,7 @@ const FulfillmentBadge = ({ range, isPreOrder }) => {
           <path d="M12 7v5l3 3" />
         </svg>
       )}
-      {asText(range, false, true)}
+      {asText(fulfilmentMethod.range, false, true)}
     </span>
   )
 }
@@ -63,23 +70,16 @@ const FulfillmentBadge = ({ range, isPreOrder }) => {
 function addFulfillmentBadge(el) {
   $.getJSON(el.dataset.fulfillment).then(data => {
 
-    if (!data.delivery && !data.collection) {
-      return
-    }
-
     const isPreOrder = JSON.parse(el.dataset.preorder)
 
-    const ranges = []
-    if (data.delivery && data.delivery.range) {
-      ranges.push(data.delivery.range)
-    }
-    if (data.collection && data.collection.range) {
-      ranges.push(data.collection.range)
-    }
+    const firstChoiceMethod = data.firstChoiceKey ? data[data.firstChoiceKey] : null
 
-    ranges.sort((a, b) => moment(a[0]).isSame(b[0]) ? 0 : (moment(a[0]).isBefore(b[0]) ? -1 : 1))
-
-    render(<FulfillmentBadge range={ ranges[0] } isPreOrder={ isPreOrder } />, el)
+    const badgeRoot = createRoot(el);
+    badgeRoot.render(
+      <StrictMode>
+        <FulfillmentBadge fulfilmentMethod={ firstChoiceMethod } isPreOrder={ isPreOrder } />
+      </StrictMode>
+    )
   })
 }
 
@@ -141,64 +141,74 @@ const Paginator = ({ page, pages }) => {
   )
 }
 
-const paginator = document.getElementById('shops-list-paginator')
+const paginatorEl = document.getElementById('shops-list-paginator')
+const paginatorRoot = paginatorEl ? createRoot(paginatorEl) : null
 
-if (paginator) {
-  render(
-    <Paginator
-     page={Number(paginator.dataset.page)}
-     pages={Number(paginator.dataset.pages)} />,
-    paginator
+if (paginatorRoot) {
+  paginatorRoot.render(
+    <StrictMode>
+      <Paginator
+        page={Number(paginatorEl.dataset.page)}
+        pages={Number(paginatorEl.dataset.pages)} />
+    </StrictMode>
   )
 }
+
+function reRenderPaginator(data) {
+  if (paginatorRoot) {
+    paginatorRoot.render(
+      <StrictMode>
+        <Paginator
+          page={Number(data.page)}
+          pages={Number(data.pages)} />
+      </StrictMode>
+    )
+  }
+}
+
+
+// Make sure that the same values are set in css
+const CONTAINER_MARGIN = 16
+const CONTAINER_MARGIN_MD = 64
+const ITEM_MARGIN = 16
+const ITEM_WIDTH = 333
+
+const calculateBreakpoints = () => {
+  const breakpoints = {}
+
+  let listOfWidths = _.range(480, 1920, 50)
+  listOfWidths.push(576, 768, 992, 1200, 1600, 1920) // add bootstrap breakpoints
+  listOfWidths = _.uniq(listOfWidths)
+  listOfWidths.sort((a, b) => a - b)
+
+  listOfWidths.forEach(width => {
+    const containerMargin = width >= 768 ? CONTAINER_MARGIN_MD : CONTAINER_MARGIN
+    const slidesPerView = (width - containerMargin * 2) / (ITEM_WIDTH + ITEM_MARGIN * 2)
+
+    breakpoints[width] = {
+      slidesPerView,
+      slidesPerGroup: Math.floor(slidesPerView),
+    }
+  })
+
+  return breakpoints
+}
+
+const swiperBreakpoints = calculateBreakpoints()
 
 new Swiper('.swiper', {
   modules: [ Navigation ],
   slidesPerView: 'auto',
-  spaceBetween: 2,
   slidesPerGroup: 1,
   navigation: {
     nextEl: '.swiper-nav-next',
     prevEl: '.swiper-nav-prev',
   },
   lazyLoading: true,
-  breakpoints: {
-    480: {
-      slidesPerView: 1.25,
-      spaceBetween: 2,
-      slidesPerGroup: 1,
-    },
-    768: {
-      slidesPerView: 2.1,
-      spaceBetween: 2,
-      slidesPerGroup: 2,
-    },
-    992: {
-      slidesPerView: 2.75,
-      spaceBetween: 2,
-      slidesPerGroup: 2,
-    },
-    1200: {
-      slidesPerView: 3.3,
-      spaceBetween: 2.5,
-      slidesPerGroup: 3,
-    },
-  },
+  breakpoints: swiperBreakpoints,
   observer: true, // to be initialized properly inside a hidden container
   observeParents: true
 })
-
-function resetPaginator(data) {
-  if (paginator) {
-    unmountComponentAtNode(paginator)
-    render(
-      <Paginator
-       page={Number(data.page)}
-       pages={Number(data.pages)} />,
-      paginator
-    )
-  }
-}
 
 function renderFulfillmentBadgeAfterAjax() {
   document.querySelectorAll('[data-fulfillment]').forEach(el => {
@@ -223,7 +233,7 @@ function submitFilter(e) {
     type: $(e.target).closest('form').attr('method'),
     cache: false,
     success: function(data) {
-      resetPaginator(data)
+      reRenderPaginator(data)
 
       shopsEl.empty().append($.parseHTML(data.rendered_list)) // show results
 

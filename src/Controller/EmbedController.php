@@ -9,9 +9,9 @@ use AppBundle\Entity\DeliveryForm;
 use AppBundle\Entity\DeliveryFormSubmission;
 use AppBundle\Entity\Delivery\PricingRuleSet;
 use AppBundle\Exception\Pricing\NoRuleMatchedException;
+use AppBundle\Form\Checkout\CheckoutPayment;
 use AppBundle\Form\Checkout\CheckoutPaymentType;
 use AppBundle\Form\DeliveryEmbedType;
-use AppBundle\Form\StripePaymentType;
 use AppBundle\Service\DeliveryManager;
 use AppBundle\Service\OrderManager;
 use AppBundle\Sylius\Order\OrderInterface;
@@ -264,7 +264,8 @@ class EmbedController extends AbstractController
                     return $this->redirectToRoute('embed_delivery_start', ['hashid' => $hashid]);
                 }
 
-                $paymentForm = $this->createForm(CheckoutPaymentType::class, $order, [
+                $checkoutPayment = new CheckoutPayment($order);
+                $paymentForm = $this->createForm(CheckoutPaymentType::class, $checkoutPayment, [
                     'csrf_protection' => false,
                 ]);
 
@@ -316,6 +317,17 @@ class EmbedController extends AbstractController
                     return $this->redirectToRoute('public_order', [
                         'hashid' => $hashids->encode($order->getId())
                     ]);
+                } else {
+                    return $this->render('embed/delivery/summary.html.twig', [
+                        'hashid' => $hashid,
+                        'delivery' => $delivery,
+                        'price' => $price,
+                        'price_excluding_tax' => ($order->getTotal() - $order->getTaxTotal()),
+                        'form' => $paymentForm->createView(),
+                        'payment' => $order->getLastPayment(PaymentInterface::STATE_CART),
+                        'order' => $order,
+                        'submission_hashid' => $request->query->get('data'),
+                    ]);
                 }
             }
 
@@ -325,7 +337,8 @@ class EmbedController extends AbstractController
             $customer = $this->findOrCreateCustomer($email, $telephone, $canonicalizer);
             $order    = $this->createOrderForDelivery($orderFactory, $delivery, $price, $customer, $attach = false);
 
-            $paymentForm = $this->createForm(CheckoutPaymentType::class, $order, [
+            $checkoutPayment = new CheckoutPayment($order);
+            $paymentForm = $this->createForm(CheckoutPaymentType::class, $checkoutPayment, [
                 'csrf_protection' => false,
             ]);
 

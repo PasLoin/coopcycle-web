@@ -1,45 +1,34 @@
 import React from 'react'
-import { connect } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux'
 import moment from 'moment'
-import { Draggable, Droppable } from "@hello-pangea/dnd"
-import { withTranslation } from 'react-i18next'
+import { Droppable } from "@hello-pangea/dnd"
+import { useTranslation } from 'react-i18next'
 import _ from 'lodash'
 import { Tooltip } from 'antd'
 import Popconfirm from 'antd/lib/popconfirm'
-import {
-  AccordionItem,
-  AccordionItemHeading,
-  AccordionItemButton,
-  AccordionItemPanel,
-} from 'react-accessible-accordion'
 import classNames from 'classnames'
 
 import Task from './Task'
 
 import Avatar from '../../components/Avatar'
-import { unassignTasks, togglePolyline, optimizeTaskList, onlyFilter } from '../redux/actions'
-import { selectFiltersSetting, selectVisibleTaskIds } from '../redux/selectors'
-import { makeSelectTaskListItemsByUsername } from '../../coopcycle-frontend-js/logistics/redux'
+import { unassignTasks, togglePolyline, optimizeTaskList, onlyFilter, toggleTaskListPanelExpanded } from '../redux/actions'
+import { selectExpandedTaskListPanelsIds, selectPolylineEnabledByUsername, selectVisibleTaskIds } from '../redux/selectors'
 import Tour from './Tour'
 import { getDroppableListStyle } from '../utils'
 import ProgressBar from './ProgressBar'
+import { selectTaskListByUsername, selectTaskListTasksByUsername, selectTaskListVolumeUnits, selectTaskListWeight } from '../../../shared/src/logistics/redux/selectors'
+import PolylineIcon from '../PolylineIcon'
+import ExtraInformations from './TaskCollectionDetails'
 
 moment.locale($('html').attr('lang'))
 
-const TaskOrTour = ({ item, onRemove }) => {
+const TaskOrTour = ({ item, draggableIndex, unassignTasksFromTaskList }) => {
 
-  if (item['@type'] === 'Tour') {
-
-    return (
-      <Tour tour={ item } />
-    )
+  if (item.startsWith('/api/tours')) {
+    return (<Tour tourId={ item } draggableIndex={ draggableIndex } />)
+  } else {
+    return (<Task taskId={ item } draggableIndex={ draggableIndex } onRemove={ item => unassignTasksFromTaskList(item) } />)
   }
-
-  return (
-    <Task
-      task={ item }
-      onRemove={ item => onRemove(item) } />
-  )
 }
 
 // OPTIMIZATION
@@ -56,28 +45,13 @@ class InnerList extends React.Component {
   }
 
   render() {
-    return _.map(this.props.items, (item, index) => {
-      return (
-        <Draggable
-          key={ item['@id'] }
-          draggableId={ item['@type'] === 'Tour' ? `tour:${item['@id']}`: item['@id']  }
-          index={ index }
-          >
-          {(provided) => (
-            <div
-              ref={ provided.innerRef }
-              { ...provided.draggableProps }
-              { ...provided.dragHandleProps }
-            >
-              <TaskOrTour
-                item={ item }
-                onRemove={ item => this.props.onRemove(item) }
-              />
-            </div>
-          )}
-        </Draggable>
-      )
-    })
+    return _.map(this.props.items,
+      (item, index) => <TaskOrTour
+        key={ item }
+        item={ item }
+        draggableIndex={ index }
+        unassignTasksFromTaskList={ this.props.unassignTasksFromTaskList }
+      />)
   }
 }
 
@@ -126,7 +100,7 @@ const ProgressBarMemo = React.memo(({
     return (
         <Tooltip title={title}>
           <div>
-            <ProgressBar width="100%" height="8" backgroundColor="white" segments={[
+            <ProgressBar width="100%" height="8px" backgroundColor="white" segments={[
               {value: `${completedPer}%`, color: '#28a745'},
               {value: `${failurePer}%`, color: '#ffc107'},
               {value: `${cancelledPer}%`, color: '#dc3545'},
@@ -137,41 +111,40 @@ const ProgressBarMemo = React.memo(({
     )
   })
 
-class TaskList extends React.Component {
+export const TaskList = ({ uri, username, distance, duration, taskListsLoading }) => {
+  const dispatch = useDispatch()
+  const unassignTasksFromTaskList = (username => tasks => dispatch(unassignTasks(username, tasks)))(username)
 
-  remove(task) {
-    this.props.unassignTasks(this.props.username, task)
-  }
+  const taskList = useSelector(state => selectTaskListByUsername(state, {username: username}))
+  const items = taskList.items
+  const tasks = useSelector(state => selectTaskListTasksByUsername(state, {username: username}))
+  const visibleTaskIds = useSelector(selectVisibleTaskIds)
 
-  render() {
-    const {
-      duration,
-      distance,
-      username,
-      polylineEnabled,
-      isEmpty,
-    } = this.props
+  const visibleTasks = tasks.filter(task => {
+    return _.includes(visibleTaskIds, task['@id'])
+  })
 
-    const { tasks, items } = this.props
+  const expandedTaskListPanelsIds = useSelector(selectExpandedTaskListPanelsIds)
+  const isExpanded = expandedTaskListPanelsIds.includes(taskList['@id'])
 
-    const uncompletedTasks = _.filter(tasks, t => t.status === 'TODO')
-    const completedTasks = _.filter(tasks, t => t.status === 'DONE')
-    const inProgressTasks = _.filter(tasks, t => t.status === 'DOING')
-    const failureTasks = _.filter(tasks, t => t.status === 'FAILED')
-    const cancelledTasks = _.filter(tasks, t => t.status === 'CANCELLED')
-    const incidentReported = _.filter(tasks, t => t.hasIncidents)
+  const polylineEnabled = useSelector(selectPolylineEnabledByUsername(username))
 
-    const durationFormatted = moment.utc()
-      .startOf('day')
-      .add(duration, 'seconds')
-      .format('HH:mm')
+  const { t } = useTranslation()
 
-    const distanceFormatted = (distance / 1000).toFixed(2) + ' Km'
+  const uncompletedTasks = _.filter(visibleTasks, t => t.status === 'TODO')
+  const completedTasks = _.filter(visibleTasks, t => t.status === 'DONE')
+  const inProgressTasks = _.filter(visibleTasks, t => t.status === 'DOING')
+  const failureTasks = _.filter(visibleTasks, t => t.status === 'FAILED')
+  const cancelledTasks = _.filter(visibleTasks, t => t.status === 'CANCELLED')
+  const incidentReported = _.filter(visibleTasks, t => t.hasIncidents)
 
-    return (
-      <AccordionItem>
-        <AccordionItemHeading>
-          <AccordionItemButton>
+  const weight = useSelector(state => selectTaskListWeight(state, {username: username}))
+  const volumeUnits = useSelector(state => selectTaskListVolumeUnits(state, {username: username}))
+
+  return (
+    <div>
+      <div className="pl-2 task-list__header" onClick={() => dispatch(toggleTaskListPanelExpanded(taskList['@id']))}>
+          <div>
             <span>
               <Avatar username={ username } size="24" />
               <small className="text-monospace ml-2">
@@ -179,33 +152,33 @@ class TaskList extends React.Component {
                 <span className="text-muted">{ `(${tasks.length})` }</span>
               </small>
             </span>
-            { tasks.length > 0 && (
+            { visibleTasks.length > 0 && (
             <div style={{ width: '33.3333%' }}>
               <ProgressBarMemo
                   completedTasks={ completedTasks.length }
-                  tasks={ tasks.length }
+                  tasks={ visibleTasks.length }
                   inProgressTasks={ inProgressTasks.length }
                   incidentReported={ incidentReported.length }
                   failureTasks={ failureTasks.length }
                   cancelledTasks={ cancelledTasks.length }
-                  t={this.props.t.bind(this)}
+                  t={t.bind(this)}
                 />
             </div>
             ) }
             {incidentReported.length > 0 && <div onClick={(e) => {
-              this.props.onlyFilter('showIncidentReportedTasks')
+              dispatch(onlyFilter('showIncidentReportedTasks'))
               e.stopPropagation()
             }}>
-             <Tooltip title="Incident(s)">
+              <Tooltip title="Incident(s)">
                 <span className='fa fa-warning text-warning' /> <span className="text-secondary">({incidentReported.length})</span>
               </Tooltip>
             </div>}
             <Popconfirm
               placement="left"
-              title={ this.props.t('ADMIN_DASHBOARD_UNASSIGN_ALL_TASKS') }
-              onConfirm={ () => this.props.unassignTasks(this.props.username, uncompletedTasks) }
-              okText={ this.props.t('CROPPIE_CONFIRM') }
-              cancelText={ this.props.t('ADMIN_DASHBOARD_CANCEL') }>
+              title={ t('ADMIN_DASHBOARD_UNASSIGN_ALL_TASKS') }
+              onConfirm={ () => dispatch(unassignTasks(username, uncompletedTasks)) }
+              okText={ t('CROPPIE_CONFIRM') }
+              cancelText={ t('ADMIN_DASHBOARD_CANCEL') }>
               <a href="#"
                 className="text-reset mr-2"
                 style={{ visibility: uncompletedTasks.length > 0 ? 'visible' : 'hidden' }}
@@ -213,123 +186,59 @@ class TaskList extends React.Component {
                 <i className="fa fa-lg fa-times"></i>
               </a>
             </Popconfirm>
-          </AccordionItemButton>
-        </AccordionItemHeading>
-        <AccordionItemPanel>
-          { tasks.length > 0 && (
-            <div className="d-flex justify-content-between align-items-center p-4">
-              <div>
-                <strong className="mr-2">{ this.props.t('ADMIN_DASHBOARD_DURATION') }</strong>
-                <span>{ durationFormatted }</span>
-                <span className="mx-2">—</span>
-                <strong className="mr-2">{ this.props.t('ADMIN_DASHBOARD_DISTANCE') }</strong>
-                <span>{ distanceFormatted }</span>
-              </div>
-              <div>
-                <a href="#"
-                  title="Optimize"
-                  style={{
-                    color: '#f1c40f',
-                    visibility: tasks.length > 1 ? 'visible' : 'hidden'
-                  }}
-                  onClick={ e => {
-                    e.preventDefault()
-                    this.props.optimizeTaskList({
-                      '@id': this.props.uri,
-                      username: this.props.username,
-                    })
-                  }}
-                >
-                  <i className="fa fa-2x fa-bolt"></i>
-                </a>
-                <a role="button"
-                  className={ classNames({
-                    'ml-3': true,
-                    'invisible': tasks.length < 1,
-                    'text-muted': !polylineEnabled
-                  }) }
-                  onClick={ () => this.props.togglePolyline(username) }
-                >
-                  <i className="fa fa-map fa-2x"></i>
-                </a>
-              </div>
+          </div>
+          <ExtraInformations duration={duration} distance={distance} weight={weight} volumeUnits={volumeUnits} />
+      </div>
+      <div className={classNames("panel-collapse collapse",{"in": isExpanded})}>
+        { tasks.length > 0 && (
+          <div className="d-flex align-items-center mt-2 mb-2">
+            <a
+              className='tasklist__actions--icon ml-3'
+              onClick={ () => dispatch(togglePolyline(username)) }
+            >
+              <PolylineIcon fillColor={polylineEnabled ? '#EEB516' : null} />
+            </a>
+            <a
+              className="ml-4 tasklist__actions--icon d-flex align-items-center justify-content-center"
+              title="Optimize"
+              style={{
+                visibility: tasks.length > 1 ? 'visible' : 'hidden'
+              }}
+              onClick={ e => {
+                e.preventDefault()
+                dispatch(optimizeTaskList({'@id': uri, username: username}))
+              }}
+            >
+              <i className="fa fa-2x fa-bolt"></i>
+            </a>
+          </div>
+        )}
+        <Droppable
+          droppableId={ `assigned:${username}` }
+          key={tasks.length} // assign a mutable key to trigger a re-render when inserting a nested droppable (for example : a tour)
+          isDropDisabled={ taskListsLoading }
+        >
+          {(provided, snapshot) => (
+            <div ref={ provided.innerRef }
+              className='taskList__tasks list-group m-0'
+              { ...provided.droppableProps }
+              style={getDroppableListStyle(snapshot.isDraggingOver)}
+            >
+              <InnerList
+                items={ items }
+                unassignTasksFromTaskList={ unassignTasksFromTaskList }
+                username={ username } />
+              { provided.placeholder }
             </div>
           )}
-          <Droppable
-            droppableId={ `assigned:${username}` }
-            key={tasks.length} // assign a mutable key to trigger a re-render when inserting a nested droppable (for example : a tour)
-          >
-            {(provided, snapshot) => (
-              <div ref={ provided.innerRef }
-                className={ classNames({
-                  'taskList__tasks': true,
-                  'list-group': true,
-                  'm-0': true,
-                  'taskList__tasks--empty': isEmpty
-                }) }
-                { ...provided.droppableProps }
-                style={getDroppableListStyle(snapshot.isDraggingOver)}
-              >
-                <InnerList
-                  items={ items }
-                  onRemove={ task => this.remove(task) }
-                  username={ username }
-                />
-                { provided.placeholder }
-              </div>
-            )}
-          </Droppable>
-        </AccordionItemPanel>
-      </AccordionItem>
-    )
-  }
+        </Droppable>
+      </div>
+    </div>
+  )
 }
 
-const makeMapStateToProps = () => {
 
-  const selectTaskListItemsByUsername = makeSelectTaskListItemsByUsername()
 
-  const mapStateToProps = (state, ownProps) => {
 
-    // items is a prop of mixed task and tours
-    const items = selectTaskListItemsByUsername(state, ownProps)
 
-    // we also need a flatten list of tasks
-    const tasks = items.reduce((acc, item) => {
-      if (item['@type'] === 'Tour') {
-        acc.push(...item.items)
-      } else {
-        acc.push(item)
-      }
-      return acc
-    }, [])
-
-    const visibleTaskIds = _.intersectionWith(
-      selectVisibleTaskIds(state),
-      tasks.map(task => task['@id'])
-    )
-
-    return {
-      polylineEnabled: state.polylineEnabled[ownProps.username],
-      tasks,
-      items,
-      isEmpty: items.length === 0 || visibleTaskIds.length === 0,
-      distance: ownProps.distance,
-      duration: ownProps.duration,
-      filters: selectFiltersSetting(state),
-    }
-  }
-
-  return mapStateToProps
-}
-
-function mapDispatchToProps(dispatch) {
-  return {
-    unassignTasks: (username, tasks) => dispatch(unassignTasks(username, tasks)),
-    togglePolyline: (username) => dispatch(togglePolyline(username)),
-    optimizeTaskList: (taskList) => dispatch(optimizeTaskList(taskList)),
-    onlyFilter: filter => dispatch(onlyFilter(filter))
-  }
-}
-
-export default connect(makeMapStateToProps, mapDispatchToProps)(withTranslation()(TaskList))
+export default TaskList

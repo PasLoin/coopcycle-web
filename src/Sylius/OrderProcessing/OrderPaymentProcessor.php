@@ -45,6 +45,8 @@ final class OrderPaymentProcessor implements OrderProcessorInterface
         if (0 === $order->getTotal()) {
             foreach ($order->getPayments() as $payment) {
                 $order->removePayment($payment);
+                $this->checkoutLogger->info(sprintf('OrderPaymentProcessor | payment #%d | removed', $payment->getId()),
+                    ['order' => $this->loggingUtils->getOrderId($order)]);
             }
 
             return;
@@ -64,14 +66,16 @@ final class OrderPaymentProcessor implements OrderProcessorInterface
         $lastPayment = $order->getLastPayment($targetState);
 
         if (null !== $lastPayment) {
-            $this->checkoutLogger->info(sprintf('Order %s | OrderPaymentProcessor | payment: %d (initial)',
-                $this->loggingUtils->getOrderId($order), $lastPayment->getAmount()));
+            $this->checkoutLogger->info(sprintf('OrderPaymentProcessor | lastPayment #%d | %d (initial)',
+                $lastPayment->getId(),
+                $lastPayment->getAmount()), ['order' => $this->loggingUtils->getOrderId($order)]);
 
             $lastPayment->setCurrencyCode($this->currencyContext->getCurrencyCode());
             $lastPayment->setAmount($order->getTotal());
 
-            $this->checkoutLogger->info(sprintf('Order %s | OrderPaymentProcessor | finished | payment: %d (updated)',
-                $this->loggingUtils->getOrderId($order), $lastPayment->getAmount()));
+            $this->checkoutLogger->info(sprintf('OrderPaymentProcessor | finished | lastPayment #%d | %d (updated)',
+                $lastPayment->getId(),
+                $lastPayment->getAmount()), ['order' => $this->loggingUtils->getOrderId($order)]);
 
             return;
         }
@@ -89,7 +93,7 @@ final class OrderPaymentProcessor implements OrderProcessorInterface
 
         $order->addPayment($payment);
 
-        $this->checkoutLogger->info(sprintf('Order %s | OrderPaymentProcessor | finished | payment: %d',
-            $this->loggingUtils->getOrderId($order), $payment->getAmount()));
+        $this->checkoutLogger->info(sprintf('OrderPaymentProcessor | finished | (new) payment: %d', $payment->getAmount()),
+            ['order' => $this->loggingUtils->getOrderId($order)]);
     }
 }

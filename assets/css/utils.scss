@@ -3,8 +3,20 @@
   flex-wrap: wrap;
 }
 
+.display-flex__items-centered {
+  align-items: center;
+}
+
 .display-inline-block {
   display: inline-block;
+}
+
+.display-none {
+  display: none;
+}
+
+.flex-1 {
+  flex: 1;
 }
 
 .nomargin {
@@ -21,4 +33,43 @@
 
 .nopadding {
   padding: 0;
+}
+
+@keyframes rotating {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loader {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #FFF;
+  border-bottom-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
+  box-sizing: border-box;
+  animation: rotating 1.5s linear infinite;
+
+  &.loader--dark {
+    border-color: $dark;
+    border-bottom-color: transparent;
+  }
+}
+
+.font-weight-semi-bold {
+  font-weight: 600 !important;
+}
+
+.cursor--grabbing {
+  cursor: grabbing;
+}
+
+.text-danger,
+li > a.text-danger // very specific selector for bootstrap dropdown
+{
+  color: $red;
 }

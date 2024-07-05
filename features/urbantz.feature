@@ -573,9 +573,9 @@ Feature: Urbantz
         "@type":"http://schema.org/ParcelDelivery",
         "id":1,
         "pickup":{
-          "@id":"/api/tasks/1",
+          "@id":@string@,
           "@type":"Task",
-          "id":1,
+          "id":@integer@,
           "status":"TODO",
           "address":{
             "@id":"/api/addresses/2",
@@ -597,13 +597,12 @@ Feature: Urbantz
           "doneBefore":"@string@.isDateTime()",
           "weight":1082,
           "packages":[],
-          "createdAt":"@string@.isDateTime()",
-          "tour":null
+          "createdAt":"@string@.isDateTime()"
         },
         "dropoff":{
-          "@id":"/api/tasks/2",
+          "@id":@string@,
           "@type":"Task",
-          "id":2,
+          "id":@integer@,
           "status":"TODO",
           "address":{
             "@id":"/api/addresses/4",
@@ -625,8 +624,7 @@ Feature: Urbantz
           "doneBefore":"@string@.isDateTime()",
           "weight":1082,
           "packages": [],
-          "createdAt":"@string@.isDateTime()",
-          "tour":null
+          "createdAt":"@string@.isDateTime()"
         },
         "trackingUrl": @string@
       }
