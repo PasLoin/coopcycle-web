@@ -2,18 +2,12 @@
 
 namespace AppBundle\Action\Task;
 
-use AppBundle\Entity\Address;
-use AppBundle\Entity\Task;
-use AppBundle\Entity\Task\Group;
-use AppBundle\Entity\User;
+use ApiPlatform\Core\Bridge\Doctrine\Orm\Paginator;
 use Doctrine\ORM\EntityManagerInterface;
-use Doctrine\ORM\Query\ResultSetMapping;
-use Doctrine\ORM\Query\ResultSetMappingBuilder;
-use Symfony\Component\HttpFoundation\Request;
 
 class Collection extends Base
 {
-    public function __invoke($data, EntityManagerInterface $entityManager)
+    public function __invoke(Paginator|array $data, EntityManagerInterface $entityManager)
     {
         // for a pickup in a delivery, the serialized weight is the sum of the dropoff weight and the packages are the "sum" of the dropoffs packages
         $sql = "
@@ -22,23 +16,23 @@ class Collection extends Base
                 case
                     WHEN t_outer.delivery_id is not null and t_outer.type = 'PICKUP' THEN
                         (select json_agg(json_build_object(
-                            'name', packages_rows.name, 'type', packages_rows.name, 'quantity', packages_rows.quantity, 'volume_per_package', packages_rows.volume_units))
+                            'name', packages_rows.name, 'type', packages_rows.name, 'quantity', packages_rows.quantity, 'volume_per_package', packages_rows.volume_units, 'short_code', packages_rows.short_code))
                             FROM
-                                (select p.name AS name, p.volume_units AS volume_units, sum(tp.quantity) AS quantity
+                                (select p.name AS name, p.average_volume_units AS volume_units, p.short_code as short_code, sum(tp.quantity) AS quantity
                                     from task t inner join task_package tp on tp.task_id = t.id
                                     inner join package p on tp.package_id = p.id
                                     where t.delivery_id = t_outer.delivery_id
-                                    group by p.id, p.name, p.volume_units
+                                    group by p.id, p.name, p.average_volume_units
                                 ) packages_rows)
                     WHEN t_outer.type = 'DROPOFF' THEN
                         (select json_agg(json_build_object(
-                            'name', packages_rows.name, 'type', packages_rows.name, 'quantity', packages_rows.quantity, 'volume_per_package', packages_rows.volume_units))
+                            'name', packages_rows.name, 'type', packages_rows.name, 'quantity', packages_rows.quantity, 'volume_per_package', packages_rows.volume_units, 'short_code', packages_rows.short_code))
                             FROM
-                                (select p.name AS name, p.volume_units AS volume_units, sum(tp.quantity) AS quantity
+                                (select p.name AS name, p.average_volume_units AS volume_units, p.short_code as short_code, sum(tp.quantity) AS quantity
                                     from task t inner join task_package tp on tp.task_id = t.id
                                     inner join package p on tp.package_id = p.id
                                     where t.id = t_outer.id
-                                    group by p.id, p.name, p.volume_units
+                                    group by p.id, p.name, p.average_volume_units
                                 ) packages_rows)
                     ELSE
                         NULL
@@ -56,8 +50,8 @@ class Collection extends Base
             from task t_outer
             where t_outer.id IN (:taskIds);
         ";
-
-        $params = ['taskIds' => array_map(function ($task) { return $task->getId(); }, $data)];
+        
+        $params = ['taskIds' => array_map(function ($task) { return $task->getId(); }, iterator_to_array($data))];
         $query = $entityManager->getConnection()->executeQuery(
             $sql,
             $params,

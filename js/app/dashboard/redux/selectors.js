@@ -11,7 +11,7 @@ import { selectUnassignedTasks, selectAllTasks, selectSelectedDate, taskListAdap
 import { filter, forEach, find, reduce, map, differenceWith, includes, mapValues } from 'lodash'
 import { isTaskVisible, isOffline, recurrenceTemplateToArray } from './utils'
 import { taskUtils } from '../../coopcycle-frontend-js/logistics/redux';
-import { selectAllTours, selectTaskIdToTourIdMap } from '../../../shared/src/logistics/redux/selectors'
+import { selectAllTours, selectAssignedTasks, selectTaskIdToTourIdMap, selectUnassignedTours } from '../../../shared/src/logistics/redux/selectors'
 
 const taskListSelectors = taskListAdapter.getSelectors((state) => state.logistics.entities.taskLists)
 export const taskSelectors = taskAdapter.getSelectors((state) => state.logistics.entities.tasks)
@@ -31,6 +31,12 @@ export const selectExpandedTasksGroupsPanelsIds = state => state.logistics.ui.ex
 export const selectTaskToShow = state => state.logistics.ui.taskToShow
 export const selectLoadingTourPanelsIds = state => state.logistics.ui.loadingTourPanelsIds
 export const selectTaskListsLoading = state => state.logistics.ui.taskListsLoading
+export const selectVehiclesLoading = state => state.logistics.ui.vehiclesLoading
+export const selectTrailersLoading = state => state.logistics.ui.trailersLoading
+export const selectWarehousesLoading = state => state.logistics.ui.warehousesLoading
+export const selectIsFleetManagementLoaded = state => !selectVehiclesLoading(state) && !selectTrailersLoading(state) && !selectWarehousesLoading(state)
+
+export const selectOptimLoading = state => state.logistics.ui.optimLoading
 export const selectUnassignedTasksLoading = state => state.logistics.ui.unassignedTasksLoading
 export const selectOrderOfUnassignedTasks = state => state.logistics.ui.unassignedTasksIdsOrder
 export const selectOrderOfUnassignedToursAndGroups = state => state.logistics.ui.unassignedToursOrGroupsOrderIds
@@ -38,6 +44,7 @@ export const selectOrderOfUnassignedToursAndGroups = state => state.logistics.ui
 // Settings selectors
 export const selectSettings = state => state.settings
 export const selectFiltersSetting = state => state.settings.filters
+export const selectMapFiltersSetting = state => state.settings.mapFilters
 export const selectHiddenCouriersSetting = state => state.settings.filters.hiddenCouriers
 export const selectAreToursEnabled = state => state.settings.toursEnabled
 export const selectIsRecurrenceRulesVisible = state => state.settings.isRecurrenceRulesVisible
@@ -51,6 +58,9 @@ export const getProductNameById = id => store => {
   return store.dashboard.dashboards.filter(({ Id }) => Id === id)[0]
     .Name;
 }
+
+// optim selectors
+export const selectLastOptimResult = state => state.optimization.lastOptimResult
 
 export const selectCouriers = state => state.config.couriersList
 export const selectTaskEvents = state => state.taskEvents
@@ -103,6 +113,19 @@ export const selectGroups = createSelector(
   }
 )
 
+const sortUnassignedTasks = (taskA, taskB) => {
+  if (moment(taskA.before).isSame(taskB.before) && taskA.metadata?.delivery_position !== undefined && taskB.metadata?.delivery_position !== undefined) {
+    return taskA.metadata.delivery_position - taskB.metadata.delivery_position
+  } else if (moment(taskA.before).isSame(taskB.before) && taskA.type === 'PICKUP' && taskB.type === 'DROPOFF') {
+    return -1
+  } else if (moment(taskA.before).isBefore(taskB.before)) {
+    // put on top of the list the tasks that have an end of delivery window that finishes sooner
+    return -1
+  }
+
+  return 1
+}
+
 export const selectStandaloneTasks = createSelector(
   selectUnassignedTasks,
   state => state.taskListGroupMode,
@@ -121,7 +144,7 @@ export const selectStandaloneTasks = createSelector(
       const dropoffTasks = filter(standaloneTasks, t => t.type === 'DROPOFF')
 
       dropoffTasks.sort((a, b) => {
-        return moment(a.before).isBefore(b.before) ?
+        return sortUnassignedTasks(a, b) > 0 ?
           (taskListGroupMode === 'GROUP_MODE_DROPOFF_DESC' ? -1 : 1)
           :
           (taskListGroupMode === 'GROUP_MODE_DROPOFF_DESC' ? 1 : -1)
@@ -130,7 +153,8 @@ export const selectStandaloneTasks = createSelector(
       const grouped = reduce(dropoffTasks, (acc, task) => {
         if (task.previous) {
           const prev = find(standaloneTasks, t => t['@id'] === task.previous)
-          if (prev) {
+
+          if (prev && !acc.find(t => t['@id'] === prev['@id'])) { // avoid inserting the pickup several time for multi-dropoff
             acc.push(prev)
           }
         }
@@ -141,14 +165,7 @@ export const selectStandaloneTasks = createSelector(
 
       standaloneTasks = grouped
     } else {
-      standaloneTasks.sort((a, b) => {
-        if (moment(a.before).isSame(b.before) && a.type === 'PICKUP') {
-          return -1
-        } else {
-          // put on top of the list the tasks that have an end of delivery window that finishes sooner
-          return moment(a.before).isBefore(b.before) ? -1 : 1
-        }
-      })
+      standaloneTasks.sort(sortUnassignedTasks)
     }
 
     return filter(standaloneTasks, t => !taskIdToTourIdMap.has(t['@id']))
@@ -160,6 +177,41 @@ export const selectVisibleTaskIds = createSelector(
   selectFiltersSetting,
   selectSelectedDate,
   (tasks, filters, date) => filter(tasks, task => isTaskVisible(task, filters, date)).map(task => task['@id'])
+)
+
+export const selectVisibleOnMapTaskIds = createSelector(
+  selectVisibleTaskIds,
+  selectAssignedTasks,
+  selectUnassignedTours,
+  selectTaskIdToTourIdMap,
+  selectMapFiltersSetting,
+  (visibleTasksIds, assignedTasks, unassignedTours, taskIdToTourIdMap, mapFiltersSetting) => {
+    return filter(
+      visibleTasksIds,
+      taskId => {
+        const tourId = taskIdToTourIdMap.get(taskId)
+
+        if (!mapFiltersSetting.showUnassignedTours && tourId && unassignedTours.find(t => t['@id'] === tourId)) {
+          return false
+        }
+
+        if (!mapFiltersSetting.showAssigned && assignedTasks.find(t => t['@id'] === taskId)) {
+          return false
+        }
+
+        return true
+      }
+    )
+  }
+)
+
+export const selectHiddenOnMapTaskIds = createSelector(
+  selectAllTasks,
+  selectVisibleOnMapTaskIds,
+  (tasks, visibleTaskIds) => {
+    const taskIds = tasks.map(task => task['@id'])
+    return differenceWith(taskIds, visibleTaskIds)
+  }
 )
 
 export const selectPolylines = createSelector(
@@ -208,16 +260,6 @@ export const selectAsTheCrowFlies = createSelector(
     return Object.assign({}, asTheCrowFliesTaskLists, asTheCrowFliesTours)
   }
 )
-
-export const selectHiddenTaskIds = createSelector(
-  selectAllTasks,
-  selectVisibleTaskIds,
-  (tasks, visibleTaskIds) => {
-    const taskIds = tasks.map(task => task['@id'])
-    return differenceWith(taskIds, visibleTaskIds)
-  }
-)
-
 
 const fuseOptions = {
   shouldSort: true,
@@ -332,7 +374,7 @@ export const selectSelectedTasks = createSelector(
 
 export const selectVisiblePickupTasks = createSelector(
   taskSelectors.selectAll,
-  selectHiddenTaskIds,
+  selectHiddenOnMapTaskIds,
   (tasks, hiddenTaskIds) => filter(tasks, task => task.type === 'PICKUP' && !hiddenTaskIds.includes(task['@id']))
 )
 

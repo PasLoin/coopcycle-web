@@ -2,28 +2,24 @@
 
 namespace AppBundle\Controller\Utils;
 
-use AppBundle\DataType\TsRange;
-use AppBundle\Entity\Address;
-use AppBundle\Entity\Base\GeoCoordinates;
 use AppBundle\Entity\Delivery;
 use AppBundle\Entity\Delivery\PricingRuleSet;
+use AppBundle\Entity\Sylius\ArbitraryPrice;
+use AppBundle\Entity\Sylius\PriceInterface;
 use AppBundle\Exception\Pricing\NoRuleMatchedException;
 use AppBundle\Form\DeliveryType;
+use AppBundle\Form\Order\OneOffOrderType;
 use AppBundle\Service\DeliveryManager;
+use AppBundle\Service\OrderManager;
 use AppBundle\Sylius\Customer\CustomerInterface;
-use AppBundle\Sylius\Order\AdjustmentInterface;
 use AppBundle\Sylius\Order\OrderFactory;
 use AppBundle\Sylius\Order\OrderInterface;
 use AppBundle\Sylius\Order\OrderItemInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Ramsey\Uuid\Uuid;
 use Sylius\Bundle\OrderBundle\NumberAssigner\OrderNumberAssignerInterface;
-use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormInterface;
-use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
-use Symfony\Component\Security\Core\User\UserInterface;
 
 trait DeliveryTrait
 {
@@ -32,22 +28,9 @@ trait DeliveryTrait
      */
     abstract protected function getDeliveryRoutes();
 
-    /**
-     * @param OrderFactory $factory
-     * @param Delivery $delivery
-     * @param int $price
-     * @param CustomerInterface $customer
-     *
-     * @return OrderInterface
-     */
-    protected function createOrderForDelivery(OrderFactory $factory, Delivery $delivery, int $price, ?CustomerInterface $customer = null, $attach = true)
+    protected function createOrderForDelivery(OrderFactory $factory, Delivery $delivery, PriceInterface $price, ?CustomerInterface $customer = null, bool $attach = true): OrderInterface
     {
         return $factory->createForDelivery($delivery, $price, $customer, $attach);
-    }
-
-    protected function createDeliveryForm(Delivery $delivery, array $options = [])
-    {
-        return $this->createForm(DeliveryType::class, $delivery, $options);
     }
 
     protected function getDeliveryPrice(Delivery $delivery, PricingRuleSet $pricingRuleSet, DeliveryManager $deliveryManager)
@@ -61,13 +44,25 @@ trait DeliveryTrait
         return (int) ($price);
     }
 
-    private function renderDeliveryForm(Delivery $delivery, Request $request,
-        OrderFactory $orderFactory, EntityManagerInterface $entityManager, OrderNumberAssignerInterface $orderNumberAssigner,
-        array $options = [])
+    public function deliveryAction($id,
+        Request $request,
+        OrderFactory $orderFactory,
+        EntityManagerInterface $entityManager,
+        OrderNumberAssignerInterface $orderNumberAssigner,
+        OrderManager $orderManager
+    )
     {
+        $delivery = $entityManager
+            ->getRepository(Delivery::class)
+            ->find($id);
+
+        $this->accessControl($delivery, 'view');
+
         $routes = $request->attributes->get('routes');
 
-        $form = $this->createDeliveryForm($delivery, $options);
+        $form = $this->createForm(OneOffOrderType::class, $delivery, [
+            'with_arbitrary_price' => null === $delivery->getOrder(),
+        ]);
 
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
@@ -81,38 +76,30 @@ trait DeliveryTrait
                 $this->createOrderForDeliveryWithArbitraryPrice($form, $orderFactory, $delivery,
                     $entityManager, $orderNumberAssigner);
             } else {
-                $this->getDoctrine()->getManagerForClass(Delivery::class)->persist($delivery);
-                $this->getDoctrine()->getManagerForClass(Delivery::class)->flush();
+                $entityManager->persist($delivery);
+                $entityManager->flush();
+            }
+
+            if ($form->has('bookmark')) {
+                $isBookmarked = true === $form->get('bookmark')->getData();
+
+                $order = $delivery->getOrder();
+
+                if (null !== $order) {
+                    $orderManager->setBookmark($order, $isBookmarked);
+                    $entityManager->flush();
+                }
             }
 
             return $this->redirectToRoute($routes['success']);
         }
 
-        return $this->render('delivery/form.html.twig', [
+        return $this->render('delivery/item.html.twig', [
             'layout' => $request->attributes->get('layout'),
             'delivery' => $delivery,
             'form' => $form->createView(),
             'debug_pricing' => $request->query->getBoolean('debug', false),
             'back_route' => $routes['back'],
-        ]);
-    }
-
-    public function deliveryAction($id,
-        Request $request,
-        OrderFactory $orderFactory,
-        EntityManagerInterface $entityManager,
-        OrderNumberAssignerInterface $orderNumberAssigner
-    )
-    {
-        $delivery = $this->getDoctrine()
-            ->getRepository(Delivery::class)
-            ->find($id);
-
-        $this->accessControl($delivery, 'view');
-
-        return $this->renderDeliveryForm($delivery, $request, $orderFactory, $entityManager, $orderNumberAssigner, [
-            'with_address_props' => true,
-            'with_arbitrary_price' => null === $delivery->getOrder(),
         ]);
     }
 
@@ -127,16 +114,7 @@ trait DeliveryTrait
         $variantPrice = $form->get('variantPrice')->getData();
         $variantName = $form->get('variantName')->getData();
 
-        $order = $this->createOrderForDelivery($orderFactory, $delivery, $variantPrice);
-
-        /** @var OrderItemInterface */
-        $orderItem = $order->getItems()->first();
-        $orderItem->setImmutable(true);
-
-        $variant = $orderItem->getVariant();
-
-        $variant->setName($variantName);
-        $variant->setCode(Uuid::uuid4()->toString());
+        $order = $this->createOrderForDelivery($orderFactory, $delivery, new ArbitraryPrice($variantName, $variantPrice));
 
         $order->setState(OrderInterface::STATE_ACCEPTED);
 

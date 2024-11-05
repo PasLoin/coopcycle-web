@@ -108,6 +108,7 @@ services:
   Lcobucci\JWT\Configuration $cubeJsJwtConfiguration: '@cubejs.jwt.config'
   Hashids\Hashids $hashids8: '@hashids.8'
   Hashids\Hashids $hashids12: '@hashids.12'
+  Hashids\Hashids $hashids16: '@hashids.16'
   BenjaminFavre\OAuthHttpClient\OAuthHttpClient $woopitClient: '@woopit.oauth_http_client'
   ACSEO\TypesenseBundle\Finder\CollectionFinderInterface $typesenseShopsFinder: '@typesense.finder.shops'
   ACSEO\TypesenseBundle\Manager\CollectionManager: '@typesense.collection_manager'
@@ -117,6 +118,8 @@ services:
   Symfony\Bridge\PsrHttpMessage\HttpMessageFactoryInterface: '@league.oauth2_server.factory.psr_http'
   League\Flysystem\Filesystem $restaurantImagesFilesystem: '@restaurant_images_filesystem'
   League\Flysystem\Filesystem $deliveryImportsFilesystem: '@delivery_imports_filesystem'
+  Kreait\Firebase\Contract\Messaging $firebaseMessaging: '@kreait_firebase.coopcycle.messaging'
+  Sylius\Component\Order\Processor\OrderProcessorInterface $orderPaymentProcessor: '@sylius.order_processing.order_payment_processor'
 
   AppBundle\Routing\FoodtechEnabledAwareLoader:
     arguments:
@@ -169,10 +172,6 @@ services:
       $loopeatOAuthFlow: '%env(LOOPEAT_OAUTH_FLOW)%'
     tags:
       - { name: monolog.logger, channel: loopeat }
-
-  AppBundle\Controller\PaymentController:
-    arguments:
-      $secret: '%secret%'
 
   AppBundle\Controller\StripeController:
     arguments:
@@ -530,6 +529,8 @@ services:
   AppBundle\Utils\PreparationTimeResolver: ~
 
   AppBundle\Utils\ShippingDateFilter:
+    arguments:
+      $redis: "@snc_redis.default"
     tags:
       - { name: monolog.logger, channel: timing }
 
@@ -538,9 +539,11 @@ services:
   AppBundle\Utils\OrderTimeHelper:
     arguments:
       $country: "%country_iso%"
-      $redis: "@snc_redis.default"
     tags:
       - { name: monolog.logger, channel: timing }
+
+  AppBundle\Entity\Listener\:
+    resource: '../../src/Entity/Listener/*'
 
   AppBundle\Entity\Listener\TaskListener:
     tags:
@@ -614,6 +617,19 @@ services:
         arguments:
             - '%sonic_namespace%'
 
+  AppBundle\Entity\Sylius\OrderRepository:
+    factory: ['@doctrine.orm.default_entity_manager', getRepository]
+    arguments:
+      - AppBundle\Entity\Sylius\Order
+    calls: [[setDeliveryRepository, ['@AppBundle\Entity\DeliveryRepository']]]
+
+  sylius.repository.order:
+    alias: AppBundle\Entity\Sylius\OrderRepository
+
+  AppBundle\Entity\TaskListRepository: ~
+
+  AppBundle\Entity\Task\RecurrenceRuleRepository: ~
+
   AppBundle\Service\Routing\Osrm: ~
 
   routing_service:
@@ -684,7 +700,7 @@ services:
       $redis: '@snc_redis.shared'
       $service: opencage
 
- # needs to be run before TaskSubscriber as it reflects Tour.tasks changes into task.assignedTo attribute
+  # needs to be run before TaskSubscriber as it reflects Tour.tasks changes into task.assignedTo attribute
   AppBundle\Doctrine\EventSubscriber\TourSubscriber:
     tags:
       - { name: monolog.logger, channel: coopcycle.logistics }
@@ -714,6 +730,10 @@ services:
     tags:
       - { name: doctrine.event_subscriber }
 
+  AppBundle\Doctrine\EventSubscriber\OrderSubscriber:
+    tags:
+      - { name: doctrine.event_subscriber }
+
   AppBundle\Doctrine\EventSubscriber\SearchDeliveriesSubscriber:
     tags:
       - { name: monolog.logger, channel: coopcycle.search }
@@ -723,7 +743,7 @@ services:
     tags:
       - { name: doctrine.event_subscriber }
 
-  AppBundle\Doctrine\EventSubscriber\CheckoutSubscriber:
+  AppBundle\Doctrine\EventSubscriber\LoggerSubscriber:
     tags:
       - { name: doctrine.event_subscriber }
 
@@ -752,6 +772,9 @@ services:
     tags: [ 'kernel.event_subscriber' ]
 
   AppBundle\Api\EventSubscriber\PricingRuleSetDeleteSubscriber:
+    tags: [ 'kernel.event_subscriber' ]
+
+  AppBundle\Api\EventSubscriber\WarehouseDeleteSubscriber:
     tags: [ 'kernel.event_subscriber' ]
 
   AppBundle\Api\EventSubscriber\TimeSlotDeleteSubscriber:
@@ -788,6 +811,8 @@ services:
       $country: '%country_iso%'
       $locale: '%env(COOPCYCLE_LOCALE)%'
       $splitTermsAndConditionsAndPrivacyPolicy: '%env(SPLIT_TERMS_AND_CONDITIONS_AND_PRIVACY_POLICY)%'
+      $edenredClientId: '%env(EDENRED_AUTHENTICATION_CLIENT_ID)%'
+      $edenredAuthorizationEndpoint: '%env(EDENRED_AUTHENTICATION_BASE_URL)%'
 
   AppBundle\Transporter\ImportFromPoint: ~
   AppBundle\Transporter\ReportFromCC: ~
@@ -842,6 +867,7 @@ services:
     public: true
     arguments:
       $cashEnabled: '%env(bool:CASH_ON_DELIVERY_ENABLED)%'
+      $edenredEnabled: '%env(bool:EDENRED_ENABLED)%'
 
   AppBundle\Action\Order\Centrifugo:
     public: true
@@ -863,6 +889,20 @@ services:
     arguments:
       $country: "%country_iso%"
       $locale: '%env(COOPCYCLE_LOCALE)%'
+
+  AppBundle\Action\TimeSlot\StoreOpeningHours:
+    public: true
+    arguments:
+      $country: "%country_iso%"
+      $locale: '%env(COOPCYCLE_LOCALE)%'
+
+  AppBundle\Incident\LoopeatFailureReasonsResolver: ~
+
+  AppBundle\Action\Task\FailureReasons:
+    public: true
+    arguments:
+      $failureReasonsResolvers:
+        - '@AppBundle\Incident\LoopeatFailureReasonsResolver'
 
   AppBundle\EventListener\RestaurantFilterConfigurator:
     tags:
@@ -971,6 +1011,8 @@ services:
   AppBundle\Api\DataTransformer\TourInputDataTransformer: ~
   AppBundle\Api\DataTransformer\UpdateLoopeatFormatsDataTransformer: ~
   AppBundle\Api\DataTransformer\UpdateLoopeatReturnsDataTransformer: ~
+  AppBundle\Api\DataTransformer\EdenredCredentialsInputDataTransformer: ~
+  AppBundle\Api\DataTransformer\ConfigurePaymentInputDataTransformer: ~
 
   AppBundle\Api\DataTransformer\CartItemInputDataTransformer:
     arguments:
@@ -1024,9 +1066,8 @@ services:
     tags:
       - { name: monolog.logger, channel: coopcycle.tagging }
 
-  AppBundle\Log\RequestIdProcessor:
-
-  AppBundle\Log\RequestUriProcessor:
+  AppBundle\Log\:
+    resource: '../../src/Log/*'
 
   Symfony\Bridge\Monolog\Processor\RouteProcessor:
     tags:
@@ -1039,6 +1080,9 @@ services:
   Symfony\Bridge\Monolog\Processor\TokenProcessor:
     tags:
       - { name: monolog.processor, channel: api }
+
+  AppBundle\Messenger\:
+    resource: '../../src/Messenger/*'
 
   AppBundle\MessageHandler\EmailHandler: ~
 
@@ -1054,12 +1098,6 @@ services:
       $eventBus: '@simple_bus.event_bus'
     tags:
       - { name: monolog.logger, channel: coopcycle.logistics }
-
-  AppBundle\MessageHandler\RetrieveStripeFeeHandler:
-    arguments:
-      $adjustmentFactory: '@sylius.factory.adjustment'
-    tags:
-      - { name: monolog.logger, channel: stripe }
 
   AppBundle\MessageHandler\TopBarNotificationHandler: ~
 
@@ -1134,8 +1172,18 @@ services:
         - cl
         - co
       $forceStripe: "%env(bool:FORCE_STRIPE)%"
+      $paygreenEnabled: "%env(bool:PAYGREEN_ENABLED)%"
 
-  AppBundle\Payment\Gateway: ~
+  AppBundle\Payment\Gateway\Stripe: ~
+  AppBundle\Payment\Gateway\Edenred: ~
+  AppBundle\Payment\Gateway\MercadoPago: ~
+
+  AppBundle\Payment\Gateway:
+    arguments:
+      $gateways:
+        stripe: '@AppBundle\Payment\Gateway\Stripe'
+        edenred: '@AppBundle\Payment\Gateway\Edenred'
+        mercadopago: '@AppBundle\Payment\Gateway\MercadoPago'
 
   AppBundle\Security\BusinessVoter:
     tags: [ 'security.voter' ]
@@ -1185,6 +1233,9 @@ services:
     tags: [ 'security.voter' ]
 
   AppBundle\Security\DeliveryImportQueueVoter:
+    tags: [ 'security.voter' ]
+
+  AppBundle\Security\TimeSlotVoter:
     tags: [ 'security.voter' ]
 
   # While adding a priority is optional, it’s recommended to add one to make sure the expected value is injected.
@@ -1242,7 +1293,16 @@ services:
 
   AppBundle\Spreadsheet\DeliveryDataExporter: ~
   AppBundle\Spreadsheet\DV4CULDataExporter: ~
-  AppBundle\Spreadsheet\ColisActivDataExporter: ~
+
+  colisactiv:
+    class: AppBundle\Spreadsheet\ColisActivDataExporter
+    arguments:
+      $includeAllTasks: false
+
+  colisactiv_all:
+    class: AppBundle\Spreadsheet\ColisActivDataExporter
+    arguments:
+      $includeAllTasks: true
 
   AppBundle\Edenred\Authentication:
     arguments:
@@ -1314,6 +1374,8 @@ services:
     arguments:
       $databaseName: '%database_name%'
       $baseUrl: '%router.request_context.scheme%://%router.request_context.host%'
+      $s3Path: '%env(CUBEJS_DUCKDB_S3_PATH)%'
+      $appName: '%env(COOPCYCLE_APP_NAME)%'
 
   AppBundle\Translation\DatePeriodFormatter:
     arguments:
@@ -1330,6 +1392,10 @@ services:
   hashids.12:
     class: Hashids\Hashids
     arguments: ['%secret%', 12]
+
+  hashids.16:
+    class: Hashids\Hashids
+    arguments: ['%secret%', 16]
 
   woopit.grant_type:
     class: BenjaminFavre\OAuthHttpClient\GrantType\ClientCredentialsGrantType
@@ -1426,3 +1492,26 @@ services:
     arguments: [
       '@edenredsynchronizer.client',
     ]
+
+  paygreen.http_client:
+    class: Symfony\Component\HttpClient\Psr18Client
+
+  AppBundle\Paygreen\EnvironmentFactory:
+    arguments:
+      $environment: '%env(PAYGREEN_ENVIRONMENT)%'
+
+  Paygreen\Sdk\Payment\V3\Environment:
+    factory: '@AppBundle\Paygreen\EnvironmentFactory'
+
+  Paygreen\Sdk\Payment\V3\Client:
+    arguments:
+      - '@paygreen.http_client'
+      - '@Paygreen\Sdk\Payment\V3\Environment'
+
+  AppBundle\Sylius\Payment\Context: ~
+
+  AppBundle\Entity\Delivery\FailureReasonRegistry: ~
+
+  Picqer\Barcode\BarcodeGeneratorSVG: ~
+
+  AppBundle\Utils\Barcode\BarcodeUtils: ~

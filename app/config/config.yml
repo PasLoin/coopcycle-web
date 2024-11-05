@@ -27,7 +27,7 @@ parameters:
     database_user:     "%env(COOPCYCLE_DB_USER)%"
     database_password: "%env(COOPCYCLE_DB_PASSWORD)%"
     locale: "%coopcycle.locale%"
-    locale_regex: an|ca|fr|en|es|eu|de|it|pl|pt_BR|pt_PT|da
+    locale_regex: an|ca|fr|en|es|eu|de|hu|it|pl|pt_BR|pt_PT|da
     router.request_context.scheme: 'http'
     router.request_context.host: "%env(APP_HOST)%"
     loopeat_enabled: '%env(bool:LOOPEAT_ENABLED)%'
@@ -70,6 +70,7 @@ parameters:
     group_orders_enabled: '%env(bool:GROUP_ORDERS_ENABLED)%'
     business_account_enabled: '%env(bool:BUSINESS_ACCOUNT_ENABLED)%'
     transporters_config: '%env(json:TRANSPORTERS_CONFIG)%'
+    billing_enabled: '%env(bool:BILLING_ENABLED)%'
 
 services:
     # For some cache pools, want *STABLE* cache keys between deploys.
@@ -139,6 +140,8 @@ framework:
             messenger.bus.default:
                 # https://symfony.com/doc/current/messenger.html#middleware-for-doctrine
                 middleware:
+                    # service ids that implement Symfony\Component\Messenger\Middleware\MiddlewareInterface
+                    - 'AppBundle\Messenger\RequestIdMiddleware'
                     # each time a message is handled, the Doctrine connection
                     # is "pinged" and reconnected if it's closed. Useful
                     # if your workers run for a long time and the database
@@ -171,7 +174,6 @@ framework:
             'AppBundle\Message\PushNotification': async
             'AppBundle\Message\ImportTasks': async
             'AppBundle\Message\OrderReceiptEmail': async
-            'AppBundle\Message\RetrieveStripeFee': async
             'AppBundle\Message\Sms': async
             'AppBundle\Message\UpdateLocation': async
             'AppBundle\Message\TopBarNotification': async
@@ -222,6 +224,8 @@ framework:
                 base_uri: "%env(EDENRED_SYNCHRONIZER_BASE_URL)%"
                 query:
                     api_key: "%env(EDENRED_SYNCHRONIZER_API_KEY)%"
+            insee.client:
+                base_uri: "https://api.insee.fr/"
 
 # Twig Configuration
 twig:
@@ -230,6 +234,7 @@ twig:
     form_themes:
         - 'form/address_book.html.twig'
         - 'form/price_with_tax.html.twig'
+        - 'form/delivery_zone_picker.html.twig'
         - 'form/delivery.html.twig'
         - '@VichUploader/Form/fields.html.twig'
     globals:
@@ -270,6 +275,10 @@ twig:
 
     exception_controller: null
 
+monolog:
+  # channels to use with autowire; https://symfony.com/doc/current/logging/channels_handlers.html#how-to-autowire-logger-channels
+  channels: [ 'domain_event', 'checkout', 'database', 'push_notification', 'real_time_message' ]
+
 # Doctrine Configuration
 doctrine:
     dbal:
@@ -295,13 +304,15 @@ doctrine:
             numrange: string
             tsrange: string
 
+        # Tells Doctrine what database features are supported
+        # Make sure that your production database uses this version or higher.
         # If you don't define this option and you haven't created your database yet,
         # you may get PDOException errors because Doctrine will try to guess
         # the database server version automatically and none is available.
         # http://symfony.com/doc/current/reference/configuration/doctrine.html
         # Should be fixed in next Doctrine version
         # https://github.com/doctrine/dbal/pull/2671
-        server_version: 9.4
+        server_version: '13'
 
         # Add a schema filter to avoid having PostGIS tables tiger.* & topology.* in migrations diff
         # https://symfony.com/doc/master/bundles/DoctrineMigrationsBundle/index.html#manual-tables
@@ -361,11 +372,12 @@ api_platform:
     messenger:
         enabled: false
     formats:
-        jsonld: ['application/ld+json']
+        jsonld: ['application/ld+json', 'application/merge-patch+json']
         json: ['application/json']
         csv: ['text/csv']
         html: ['text/html']
     patch_formats:
+        jsonld: ['application/ld+json', 'application/merge-patch+json']
         json: ['application/json']
     swagger:
         versions: [3, 2]
@@ -800,6 +812,22 @@ fos_js_routing:
         - api_time_slots_delete_item
         - admin_transporter_message
         - api_organizations_get_collection
+        - api_time_slots_get_collection
+        - api_warehouses_post_collection
+        - api_warehouses_get_collection
+        - api_warehouses_delete_item
+        - api_trailers_post_collection
+        - api_trailers_get_collection
+        - api_trailers_delete_item
+        - api_vehicles_post_collection
+        - api_vehicles_get_collection
+        - api_vehicles_delete_item
+        - admin_warehouses
+        - api_task_lists_patch_item
+        - api_vehicles_patch_item
+        - api_trailers_patch_item
+        - api_trailers_set_vehicles_item
+        - task_label_pdf
 
 webpack_encore:
     output_path: '%kernel.project_dir%/web/build'
@@ -1182,3 +1210,8 @@ acseo_typesense:
                     entity_attribute: 'AppBundle\Typesense\Converter\ShopConverter::getImageURL'
                     optional: true
             default_sorting_field: sortable_id
+
+kreait_firebase:
+    projects:
+        coopcycle:
+            credentials: '%env(FIREBASE_CREDENTIALS)%'

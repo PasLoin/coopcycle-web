@@ -136,12 +136,12 @@ abstract class TaskCollection
      */
     public function getTasks(string $expression = '')
     {
-        $language = new ExpressionLanguage();
 
         $tasks = $this->getItems()
             ->map(fn(TaskCollectionItem $item) => $item->getTask());
 
-        if ('' !== $expression) {
+        if ('' != $expression) {
+            $language = new ExpressionLanguage();
             $tasks = $tasks
                 ->filter(function (Task $task) use ($language, $expression) {
                     return $language->evaluate($expression, ['task' => $task]);
@@ -203,6 +203,17 @@ abstract class TaskCollection
         foreach ($this->getItems() as $item) {
             if ($item->getPosition() === $position) {
                 return $item;
+            }
+        }
+    }
+
+    /**
+     * Find task position in the collection
+     */
+    public function findTaskPosition(Task $task) {
+        foreach ($this->getItems() as $item) {
+            if ($item->getTask() === $task) {
+                return $item->getPosition();
             }
         }
     }

@@ -1,16 +1,27 @@
 import _ from 'lodash';
 import { createSelector } from 'reselect';
 import { mapToColor } from './taskUtils';
-import { assignedItemsIds } from './taskListUtils';
-import { organizationAdapter, taskAdapter, taskListAdapter, tourAdapter } from './adapters'
+import { organizationAdapter, taskAdapter, taskListAdapter, tourAdapter, trailerAdapter, vehicleAdapter, warehouseAdapter } from './adapters'
 import i18next from 'i18next';
 
 const taskSelectors = taskAdapter.getSelectors((state) => state.logistics.entities.tasks)
 export const taskListSelectors = taskListAdapter.getSelectors((state) => state.logistics.entities.taskLists)
 const tourSelectors = tourAdapter.getSelectors((state) => state.logistics.entities.tours)
 const organizationSelectors = organizationAdapter.getSelectors((state) => state.logistics.entities.organizations)
-export const selectAllOrganizations = organizationSelectors.selectAll
+const vehiclesSelectors = vehicleAdapter.getSelectors((state) => state.logistics.entities.vehicles)
+const trailersSelectors = trailerAdapter.getSelectors((state) => state.logistics.entities.trailers)
+const warehousesSelectors = warehouseAdapter.getSelectors((state) => state.logistics.entities.warehouses)
 
+export const selectVehicleById = vehiclesSelectors.selectById
+export const selectAllVehicles = vehiclesSelectors.selectAll
+
+export const selectTrailerById = trailersSelectors.selectById
+export const selectAllTrailers = trailersSelectors.selectAll
+
+export const selectWarehouseById = warehousesSelectors.selectById
+export const selectAllWarehouses = warehousesSelectors.selectAll
+
+export const selectAllOrganizations = organizationSelectors.selectAll
 export const selectOrganizationsLoading = state => state.logistics.ui.organizationsLoading
 
 export const selectSelectedDate = state => state.logistics.date
@@ -32,17 +43,29 @@ export const selectTasksById = createSelector(
   (allTasks, tasksId) => tasksId.map(taskId => allTasks.find(t => t['@id'] === taskId))
 )
 
-export const selectAssignedTasks = createSelector(
+export const selectVehicleIdToTaskListIdMap = createSelector(
   taskListSelectors.selectAll,
-  taskLists => assignedItemsIds(taskLists)
-)
+  (allTaskList) => {
+    let vehicleIdToTaskListId = new Map()
+    allTaskList.forEach((taskList) => {
+      if (taskList.vehicle) {
+        vehicleIdToTaskListId.set(taskList.vehicle, taskList['username'])
+      }
+  })
+  return vehicleIdToTaskListId
+})
 
-export const selectUnassignedTasks = createSelector(
-  selectAllTasks,
-  selectAssignedTasks,
-  (allTasks, assignedItemIds) =>
-    _.filter(allTasks, task => assignedItemIds.findIndex(assignedItemId => task['@id'] == assignedItemId) == -1)
-)
+export const selectTrailerIdToTaskListIdMap = createSelector(
+  taskListSelectors.selectAll,
+  (allTaskList) => {
+    let trailerIdToTaskListId = new Map()
+    allTaskList.forEach((taskList) => {
+      if (taskList.trailer) {
+        trailerIdToTaskListId.set(taskList.trailer, taskList['username'])
+      }
+  })
+  return trailerIdToTaskListId
+})
 
 export const selectTasksWithColor = createSelector(
   selectAllTasks,
@@ -51,31 +74,51 @@ export const selectTasksWithColor = createSelector(
 
 export const selectTaskListByUsername = (state, props) => taskListSelectors.selectById(state, props.username)
 
+const flattenTaskListItemsAsListOfTasks = (taskList, allTasks, allTours) => {
+  return taskList.items.reduce((acc, it) => {
+    if (it.startsWith('/api/tours')) {
+      const tour = allTours.find(t => t['@id'] === it)
+      if (!tour) {
+        console.log(`Could not find tour at id ${it}`)
+      } else {
+        // filter out undefined values
+        // may happen if we reschedule the task and it is improperly unlinked from tasklist in the backend
+        acc = [...acc, ...tour.items.map(tId => allTasks.find(t => t['@id'] === tId)).filter( Boolean )]
+      }
+    } else {
+      // filter out undefined values
+      // may happen if we reschedule the task and it is improperly unlinked from tasklist in the backend
+      const task = allTasks.find(t => t["@id"] === it)
+      if (task === undefined) {
+        console.error("Could not find task at id " + it)
+      } else {
+        acc.push(task)
+      }
+    }
+    return acc
+  }, [])
+}
+
 export const selectTaskListTasksByUsername = createSelector(
   selectTaskListByUsername,
   selectAllTasks,
   tourSelectors.selectAll,
-  (taskList, allTasks, allTours) => {
-    return taskList.items.reduce((acc, it) => {
-      if (it.startsWith('/api/tours')) {
-        const tour = allTours.find(t => t['@id'] === it)
-        // filter out undefined values
-        // may happen if we reschedule the task and it is improperly unlinked from tasklist in the backend
-        acc = [...acc, ...tour.items.map(tId => allTasks.find(t => t['@id'] === tId)).filter( Boolean )]
-      } else {
-        // filter out undefined values
-        // may happen if we reschedule the task and it is improperly unlinked from tasklist in the backend
-        const task = allTasks.find(t => t["@id"] === it)
-        if (task === undefined) {
-          console.error("Could not find task at id " + it)
-        } else {
-          acc.push(task)
-        }
-      }
-      return acc
-    }, [])
-  }
+  (taskList, allTasks, allTours) => flattenTaskListItemsAsListOfTasks(taskList, allTasks, allTours)
+)
 
+export const selectAssignedTasks = createSelector(
+  taskListSelectors.selectAll,
+  selectAllTasks,
+  tourSelectors.selectAll,
+  (taskLists, allTasks, allTours) => taskLists.reduce((acc, taskList) => {
+    return acc.concat(flattenTaskListItemsAsListOfTasks(taskList, allTasks, allTours))
+  }, [])
+)
+
+export const selectUnassignedTasks = createSelector(
+  selectAllTasks,
+  selectAssignedTasks,
+  (allTasks, assignedTasks) => _.filter(allTasks, task => !assignedTasks.find(t => t['@id'] === task['@id']))
 )
 
 export const selectAllTours = createSelector(
@@ -177,7 +220,9 @@ export const selectTaskListWeight = createSelector(
     }, 0)
 )
 
-export const getTaskVolumeUnits = (task) => task.packages.reduce((acc, pt) => acc + pt.quantity * pt.volume_per_package, 0)
+export const getTaskVolumeUnits = (task) => task.packages ? task.packages.reduce((acc, pt) => acc + pt.quantity * pt.volume_per_package, 0) : 0
+
+export const getTaskPackages = (task) => task.packages ? task.packages.reduce((acc, pt) => `${acc} ${pt.quantity} x ${pt.short_code}`, '') : ''
 
 export const selectTourVolumeUnits = createSelector(
   selectTourById,

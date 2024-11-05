@@ -7,7 +7,6 @@ use ApiPlatform\Core\Annotation\ApiResource;
 use ApiPlatform\Core\Annotation\ApiSubresource;
 use AppBundle\Action\MyStores;
 use AppBundle\Entity\Base\LocalBusiness;
-use AppBundle\Entity\Delivery\FailureReasonSet;
 use AppBundle\Entity\Model\CustomFailureReasonInterface;
 use AppBundle\Entity\Model\CustomFailureReasonTrait;
 use AppBundle\Entity\Model\OrganizationAwareInterface;
@@ -17,14 +16,16 @@ use AppBundle\Entity\Model\TaggableTrait;
 use AppBundle\Entity\Package;
 use AppBundle\Entity\Task\RecurrenceRule;
 use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Gedmo\SoftDeleteable\Traits\SoftDeleteable;
-use IncidentableTrait;
 use Symfony\Component\HttpFoundation\File\File;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\Serializer\Annotation\Groups;
 use Symfony\Component\Serializer\Annotation\SerializedName;
 use Symfony\Component\Validator\Constraints as Assert;
 use Vich\UploaderBundle\Mapping\Annotation as Vich;
+use AppBundle\Action\TimeSlot\StoreTimeSlots as TimeSlots;
+use AppBundle\Action\Store\Packages as Packages;
 
 /**
  * A retail good store.
@@ -54,6 +55,24 @@ use Vich\UploaderBundle\Mapping\Annotation as Vich;
  *     "delete"={
  *       "method"="DELETE",
  *       "security"="is_granted('ROLE_ADMIN')"
+ *     },
+ *     "patch"={
+ *       "method"="PATCH",
+ *       "security"="is_granted('ROLE_ADMIN')"
+ *     },
+ *     "time_slots"={
+ *       "method"="GET",
+ *       "path"="/stores/{id}/time_slots",
+ *       "controller"=TimeSlots::class,
+ *       "normalization_context"={"groups"={"store_time_slots"}},
+ *       "security"="is_granted('edit', object)"
+ *     },
+ *     "packages"={
+ *       "method"="GET",
+ *       "path"="/stores/{id}/packages",
+ *       "controller"=Packages::class,
+ *       "normalization_context"={"groups"={"store_packages"}},
+ *       "security"="is_granted('edit', object)"
  *     }
  *   },
  *   subresourceOperations={
@@ -73,6 +92,7 @@ class Store extends LocalBusiness implements TaggableInterface, OrganizationAwar
 
     /**
      * @var int
+     * @Groups({"store"})
      */
     private $id;
 
@@ -157,16 +177,33 @@ class Store extends LocalBusiness implements TaggableInterface, OrganizationAwar
 
     private $checkExpression;
 
+    /**
+     * @Groups({"store"})
+     */
     private $weightRequired = false;
 
+    /**
+     * @Groups({"store"})
+     */
     private $packagesRequired = false;
 
     private $multiDropEnabled = false;
 
+    /**
+     * @var Collection<int, StoreTimeSlot>
+     * @Groups({"store"})
+     */
     private $timeSlots;
 
-
     private ?string $transporter = null;
+
+    /**
+     * The deliveries of this store will be linked by default to this rider
+     * @var User
+    */
+    private $defaultCourier;
+
+    protected string $billingMethod = 'unit';
 
     public function __construct() {
         $this->deliveries = new ArrayCollection();
@@ -230,14 +267,18 @@ class Store extends LocalBusiness implements TaggableInterface, OrganizationAwar
     {
         return $this->website;
     }
-
+    /**
+     * @param mixed $website
+     */
     public function setWebsite($website)
     {
         $this->website = $website;
 
         return $this;
     }
-
+    /**
+     * @param mixed $imageName
+     */
     public function setImageName($imageName)
     {
         $this->imageName = $imageName;
@@ -311,7 +352,9 @@ class Store extends LocalBusiness implements TaggableInterface, OrganizationAwar
     {
         return $this->pricingRuleSet;
     }
-
+    /**
+     * @param mixed $pricingRuleSet
+     */
     public function setPricingRuleSet($pricingRuleSet)
     {
         $this->pricingRuleSet = $pricingRuleSet;
@@ -343,7 +386,9 @@ class Store extends LocalBusiness implements TaggableInterface, OrganizationAwar
     {
         return $this->prefillPickupAddress;
     }
-
+    /**
+     * @param mixed $prefillPickupAddress
+     */
     public function setPrefillPickupAddress($prefillPickupAddress)
     {
         $this->prefillPickupAddress = $prefillPickupAddress;
@@ -355,7 +400,9 @@ class Store extends LocalBusiness implements TaggableInterface, OrganizationAwar
     {
         return $this->createOrders;
     }
-
+    /**
+     * @param mixed $createOrders
+     */
     public function setCreateOrders($createOrders)
     {
         $this->createOrders = $createOrders;
@@ -367,7 +414,9 @@ class Store extends LocalBusiness implements TaggableInterface, OrganizationAwar
     {
         return $this->addresses;
     }
-
+    /**
+     * @param mixed $addresses
+     */
     public function setAddresses($addresses)
     {
         $this->addresses = $addresses;
@@ -383,7 +432,9 @@ class Store extends LocalBusiness implements TaggableInterface, OrganizationAwar
 
         return $this;
     }
-
+    /**
+     * @param mixed $timeSlot
+     */
     public function setTimeSlot($timeSlot)
     {
         $this->timeSlot = $timeSlot;
@@ -395,7 +446,9 @@ class Store extends LocalBusiness implements TaggableInterface, OrganizationAwar
     {
         return $this->timeSlot;
     }
-
+    /**
+     * @param mixed $packageSet
+     */
     public function setPackageSet($packageSet)
     {
         $this->packageSet = $packageSet;
@@ -422,7 +475,9 @@ class Store extends LocalBusiness implements TaggableInterface, OrganizationAwar
 
         return $delivery;
     }
-
+    /**
+     * @param mixed $checkExpression
+     */
     public function setCheckExpression($checkExpression)
     {
         $this->checkExpression = $checkExpression;
@@ -497,15 +552,55 @@ class Store extends LocalBusiness implements TaggableInterface, OrganizationAwar
 
     public function getTimeSlots()
     {
-        return $this->timeSlots;
+        return $this->timeSlots->map(fn (StoreTimeSlot $sts): TimeSlot => $sts->getTimeSlot());
     }
 
-    public function addTimeSlot(TimeSlot $timeSlot)
+    public function setTimeSlots($timeSlots): void
     {
-        $this->timeSlots->add($timeSlot);
+        $originalTimeSlots = new ArrayCollection();
+        foreach ($this->timeSlots as $sts) {
+            $originalTimeSlots->add($sts->getTimeSlot());
+        }
+
+        /** @var Collection<int, TimeSlot> */
+        $newTimeSlots = new ArrayCollection();
+        foreach ($timeSlots as $ts) {
+            $newTimeSlots->add($ts);
+        }
+
+        /** @var TimeSlot[] */
+        $timeSlotsToRemove = [];
+        foreach ($originalTimeSlots as $originalTimeSlot) {
+            if (!$newTimeSlots->contains($originalTimeSlot)) {
+                $timeSlotsToRemove[] = $originalTimeSlot;
+            }
+        }
+
+        foreach ($timeSlotsToRemove as $ts) {
+            foreach ($this->timeSlots as $i => $sts) {
+                if ($sts->getTimeSlot() === $ts) {
+                    $this->timeSlots->remove($i);
+                }
+            }
+        }
+
+        foreach ($newTimeSlots as $position => $ts) {
+
+            foreach ($this->timeSlots as $i => $sts) {
+                if ($sts->getTimeSlot() === $ts) {
+                    $sts->setPosition($position);
+                    continue 2;
+                }
+            }
+
+            $sts = new StoreTimeSlot();
+            $sts->setStore($this);
+            $sts->setTimeSlot($ts);
+            $sts->setPosition($position);
+
+            $this->timeSlots->add($sts);
+        }
     }
-
-
 
     /**
      * @SerializedName("packages")
@@ -516,13 +611,13 @@ class Store extends LocalBusiness implements TaggableInterface, OrganizationAwar
     public function getPackages()
     {
         if (null !== $this->packageSet) {
-            return $this->packageSet->getPackages()->toArray();
+            return array_values($this->packageSet->getPackages()->toArray());
         }
 
         return [];
     }
 
-    public function isTransporterEnabled(): bool
+   public function isTransporterEnabled(): bool
     {
         return !is_null($this->transporter);
     }
@@ -538,6 +633,16 @@ class Store extends LocalBusiness implements TaggableInterface, OrganizationAwar
         return $this;
     }
 
+    public function getDefaultCourier(): ?User
+    {
+        return $this->defaultCourier;
+    }
+
+    public function setDefaultCourier(?User $defaultCourier): Store
+    {
+        $this->defaultCourier = $defaultCourier;
+        return $this;
+    }
 
     /**
      * Get the recurrence rules linked to this store
@@ -546,5 +651,15 @@ class Store extends LocalBusiness implements TaggableInterface, OrganizationAwar
     public function getRrules()
     {
         return $this->rrules;
+    }
+
+    public function setBillingMethod(string $billingMethod): void
+    {
+        $this->billingMethod = $billingMethod;
+    }
+
+    public function getBillingMethod(): string
+    {
+        return $this->billingMethod;
     }
 }

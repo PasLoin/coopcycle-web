@@ -9,8 +9,7 @@ import classNames from 'classnames'
 
 import { setCurrentTask, assignAfter, selectTask, selectTasksByIds, toggleTask } from '../redux/actions'
 import { CourierMapLayer, TaskMapLayer, PolylineMapLayer, ClustersMapToggle } from './MapLayers'
-import { selectVisibleTaskIds } from '../redux/selectors'
-import { selectAllTasks } from '../../coopcycle-frontend-js/logistics/redux'
+
 
 const sortByBefore = task => moment(task.before)
 
@@ -118,7 +117,8 @@ class GroupPopupContent extends React.Component {
         { _.map(tasksByAddress, (tasks, key) =>
           <div key={ key } className="mb-3">
             <GroupHeading tasks={ tasks } />
-            <GroupTable tasks={ tasks }
+            <GroupTable
+              tasks={ tasks }
               onEditClick={ this.props.onEditClick }
               onMouseEnter={ this.props.onMouseEnter }
               onMouseLeave={ this.props.onMouseLeave } />
@@ -144,6 +144,7 @@ const MapProvider = (props) => {
     const LMap = MapHelper.init('map', {
       onLoad: props.onLoad,
       polygonManagement: true,
+      singleton: true,
     })
 
     const proxy = new MapProxy(LMap, {
@@ -242,8 +243,6 @@ class LeafletMap extends Component {
 
     return (
       <MapProvider
-        tasks={ this.props.tasks }
-        visibleTaskIds={ this.props.visibleTaskIds }
         onLoad={ this.props.onLoad }
         setCurrentTask={ this.props.setCurrentTask }
         assignAfter={ this.props.assignAfter }
@@ -263,8 +262,6 @@ class LeafletMap extends Component {
 function mapStateToProps(state) {
 
   return {
-    tasks: selectAllTasks(state),
-    visibleTaskIds: selectVisibleTaskIds(state),
     useAvatarColors: state.settings.useAvatarColors,
   }
 }

@@ -5,7 +5,13 @@
       <generator strategy="IDENTITY"/>
     </id>
     <field name="name" type="string" column="name"/>
-    <field name="volumeUnits" type="integer" column="volume_units"/>
+    <field name="description" type="string" column="description"/>
+    <field name="color" length="7" type="string" column="color"/>
+    <field name="averageVolumeUnits" type="integer" column="average_volume_units"/>
+    <field name="maxVolumeUnits" type="integer" column="max_volume_units"/>
+    <field name="averageWeight" type="integer" column="average_weight" nullable="true" />
+    <field name="maxWeight" type="integer" column="max_weight" nullable="true" />
+    <field name="shortCode" type="string" column="short_code" length="2"/>
     <field name="createdAt" type="datetime" column="created_at">
       <gedmo:timestampable on="create"/>
     </field>
@@ -14,11 +20,13 @@
     </field>
     <many-to-one field="packageSet" target-entity="AppBundle\Entity\PackageSet" inversed-by="packages">
       <join-columns>
-        <join-column name="package_set_id" referenced-column-name="id" on-delete="SET NULL"/>
+        <join-column name="package_set_id" referenced-column-name="id" on-delete="SET NULL" />
       </join-columns>
     </many-to-one>
     <field name="slug" type="string" column="slug" unique="true" nullable="true">
       <gedmo:slug fields="name" />
     </field>
+    <field name="deletedAt" type="datetime" column="deleted_at" nullable="true"/>
+    <gedmo:soft-deleteable field-name="deletedAt" time-aware="false" hard-delete="false" />
   </entity>
 </doctrine-mapping>

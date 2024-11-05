@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { connect } from "react-redux";
+import { useSelector } from "react-redux";
 import { selectSelectedTasks } from "../redux/selectors";
 import { Select, Skeleton, Form, Input, Button, notification } from "antd";
 import { useTranslation } from "react-i18next";
@@ -53,10 +53,12 @@ function FailureReasonSelector({ task, onChange, value }) {
   );
 }
 
-function TaskReportIncidentModalContent({ task }) {
+function TaskReportIncidentModalContent() {
   const [loading, setLoading] = useState(false);
   const [incident, setIncident] = useState(null);
   const { t } = useTranslation();
+
+  const task = useSelector(selectSelectedTasks)[0]
 
   return (
     <Form
@@ -81,10 +83,7 @@ function TaskReportIncidentModalContent({ task }) {
       <Form.Item label="Description" name="description">
         <Input.TextArea placeholder="Description" autoSize={{ minRows: 2 }} />
       </Form.Item>
-      <Form.Item>
-        <Button type="primary" loading={loading} htmlType="submit">
-          {t("REPORT")}
-        </Button>
+      <Form.Item className="pull-right">
         {incident && (
           <a
             className="ml-3"
@@ -101,22 +100,13 @@ function TaskReportIncidentModalContent({ task }) {
             />
           </a>
         )}
+        <Button type="primary" loading={loading} htmlType="submit">
+          {t("REPORT")}
+        </Button>
       </Form.Item>
     </Form>
   );
 }
 
-function mapStateToProps(state) {
-  return {
-    task: selectSelectedTasks(state).shift(),
-  };
-}
 
-function mapDispatchToProps() {
-  return {};
-}
-
-export default connect(
-  mapStateToProps,
-  mapDispatchToProps,
-)(TaskReportIncidentModalContent);
+export default TaskReportIncidentModalContent

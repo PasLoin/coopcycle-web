@@ -19,10 +19,6 @@ describe('Address Autosuggest', () => {
         }
       })
 
-    cy.window().then((win) => {
-      win.sessionStorage.clear()
-    })
-
   })
 
   it('search address (gb)', function () {
@@ -39,6 +35,7 @@ describe('Address Autosuggest', () => {
       .find('ul[role="listbox"] li', { timeout: 5000 })
       .invoke('text')
       .should((suggestions) => {
+        // eslint-disable-next-line jest/valid-expect
         expect(suggestions).to.include('YO24 1AA')
       })
 
@@ -49,6 +46,7 @@ describe('Address Autosuggest', () => {
       .find('ul[role="listbox"] li', { timeout: 5000 })
       .invoke('text')
       .should((suggestions) => {
+        // eslint-disable-next-line jest/valid-expect
         expect(suggestions).to.include('YO24 4ND')
       })
 
@@ -67,6 +65,7 @@ describe('Address Autosuggest', () => {
 
     console.log(Cypress.env())
 
+    // eslint-disable-next-line jest/valid-expect-in-promise
     cy.mount(<AddressAutosuggest
       country="fr"
       language="fr"
@@ -87,6 +86,7 @@ describe('Address Autosuggest', () => {
           .invoke('text')
           .should((suggestions) => {
             expectation.expect.forEach((item) => {
+              // eslint-disable-next-line jest/valid-expect
               expect(suggestions).to.include(item)
             })
           })

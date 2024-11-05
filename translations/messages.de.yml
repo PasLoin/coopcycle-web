@@ -304,7 +304,7 @@ profile.managedStores: Vom Benutzer verwaltete Shops
 profile.managedRestaurants: Vom Benutzer verwaltete Restaurants
 profile.accountType: Kontotyp
 order.cart.title: Warenkorb
-order.summary.heading: Auftrag %number% (#%id%)
+order.summary.heading: Auftrag %number%
 order.items_total: Alle Artikel insgesamt
 order.total_tax: Steuern
 order.preparation_expected_at: Erwartete Bereitstellung bis zum %date%
@@ -367,6 +367,9 @@ form.store_type.setAsDefault.label: Als Hauptadresse festlegen
 form.store_type.defaultAddress.label: Hauptadresse
 form.store_type.time_slot.label: Zeitraum
 form.store_type.package_set.label: Paketset
+form.store_type.defaultCourier.label: Standardkurier
+form.store_type.defaultCourier.placeholder: Keiner
+form.store_type.defaultCourier.help: Bestellungen für diesen Laden werden automatisch diesem Kurier zugewiesen
 form.delivery.vehicle.placeholder: Wähle Fahrzeugtyp aus
 form.delivery.vehicle.label: Fahrzeug order Cargobike?
 form.delivery.distance.label: Entfernung
@@ -385,6 +388,10 @@ adminDashboard.pledges.title: Anregungen
 adminDashboard.time_slots.title: Zeitfenster
 delivery.tracking_link: Sendungsverfolgung
 delivery.with_id: 'Versand #%id%'
+subscriptions.title: Abonnements
+subscription.title: 'Abonnement #%id%'
+subscription.generated_order: Diese Bestellung wurde durch ein Abonnement generiert
+subscription.view: Abonnement anzeigen
 profile.username: Benutzername
 form.order.refund_modal.title: Rückzahlung
 form.payment.refund_amount.help: Der von Dir angegebene Betrag wird dem Kunden zurückerstattet
@@ -401,7 +408,7 @@ form.settings.latlng.help: "Bestimme die standardmäßigen Längen- und Breiteng
   \ Du erhältst sie auf <a href=\"https://www.latlong.net/\">latlong.net</a>\n"
 form.settings.latlng.label: Geo-Koordinaten
 form.settings.stripe_connect_client_id.help: "Den Identifier erhältst Du auf der <a\
-  \ href=\"https://dashboard.stripe.com/account/applications/settings\">Einstellungen-Seite</a>\
+  \ href=\"https://dashboard.stripe.com/settings/connect/onboarding-options/oauth\">Einstellungen-Seite</a>\
   \ von Stripe Connect\n"
 form.settings.stripe_connect_client_id.label: Stripe Connect Identifier
 form.settings.stripe_secret_key.help: "Erstelle ein Stripe-Konto um die <a href=\"\
@@ -456,7 +463,8 @@ index.view_all_restaurants: Alle Restaurants
 index.our_restaurants: Unsere Restaurants
 index.banner: Dein Lieblingsessen zu dir nach Hause
 stores.addresses: Adressen
-stores.deliveries.heading: 'Lieferung #%delivery_id% - %delivery_distance%'
+stores.deliveries.heading: 'Lieferung %delivery_id% - %delivery_distance%'
+stores.deliveries.heading2: 'Lieferung %delivery_id%'
 stores.deliveries: Lieferungen
 stores.api_keys: API Schlüssel
 stores.pricing_rule_set: Preisermittlung
@@ -475,6 +483,15 @@ form.reusable_packaging.is_tracked.label: Tracking aktiviert
 form.reusable_packaging.name.label: Name
 form.package.volume_units.label: Volumeneinheiten
 form.package.name.label: Name
+form.package.description.label: Beschreibung für den Kunden
+form.package.average_volume_units.label: Durchschnittliche Volumeneinheiten (VU)
+form.package.max_volume_units.label: Maximale Volumeneinheiten (VU)
+form.package.average_estimation: Geschätzt auf 75 % des Maximums, wenn nicht festgelegt
+form.package.max_volume_units: Dieser Wert wird verwendet, um die Preise basierend auf dem Volumen zu berechnen
+form.package.average_weight.label: Durchschnittsgewicht (kg)
+form.package.max_weight.label: Maximalgewicht (kg)
+form.package.shortCode.label: 2-Buchstaben-Code
+form.package.enter_details:  Details ein-/ausblenden
 form.package_set.packages.label: Verpackungen
 form.package_set.name.label: Name
 form.time_slot_choice.end_time.label: Endzeit
@@ -486,12 +503,14 @@ form.task.telephone.label: Telefon
 form.task.address.label: Adresse
 localBusiness.form.enabled: Aktiviert
 notifications.restaurant.new_order: Neue Bestellung zu bestätigen
-receipt.billing_details: Bestellung am %date% mit Kredikarte bezahlt
+receipt.billing_details: Bestellung am %date% mit %payment_method% bezahlt
 receipt.line_item.quantity: Stückzahl
 adminDashboard.activity.title: Aktivitäten
 index.map.tip: Benutze die Karte unten, um die Restaurants zu finden
 stores.deliveries.task_unassigned: Nicht zugeteilt
 stores.manage: Verwalten
+stores.deliveries.bookmarks: Gespeicherte Bestellungen
+stores.deliveries.bookmarks.empty_message: Markieren Sie Bestellungen auf der Lieferseite, um sie später leichter zu finden
 roles.ROLE_STORE.help: 'Laden-Besitzer*in: zugeordnete Läden verwalten, Sendungen
   verwalten, ...'
 roles.ROLE_RESTAURANT.help: 'Restaurant-Besitzer*in: zugeordnete Restaurants verwalten,
@@ -591,6 +610,7 @@ restaurant.contract.calculation_info: Sie können dem Restaurant einen anderen B
 form.task.dropoff.doorstep.label: Türschwelle-Zustellung
 form.delivery.pickup.address_placeholder: Straßenname und Hausnummer, Postleitzahl,
   Stadt
+form.delivery.bookmark.label: Zu gespeicherten Bestellungen hinzufügen
 form.suggest.message: "Ist ihr Lieblingsrestaurant nicht dabei?\n<br>\nTeilen Sie\
   \ uns den Namen des Restaurants und seine Adresse mit, sodass andere Benutzer*innen\
   \ es in der Liste der Wünschrestaurants es wählen können. \n<br>\nDas wird uns ermöglichen,\
@@ -627,7 +647,6 @@ form.product.reusable_packaging_enabled.label: Aktivieren Sie wiederverwendbare 
   für dieses Produkt
 form.product_option.values.help: Sie müssen eine Liste an Werte für diese Option festlegen
 restaurant.form.loopeat_disconnect.label: LoopEat trennen
-restaurant.form.giropay_enabled.label: Aktiviere Giropay
 restaurant.form.featured.label: Dieses Restaurant soll auf dem Homepage gezeigt werden
 restaurant.quotes_disclaimer.not_authenticated: Dieses Restaurant bietet auch Caterings.
   Melde dich ein <a href="%login%">Einmelden</a> um ein Kostenvoranschlag anzufragen.
@@ -671,6 +690,7 @@ orders.payment_link.sent: Email erfolgreich gesendet
 orders.payment_link.send_by_email: Link für die Zahlung per Email senden
 basics.copy: Kopie
 orders.new: Neue Bestellung
+orders.duplicate: Einen Auftrag duplizieren
 restaurant.form.cuisines.label: Küchenrichtung
 restaurant.form.fulfillment_methods.label: Möglichkeiten zur Auftragsausführung
 restaurant.form.loopeat_enabled.label: LoopEat System einschalten
@@ -678,25 +698,26 @@ checkout.breadcrumb.confirm: Bestätigung
 products.on_demand_delivery.name: Lieferung auf Anfrage
 security.login.remember_me: An mich erinnern
 delivery.failure_reason:
-  damaged: "Beschädigt"
-  lost: "Verloren"
-  late: "Verspätete Lieferung"
-  incorrect_address: "Falsche Adresse"
-  customer_refused: "Kunde hat die Lieferung verweigert"
-  item_missing: "Fehlendes Element"
-  incorrect_item: "Falsches Element geliefert"
-  bad_weather: "Schlechtes Wetter"
-  vehicle_breakdown: "Fahrzeugausfall"
-  traffic_delays: "Verkehrsverzögerungen"
-  routing_problems: "Routing-Probleme"
-  customs_issues: "Zollprobleme"
-  inventory_shortage: "Inventurmangel"
-  address_unreachable: "Nicht erreichbare Adresse"
-  insufficient_funds: "Unzureichende Mittel"
-  data_entry_error: "Datenfehler"
-  packaging_problems: "Probleme der Verpackung"
-  holiday_closure: "Ferienverlängerung"
-  closed_store: "Geschäft geschlossen"
+  default:
+    damaged: "Beschädigt"
+    lost: "Verloren"
+    late: "Verspätete Lieferung"
+    incorrect_address: "Falsche Adresse"
+    customer_refused: "Kunde hat die Lieferung verweigert"
+    item_missing: "Fehlendes Element"
+    incorrect_item: "Falsches Element geliefert"
+    bad_weather: "Schlechtes Wetter"
+    vehicle_breakdown: "Fahrzeugausfall"
+    traffic_delays: "Verkehrsverzögerungen"
+    routing_problems: "Routing-Probleme"
+    customs_issues: "Zollprobleme"
+    inventory_shortage: "Inventurmangel"
+    address_unreachable: "Nicht erreichbare Adresse"
+    insufficient_funds: "Unzureichende Mittel"
+    data_entry_error: "Datenfehler"
+    packaging_problems: "Probleme der Verpackung"
+    holiday_closure: "Ferienverlängerung"
+    closed_store: "Geschäft geschlossen"
 adminDashboard.failureSet.title: "Fehlergründe"
 adminDashboard.failureSet.help: "Legen Sie die Gründe fest, warum Ihre Lieferungen fehlschlagen können."
 adminDashboard.failureSet.nofailureSet: "Keine Fehlergründe"
@@ -717,3 +738,6 @@ delivery.state:
   delivered: 'Zugestellt'
   failed: 'Fehlgeschlagen'
   cancelled: 'Abgebrochen'
+basics.address: Adresse
+warehouses.breadcrumb: Lagerhäuser
+warehouses.breadcrumb.help: Lagerhäuser definieren

@@ -35,6 +35,10 @@
   padding: 0;
 }
 
+.pointer-events-none {
+  pointer-events: none;
+}
+
 @keyframes rotating {
   from {
     transform: rotate(0deg);
@@ -53,6 +57,11 @@
   display: inline-block;
   box-sizing: border-box;
   animation: rotating 1.5s linear infinite;
+
+  &.loader--lg {
+    width: 40px;
+    height: 40px;
+  }
 
   &.loader--dark {
     border-color: $dark;

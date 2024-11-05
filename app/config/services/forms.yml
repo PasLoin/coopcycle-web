@@ -45,6 +45,7 @@ services:
       $authorizationChecker: '@security.authorization_checker'
       $country: '%country_iso%'
       $locale: '%env(COOPCYCLE_LOCALE)%'
+      $orderManager: '@AppBundle\Service\OrderManager'
     tags: [ form.type ]
 
   AppBundle\Form\DeliveryEmbedType:
@@ -53,10 +54,22 @@ services:
     autoconfigure: false
     tags: [ form.type ]
 
-  AppBundle\Form\NewOrderType:
+  AppBundle\Form\NewCustomOrderType:
     parent: AppBundle\Form\DeliveryType
     autowire: false
     autoconfigure: false
+    tags: [ form.type ]
+
+  AppBundle\Form\Order\NewOrderType:
+    parent: AppBundle\Form\DeliveryType
+    tags: [ form.type ]
+
+  AppBundle\Form\Order\OneOffOrderType:
+    parent: AppBundle\Form\DeliveryType
+    tags: [ form.type ]
+
+  AppBundle\Form\Order\SubscriptionType:
+    parent: AppBundle\Form\DeliveryType
     tags: [ form.type ]
 
   AppBundle\Form\OrderType:
@@ -98,12 +111,14 @@ services:
       $country: '%country_iso%'
       $debug: '%kernel.debug%'
       $cashOnDeliveryOptinEnabled: '%env(bool:CASH_ON_DELIVERY_OPTIN_ENABLED)%'
+      $billingEnabled: '%billing_enabled%'
     tags: [ form.type ]
 
   AppBundle\Form\StoreType:
     arguments:
       $country: '%country_iso%'
       $transportersConfig: '%transporters_config%'
+      $billingEnabled: '%billing_enabled%'
     tags: [ form.type ]
 
   AppBundle\Form\MenuEditor\TaxonProductType:
@@ -261,7 +276,8 @@ services:
       $exporters:
         default: '@AppBundle\Spreadsheet\DeliveryDataExporter'
         dv4cul: '@AppBundle\Spreadsheet\DV4CULDataExporter'
-        colisactiv: '@AppBundle\Spreadsheet\ColisActivDataExporter'
+        colisactiv: '@colisactiv'
+        colisactiv_all: '@colisactiv_all'
     tags: [ form.type ]
 
   AppBundle\Form\Order\AdhocOrderType:

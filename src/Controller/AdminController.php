@@ -19,6 +19,7 @@ use AppBundle\Controller\Utils\UserTrait;
 use AppBundle\CubeJs\TokenFactory as CubeJsTokenFactory;
 use AppBundle\Entity\ApiApp;
 use AppBundle\Entity\Nonprofit;
+use AppBundle\Entity\Sylius\ArbitraryPrice;
 use AppBundle\Entity\User;
 use AppBundle\Entity\Delivery;
 use AppBundle\Entity\DeliveryForm;
@@ -43,6 +44,7 @@ use AppBundle\Entity\Tag;
 use AppBundle\Entity\Task;
 use AppBundle\Entity\TimeSlot;
 use AppBundle\Entity\Vehicle;
+use AppBundle\Entity\Warehouse;
 use AppBundle\Entity\Woopit\WoopitIntegration;
 use AppBundle\Entity\Zone;
 use AppBundle\Form\AttachToOrganizationType;
@@ -60,7 +62,7 @@ use AppBundle\Form\WoopitIntegrationType;
 use AppBundle\Form\InviteUserType;
 use AppBundle\Form\MaintenanceType;
 use AppBundle\Form\MercadopagoLivemodeType;
-use AppBundle\Form\NewOrderType;
+use AppBundle\Form\NewCustomOrderType;
 use AppBundle\Form\NonprofitType;
 use AppBundle\Form\OrderType;
 use AppBundle\Form\OrganizationType;
@@ -75,7 +77,6 @@ use AppBundle\Form\Sylius\Promotion\CreditNoteType;
 use AppBundle\Form\TimeSlotType;
 use AppBundle\Form\UpdateProfileType;
 use AppBundle\Form\UsersExportType;
-use AppBundle\Form\VehicleType;
 use AppBundle\Form\ZoneCollectionType;
 use AppBundle\Serializer\ApplicationsNormalizer;
 use AppBundle\Service\ActivityManager;
@@ -90,6 +91,7 @@ use AppBundle\Service\TimeSlotManager;
 use AppBundle\Sylius\Order\OrderInterface;
 use AppBundle\Sylius\Order\OrderFactory;
 use Carbon\Carbon;
+use Cocur\Slugify\SlugifyInterface;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\DBAL\Exception\ForeignKeyConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
@@ -102,6 +104,7 @@ use Nucleos\UserBundle\Util\TokenGenerator as TokenGeneratorInterface;
 use Nucleos\UserBundle\Util\Canonicalizer as CanonicalizerInterface;
 use Nucleos\ProfileBundle\Mailer\Mail\RegistrationMail;
 use Knp\Component\Pager\PaginatorInterface;
+use Psr\Log\LoggerInterface;
 use Ramsey\Uuid\Uuid;
 use Redis;
 use Sylius\Bundle\OrderBundle\NumberAssigner\OrderNumberAssignerInterface;
@@ -326,37 +329,33 @@ class AdminController extends AbstractController
 
         $form->handleRequest($request);
 
-        foreach ($form->get('payments') as $paymentForm) {
-            if ($paymentForm->isSubmitted() && $paymentForm->isValid()) {
-                // https://github.com/symfony/symfony/issues/35277
-                /** @var \Symfony\Component\Form\Form $paymentForm */
-                $hasClickedRefund =
-                    $paymentForm->getClickedButton() && 'refund' === $paymentForm->getClickedButton()->getName();
-
-                $hasExpectedFields = $paymentForm->has('amount');
-
-                if ($hasClickedRefund && $hasExpectedFields) {
-                    $payment = $paymentForm->getData();
-                    $amount = $paymentForm->get('amount')->getData();
-                    $liableParty = $paymentForm->get('liable')->getData();
-                    $comments = $paymentForm->get('comments')->getData();
-
-                    $orderManager->refundPayment($payment, $amount, $liableParty, $comments);
-
-                    $this->entityManager->flush();
-
-                    $this->addFlash(
-                        'notice',
-                        $this->translator->trans('orders.payment_refunded')
-                    );
-
-                    return $this->redirectToRoute('admin_order', ['id' => $id]);
-                }
-            }
-        }
-
         if ($form->isSubmitted() && $form->isValid()) {
             if ($form->getClickedButton()) {
+
+                if ('refund' === $form->getClickedButton()->getName()) {
+                    foreach ($form->get('payments') as $paymentForm) {
+                        /** @var \Symfony\Component\Form\ClickableInterface $refundButton */
+                        $refundButton = $paymentForm->get('refund');
+                        if ($refundButton->isClicked()) {
+                            $payment = $paymentForm->getData();
+                            $amount = $paymentForm->get('amount')->getData();
+                            $liableParty = $paymentForm->get('liable')->getData();
+                            $comments = $paymentForm->get('comments')->getData();
+
+                            $orderManager->refundPayment($payment, $amount, $liableParty, $comments);
+
+                            $this->entityManager->flush();
+
+                            $this->addFlash(
+                                'notice',
+                                $this->translator->trans('orders.payment_refunded')
+                            );
+
+                            return $this->redirectToRoute('admin_order', ['id' => $id]);
+                        }
+                    }
+                }
+
                 if ('accept' === $form->getClickedButton()->getName()) {
                     $orderManager->accept($order);
                 }
@@ -421,7 +420,7 @@ class AdminController extends AbstractController
             'groups' => ['order_minimal']
         ]);
 
-        $preparationDelay = $redis->get('foodtech:preparation_delay');
+        $preparationDelay = $redis->get('foodtech:dispatch_delay_for_pickup');
         if (!$preparationDelay) {
             $preparationDelay = 0;
         }
@@ -436,14 +435,16 @@ class AdminController extends AbstractController
         ]);
     }
 
-    public function foodtechSettingsAction(Request $request, Redis $redis)
+    public function foodtechSettingsAction(Request $request, Redis $redis, LoggerInterface $logger)
     {
-        $preparationDelay = $request->request->get('preparation_delay');
+        $preparationDelay = $request->request->get('preparation_delay', 0);
         if (0 === $preparationDelay) {
-            $redis->del('foodtech:preparation_delay');
+            $redis->del('foodtech:dispatch_delay_for_pickup');
         } else {
-            $redis->set('foodtech:preparation_delay', $preparationDelay);
+            $redis->set('foodtech:dispatch_delay_for_pickup', $preparationDelay);
         }
+
+        $logger->info(sprintf('Set foodtech delay to %s', strval($preparationDelay)));
 
         return new JsonResponse([
             'preparation_delay' => $preparationDelay,
@@ -776,7 +777,8 @@ class AdminController extends AbstractController
         Hashids $hashids8,
         Filesystem $deliveryImportsFilesystem,
         MessageBusInterface $messageBus,
-        CentrifugoClient $centrifugoClient
+        CentrifugoClient $centrifugoClient,
+        SlugifyInterface $slugify
     )
     {
         $deliveryImportForm = $this->createForm(DeliveryImportType::class, null, [
@@ -795,7 +797,8 @@ class AdminController extends AbstractController
                 entityManager: $this->entityManager,
                 filesystem: $deliveryImportsFilesystem,
                 hashids: $hashids8,
-                routeTo: 'admin_deliveries'
+                routeTo: 'admin_deliveries',
+                slugify: $slugify
             );
         }
 
@@ -1468,7 +1471,7 @@ class AdminController extends AbstractController
     /**
      * @Route("/admin/settings", name="admin_settings")
      */
-    public function settingsAction(Request $request, SettingsManager $settingsManager, Redis $redis)
+    public function settingsAction(Request $request, SettingsManager $settingsManager, Redis $redis, LoggerInterface $domainEventLogger)
     {
         /* Stripe live mode */
         $this->denyAccessUnlessGranted('ROLE_ADMIN');
@@ -1488,6 +1491,8 @@ class AdminController extends AbstractController
                 }
                 if ('disable_and_enable_maintenance' === $stripeLivemodeForm->getClickedButton()->getName()) {
                     $redis->set('maintenance', '1');
+                    $domainEventLogger->info('Maintenance mode enabled (stripe)');
+
                     $settingsManager->set('stripe_livemode', 'no');
                 }
                 $settingsManager->flush();
@@ -1513,6 +1518,8 @@ class AdminController extends AbstractController
                 }
                 if ('disable_and_enable_maintenance' === $mercadopagoLivemodeForm->getClickedButton()->getName()) {
                     $redis->set('maintenance', '1');
+                    $domainEventLogger->info('Maintenance mode enabled (mercadopago)');
+
                     $settingsManager->set('mercadopago_livemode', 'no');
                 }
                 $settingsManager->flush();
@@ -1533,10 +1540,12 @@ class AdminController extends AbstractController
 
                     $redis->set('maintenance_message', $maintenanceMessage);
                     $redis->set('maintenance', '1');
+                    $domainEventLogger->info('Maintenance mode enabled');
                 }
                 if ('disable' === $maintenanceForm->getClickedButton()->getName()) {
                     $redis->del('maintenance_message');
                     $redis->del('maintenance');
+                    $domainEventLogger->info('Maintenance mode disabled');
                 }
             }
 
@@ -2364,8 +2373,24 @@ class AdminController extends AbstractController
 
         $form = $this->createForm(PackageSetType::class, $packageSet);
 
+        $originalPackages = new ArrayCollection();
+
+        foreach ($packageSet->getPackages() as $package) {
+            $originalPackages->add($package);
+        }
+
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
+
+            $packageSet = $form->getData();
+
+            foreach ($originalPackages as $originalPackage) {
+                if (!$packageSet->getPackages()->contains($originalPackage)) {
+                    $objectManager->remove($originalPackage);
+                    // $originalPackage->setPackageSet(null);
+                }
+            }
+
             $objectManager->persist($packageSet);
             $objectManager->flush();
 
@@ -2396,6 +2421,7 @@ class AdminController extends AbstractController
 
         $packageSet = $this->getDoctrine()->getRepository(PackageSet::class)->find($id);
 
+
         if (!$packageSet) {
             throw $this->createNotFoundException(sprintf('Package set #%d does not exist', $id));
         }
@@ -2411,7 +2437,7 @@ class AdminController extends AbstractController
     )
     {
         $delivery = new Delivery();
-        $form = $this->createForm(NewOrderType::class, $delivery);
+        $form = $this->createForm(NewCustomOrderType::class, $delivery);
 
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
@@ -2420,12 +2446,7 @@ class AdminController extends AbstractController
             $variantName = $form->get('variantName')->getData();
             $variantPrice = $form->get('variantPrice')->getData();
 
-            $order = $this->createOrderForDelivery($orderFactory, $delivery, $variantPrice);
-
-            $variant = $order->getItems()->get(0)->getVariant();
-
-            $variant->setName($variantName);
-            $variant->setCode(Uuid::uuid4()->toString());
+            $order = $this->createOrderForDelivery($orderFactory, $delivery, new ArbitraryPrice($variantName, $variantPrice));
 
             $order->setState(OrderInterface::STATE_ACCEPTED);
 
@@ -2941,46 +2962,23 @@ class AdminController extends AbstractController
     }
 
     /**
-     * @Route("/admin/vehicles/new", name="admin_new_vehicle")
-     */
-    public function newVehicleAction(Request $request)
-    {
-        $this->denyAccessUnlessGranted('ROLE_ADMIN');
-
-        $vehicle = new Vehicle();
-
-        $form = $this->createForm(VehicleType::class, $vehicle);
-
-        if ($request->isMethod('POST') && $form->handleRequest($request)->isValid()) {
-
-            $this->getDoctrine()->getManager()->persist($vehicle);
-            $this->getDoctrine()->getManager()->flush();
-
-            $this->addFlash(
-                'notice',
-                $this->translator->trans('global.changesSaved')
-            );
-
-            return $this->redirectToRoute('admin_vehicles');
-        }
-
-        return $this->render('admin/vehicle.html.twig', [
-            'form' => $form->createView(),
-        ]);
-    }
-
-    /**
      * @Route("/admin/vehicles", name="admin_vehicles")
      */
     public function vehiclesAction()
     {
         $this->denyAccessUnlessGranted('ROLE_ADMIN');
 
-        $vehicles = $this->getDoctrine()->getRepository(Vehicle::class)->findAll();
+        return $this->render('admin/vehicles.html.twig', $this->auth([]));
+    }
 
-        return $this->render('admin/vehicles.html.twig', [
-            'vehicles' => $vehicles,
-        ]);
+    /**
+     * @Route("/admin/warehouses", name="admin_warehouses")
+     */
+    public function warehousesAction()
+    {
+        $this->denyAccessUnlessGranted('ROLE_ADMIN');
+
+        return $this->render('admin/warehouses.html.twig', $this->auth([]));
     }
 
     /**

@@ -13,7 +13,7 @@ import { selectSelectedDate, selectTasksWithColor } from '../../coopcycle-fronte
 
 import { addressAsText } from '../utils'
 import TaskEta from './TaskEta'
-import { getTaskVolumeUnits, selectTaskById } from '../../../shared/src/logistics/redux/selectors'
+import { getTaskPackages, getTaskVolumeUnits, selectTaskById } from '../../../shared/src/logistics/redux/selectors'
 import { formatVolumeUnits, formatWeight } from '../redux/utils'
 
 moment.locale($('html').attr('lang'))
@@ -21,7 +21,7 @@ moment.locale($('html').attr('lang'))
 const TaskComments = ({ task }) => {
   switch(task.type) {
     case 'PICKUP':
-      if (task.metadata.order_notes && task.metadata.order_notes.length){
+      if (task.metadata?.order_notes && task.metadata.order_notes.length){
         return <i className="fa fa-comments ml-2"></i>;
       }
       return null;
@@ -42,16 +42,26 @@ const TaskCaption = ({ task }) => {
   return (
     <span>
       <span className="mr-1">
-        <span className="text-monospace">
-          { task?.metadata.order_number ?
-            task.metadata.order_number
+        <span className="text-monospace font-weight-bold">
+          { task.metadata?.order_number ?
+            <>
+              {
+                task.metadata?.delivery_position ?
+                <>{task.metadata.order_number}-{task.metadata.delivery_position}</>
+                : task.metadata.order_number
+              }
+            </>
             : `#${ task.id }`
           }
+        </span>
+        {/* keep the task ID displayed for the web dispatcher while migrating the client code as the rider sees the task ID in the app */}
+        <span className='text-muted ml-1'>
+          {`#${ task.id }`}
         </span>
       </span>
       { (task.orgName && !_.isEmpty(task.orgName)) && (
         <span>
-          <span className="font-weight-bold">{ task.orgName }</span>
+          <span>{ task.orgName }</span>
           <span className="mx-1">›</span>
         </span>
       ) }
@@ -173,6 +183,7 @@ class Task extends React.Component {
   // @see https://css-tricks.com/snippets/javascript/bind-different-events-to-click-and-double-click/
 
   onClick(e) {
+    e.stopPropagation()
     const multiple = (e.ctrlKey || e.metaKey)
     this.timer = setTimeout(() => {
       if (!this.prevent) {
@@ -183,7 +194,8 @@ class Task extends React.Component {
     }, 250)
   }
 
-  onDoubleClick() {
+  onDoubleClick(e) {
+    e.stopPropagation()
     clearTimeout(this.timer)
     this.prevent = true
 
@@ -259,10 +271,12 @@ class Task extends React.Component {
           <TaskComments task={ task } />
           { showWeightAndVolumeUnit ?
             (
-              <div>
-                <span>{ formatWeight(task.weight) }</span>
+              <div className="text-muted">
+                <span>{ formatWeight(task.weight) } kg</span>
                 <span className="mx-2">|</span>
-                <span>{ formatVolumeUnits(getTaskVolumeUnits(task)) }</span>
+                <span>{ formatVolumeUnits(getTaskVolumeUnits(task)) } VU</span>
+                <span className="mx-2">|</span>
+                <span>{ getTaskPackages(task) }</span>
               </div>
             )
             : null

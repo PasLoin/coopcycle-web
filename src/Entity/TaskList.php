@@ -7,6 +7,7 @@ use AppBundle\Action\TaskList\Create as CreateTaskListController;
 use AppBundle\Action\TaskList\Optimize as OptimizeController;
 use AppBundle\Action\TaskList\SetItems as SetTaskListItemsController;
 use AppBundle\Entity\Task\CollectionInterface as TaskCollectionInterface;
+use AppBundle\Api\Dto\MyTaskListDto;
 use ApiPlatform\Core\Annotation\ApiFilter;
 use ApiPlatform\Core\Annotation\ApiResource;
 use AppBundle\Api\Filter\DateFilter;
@@ -51,6 +52,10 @@ use Symfony\Component\Validator\Constraints as Assert;
  *       "method"="GET",
  *       "access_control"="is_granted('ROLE_DISPATCHER')"
  *     },
+ *     "patch"={
+ *       "method"="PATCH",
+ *       "access_control"="is_granted('ROLE_DISPATCHER')",
+ *      },
  *     "set_items"={
  *       "method"="PUT",
  *       "access_control"="is_granted('ROLE_DISPATCHER')",
@@ -63,6 +68,7 @@ use Symfony\Component\Validator\Constraints as Assert;
  *       "method"="GET",
  *       "path"="/me/tasks/{date}",
  *       "controller"=MyTasksController::class,
+ *       "output"=MyTaskListDto::class,
  *       "access_control"="is_granted('ROLE_ADMIN') or is_granted('ROLE_COURIER')",
  *       "read"=false,
  *       "write"=false,
@@ -82,7 +88,8 @@ use Symfony\Component\Validator\Constraints as Assert;
  *        "method"="GET",
  *        "path"="/task_lists/{id}/optimize",
  *        "controller"=OptimizeController::class,
- *        "access_control"="is_granted('ROLE_ADMIN')"
+ *        "access_control"="is_granted('ROLE_ADMIN')",
+ *        "serialize"=false
  *     }
  *   },
  *   attributes={
@@ -95,6 +102,9 @@ class TaskList implements TaskCollectionInterface
 {
     use TaskCollectionTrait;
 
+    /**
+     * @Groups({"task_list"})
+     */
     private $id;
 
     /**
@@ -108,11 +118,23 @@ class TaskList implements TaskCollectionInterface
      * Can be get and set, but not persisted to the database
      * @deprecated
      */
-    protected $tempLegacyTaskStorage;
+    protected $tempLegacyTaskStorage = null;
 
     private $date;
 
     private $courier;
+
+    /**
+     * @var Vehicle
+     * @Groups({"task_list"})
+    */
+    private $vehicle;
+
+    /**
+     * @var Trailer
+     * @Groups({"task_list"})
+    */
+    private $trailer;
 
     public function __construct()
     {
@@ -266,6 +288,54 @@ class TaskList implements TaskCollectionInterface
     public function setTempLegacyTaskStorage($tempLegacyTaskStorage)
     {
         $this->tempLegacyTaskStorage = $tempLegacyTaskStorage;
+
+        return $this;
+    }
+
+    /**
+     * Get the value of vehicle
+     *
+     * @return  Vehicle
+     */
+    public function getVehicle()
+    {
+        return $this->vehicle;
+    }
+
+    /**
+     * Set the value of vehicle
+     *
+     * @param  Vehicle  $vehicle
+     *
+     * @return  self
+     */
+    public function setVehicle(?Vehicle $vehicle)
+    {
+        $this->vehicle = $vehicle;
+
+        return $this;
+    }
+
+    /**
+     * Get the value of trailer
+     *
+     * @return  Trailer
+     */
+    public function getTrailer()
+    {
+        return $this->trailer;
+    }
+
+    /**
+     * Set the value of trailer
+     *
+     * @param  Trailer  $trailer
+     *
+     * @return  self
+     */
+    public function setTrailer(?Trailer $trailer)
+    {
+        $this->trailer = $trailer;
 
         return $this;
     }

@@ -298,6 +298,10 @@ class LocalBusiness extends BaseLocalBusiness implements
 
     protected ?int $rateLimitAmount;
 
+    protected ?string $paygreenShopId = null;
+
+    protected string $billingMethod = 'unit';
+
     /**
      * @Groups({"restaurant"})
      */
@@ -871,7 +875,7 @@ class LocalBusiness extends BaseLocalBusiness implements
 
     public function supportsEdenred(): bool
     {
-        return null !== $this->getEdenredMerchantId();
+        return $this->edenredEnabled && null !== $this->getEdenredMerchantId();
     }
 
     public function getHub(): ?Hub
@@ -1188,4 +1192,28 @@ class LocalBusiness extends BaseLocalBusiness implements
         $this->autoAcceptOrdersEnabled = $enabled;
     }
 
+    public function setPaygreenShopId(string $shopId): void
+    {
+        $this->paygreenShopId = $shopId;
+    }
+
+    public function getPaygreenShopId(): ?string
+    {
+        return $this->paygreenShopId;
+    }
+
+    public function supportsPaygreen(): bool
+    {
+        return null !== $this->getPaygreenShopId();
+    }
+
+    public function setBillingMethod(string $billingMethod): void
+    {
+        $this->billingMethod = $billingMethod;
+    }
+
+    public function getBillingMethod(): string
+    {
+        return $this->billingMethod;
+    }
 }

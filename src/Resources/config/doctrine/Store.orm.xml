@@ -31,6 +31,11 @@
     <field name="packagesRequired" type="boolean" column="packages_required"/>
     <field name="multiDropEnabled" type="boolean" column="multi_drop_enabled"/>
     <field name="transporter" type="string" column="transporter" nullable="true" unique="true" />
+    <field name="billingMethod" type="string" column="billing_method" nullable="false">
+      <options>
+        <option name="default">unit</option>
+      </options>
+    </field>
     <one-to-many field="deliveries" target-entity="AppBundle\Entity\Delivery" mapped-by="store">
       <cascade>
         <cascade-persist/>
@@ -73,19 +78,14 @@
         <join-column name="time_slot_id" referenced-column-name="id"/>
       </join-columns>
     </many-to-one>
-    <many-to-many field="timeSlots" target-entity="AppBundle\Entity\TimeSlot">
+    <one-to-many field="timeSlots" target-entity="AppBundle\Entity\StoreTimeSlot" mapped-by="store" orphan-removal="true">
+      <order-by>
+        <order-by-field name="position" direction="ASC" />
+      </order-by>
       <cascade>
-        <cascade-persist/>
+        <cascade-all/>
       </cascade>
-      <join-table name="store_time_slot">
-        <join-columns>
-          <join-column name="store_id" referenced-column-name="id" on-delete="CASCADE"/>
-        </join-columns>
-        <inverse-join-columns>
-          <join-column name="time_slot_id" referenced-column-name="id"/>
-        </inverse-join-columns>
-      </join-table>
-    </many-to-many>
+    </one-to-many>
     <many-to-one field="packageSet" target-entity="AppBundle\Entity\PackageSet">
       <join-columns>
         <join-column name="package_set_id" referenced-column-name="id"/>
@@ -111,5 +111,7 @@
       </join-columns>
     </many-to-one>
     <one-to-many field="rrules" target-entity="AppBundle\Entity\Task\RecurrenceRule" mapped-by="store" />
+    <many-to-one field="defaultCourier" target-entity="AppBundle\Entity\User">
+    </many-to-one>
   </entity>
 </doctrine-mapping>

@@ -24,11 +24,20 @@
 // -- This is will overwrite an existing command --
 // Cypress.Commands.overwrite("visit", (originalFn, url, options) => { ... })
 
-Cypress.Commands.add('symfonyConsole', (command) => {
+Cypress.Commands.add('terminal', command => {
   const prefix = Cypress.env('COMMAND_PREFIX')
-  let cmd = `bin/console ${ command } --env="test"`
+  let cmd = `${command}`
   if (prefix) {
-    cmd = `${ prefix } ${ cmd }`
+    cmd = `${prefix} ${cmd}`
+  }
+  cy.exec(cmd)
+})
+
+Cypress.Commands.add('symfonyConsole', command => {
+  const prefix = Cypress.env('COMMAND_PREFIX')
+  let cmd = `bin/console ${command} --env="test"`
+  if (prefix) {
+    cmd = `${prefix} ${cmd}`
   }
   cy.exec(cmd)
 })
@@ -75,18 +84,21 @@ Cypress.Commands.add('login', (username, password) => {
   cy.get('[name="_submit"]').click()
 })
 
-Cypress.Commands.add('searchAddress', (selector, search, match) => {
+Cypress.Commands.add('searchAddressUsingAddressModal', (selector, search, match) => {
+  cy.searchAddress(selector, search, match, 1) // take the 2nd input on the restaurant page. to be changed when fix for https://github.com/coopcycle/coopcycle-web/issues/4149
+})
+
+Cypress.Commands.add('searchAddress', (selector, search, match, index = 0) => {
   cy.get(selector)
     .should('be.visible')
 
   cy.wait(500)
 
-  cy.get(`${ selector } input[type="search"]`)
+  cy.get(`${ selector } input[type="search"][data-is-address-picker="true"]`)
     .should('be.visible')
 
-  cy.get(`${ selector } input[type="search"]`)
-    .eq(
-      1)  // take the 2nd input on the restaurant page. to be changed when fix for https://github.com/coopcycle/coopcycle-web/issues/4149
+  cy.get(`${ selector } input[type="search"][data-is-address-picker="true"]`)
+    .eq(index)
     .type(search, { timeout: 5000, delay: 50 })
 
   cy.get(selector)
@@ -189,3 +201,15 @@ Cypress.Commands.add('closeRestaurantForToday',
       })
     })
   })
+
+Cypress.Commands.add('chooseDaysOfTheWeek', (daysOfTheWeek) => {
+  for (let i = 1; i < 7; i++) {
+    if (daysOfTheWeek.includes(i)) {
+      cy.get(`:nth-child(${ i }) > .ant-checkbox > .ant-checkbox-input`)
+        .check()
+    } else {
+      cy.get(`:nth-child(${ i }) > .ant-checkbox > .ant-checkbox-input`)
+        .uncheck()
+    }
+  }
+})

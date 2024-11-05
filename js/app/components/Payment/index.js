@@ -26,7 +26,13 @@ class CreditCard {
 
 const containsMethod = (methods, method) => !!_.find(methods, m => m.type === method)
 
-export default function(form, options) {
+export default function(formSelector, options) {
+
+  const form = document.querySelector(formSelector)
+
+  if (!form) {
+    return
+  }
 
   const submitButton = form.querySelector('input[type="submit"],button[type="submit"]')
 
@@ -55,6 +61,7 @@ export default function(form, options) {
   disableBtn(submitButton)
 
   let cc
+  let payments = []
 
   if (containsMethod(methods, 'card')) {
 
@@ -74,19 +81,19 @@ export default function(form, options) {
       gatewayConfig,
       amount: options.amount,
       onChange: (event) => {
+        event.complete ? enableBtn(submitButton) : disableBtn(submitButton)
         if (event.error) {
           document.getElementById('card-errors').textContent = event.error.message
         } else {
-          event.complete && enableBtn(submitButton)
           document.getElementById('card-errors').textContent = ''
         }
       },
       onSavedCreditCardSelected: (card) => {
         if (!card) {
           // used to blanck field when the card form is enabled
-          options.savedPaymentMethodElement.removeAttribute('value')
+          document.querySelector(options.savedPaymentMethodElement).removeAttribute('value')
         } else {
-          options.savedPaymentMethodElement.setAttribute('value', card.id)
+          document.querySelector(options.savedPaymentMethodElement).setAttribute('value', card.id)
         }
 
       }
@@ -99,7 +106,7 @@ export default function(form, options) {
     cc.createToken(savedPaymentMethodId)
       .then(token => {
         if (token) {
-          options.tokenElement.setAttribute('value', token)
+          document.querySelector(options.tokenElement).setAttribute('value', token)
           form.submit()
         } else {
           setLoading(false)
@@ -114,32 +121,30 @@ export default function(form, options) {
   const handlePayment = () => {
     let savedPaymentMethod = null
     if (options.savedPaymentMethodElement) {
-      savedPaymentMethod = options.savedPaymentMethodElement.getAttribute('value')
+      savedPaymentMethod = document.querySelector(options.savedPaymentMethodElement).getAttribute('value')
     }
 
     if (methods.length === 1 && containsMethod(methods, 'card')) {
       handleCardPayment(savedPaymentMethod)
     } else {
 
+      const hasCard = !!_.find(payments, p => p.method.code === 'CARD')
+
       const selectedMethod =
         form.querySelector('input[name="checkout_payment[method]"]:checked').value
 
       switch (selectedMethod) {
-        case 'giropay':
-          cc.confirmGiropayPayment()
-            .catch(e => {
-              setLoading(false)
-              document.getElementById('card-errors').textContent = e.message
-            })
-          break
         case 'edenred':
           // It means the whole amount can be paid with Edenred (ex. click & collect)
-          form.submit()
+          if (!hasCard) {
+            form.submit()
+          } else {
+            handleCardPayment(savedPaymentMethod)
+          }
           break
         case 'cash_on_delivery':
           form.submit()
           break
-        case 'edenred+card':
         case 'card':
           handleCardPayment(savedPaymentMethod)
           break
@@ -156,6 +161,23 @@ export default function(form, options) {
     const store = window._rootStore
     if (store) {
       const orderNodeId = selectOrderNodeId(store.getState())
+
+      const shippingTimeRange = selectShippingTimeRange(store.getState())
+      const persistedTimeRange = selectPersistedTimeRange(store.getState())
+
+      // if the customer has already selected the time range, it will be checked on the server side
+      if (!shippingTimeRange && persistedTimeRange) {
+        try {
+          await checkTimeRange(
+            persistedTimeRange,
+            store.getState,
+            store.dispatch,
+          )
+        } catch (error) {
+          setLoading(false)
+          return
+        }
+      }
 
       let violations = null
       try {
@@ -183,23 +205,6 @@ export default function(form, options) {
         )
         return
       }
-
-      const shippingTimeRange = selectShippingTimeRange(store.getState())
-      const persistedTimeRange = selectPersistedTimeRange(store.getState())
-
-      // if the customer has already selected the time range, it will be checked on the server side
-      if (!shippingTimeRange && persistedTimeRange) {
-        try {
-          await checkTimeRange(
-            persistedTimeRange,
-            store.getState,
-            store.dispatch,
-          )
-        } catch (error) {
-          setLoading(false)
-          return
-        }
-      }
     }
 
     handlePayment()
@@ -207,29 +212,42 @@ export default function(form, options) {
 
   const onSelect = value => {
     form.querySelector(`input[name="checkout_payment[method]"][value="${value}"]`).checked = true
+    document.getElementById('card-errors').textContent = ''
     axios
       .post(options.selectPaymentMethodURL, { method: value })
       .then(response => {
+
+        // This will be used later in handlePayment function
+        payments = response.data.payments
+
         switch (value) {
           case 'card':
-          case 'giropay':
-          case 'edenred+card':
+          case 'edenred':
+
             const cashDisclaimer = document.getElementById('cash_on_delivery_disclaimer')
             if (cashDisclaimer) {
               // remove disclaimer for cash method if it was previously selected
               cashDisclaimer.remove()
             }
 
-            cc.mount(document.getElementById('card-element'), value, response.data, options).then(() => {
-              document.getElementById('card-element').scrollIntoView()
+            const hasCard = !!_.find(response.data.payments, p => p.method.code === 'CARD')
+
+            if (hasCard) {
+              cc.mount(document.getElementById('card-element'), value, response.data, options)
+                .then(() => {
+                  document.getElementById('card-element').scrollIntoView()
+                  enableBtn(submitButton)
+                })
+                .catch(e => {
+                  document.getElementById('card-errors').textContent = e.message
+                })
+            } else {
+              // TODO
+              // Here no need to enter credit card details or what
+              // Maybe, add a confirmation step?
               enableBtn(submitButton)
-            })
-            break
-          case 'edenred':
-            // TODO
-            // Here no need to enter credit card details or what
-            // Maybe, add a confirmation step?
-            enableBtn(submitButton)
+            }
+
             break
           case 'cash_on_delivery':
             if (document.getElementById('card-element').children.length) {
@@ -264,7 +282,16 @@ export default function(form, options) {
     .forEach(el => el.classList.add('d-none'))
 
   if (methods.length === 1 && containsMethod(methods, 'card')) {
-    cc.mount(document.getElementById('card-element'), null, null, options).then(() => enableBtn(submitButton))
+    axios
+      .post(options.selectPaymentMethodURL, { method: 'CARD' })
+      .then(response => {
+
+        // This will be used later in handlePayment function
+        payments = response.data.payments
+
+        cc.mount(document.getElementById('card-element'), null, response.data, options).then(() => enableBtn(submitButton))
+
+      })
   } else {
 
     const el = document.createElement('div')

@@ -10,10 +10,14 @@ import {
   SHOW_RECURRENCE_RULES,
   SET_TOURS_ENABLED,
   setGeneralSettings,
+  MODIFY_TASK_LIST_REQUEST,
+  setOptimResult,
+  setMapFilterValue,
 } from './actions'
 import _ from 'lodash'
 import Centrifuge from 'centrifuge'
 import { selectSelectedDate } from '../../coopcycle-frontend-js/logistics/redux'
+import { selectLastOptimResult } from './selectors'
 
 // Check every 30s
 const OFFLINE_TIMEOUT_INTERVAL = (30 * 1000)
@@ -61,6 +65,7 @@ export const socketIO = ({ dispatch, getState }) => {
         case 'task:created':
         case 'task:rescheduled':
         case 'task:incident-reported':
+        case 'task:updated':
           dispatch(updateTask(event.data.task))
           break
         case 'task:assigned':
@@ -114,6 +119,11 @@ export const persistFilters = ({ getState }) => (next) => (action) => {
     window.localStorage.setItem("cpccl__dshbd__fltrs", JSON.stringify(state.settings.filters))
   }
 
+  if (action.type === setMapFilterValue.type) {
+    state = getState()
+    window.localStorage.setItem("cpccl__dshbd__map__fltrs", JSON.stringify(state.settings.mapFilters))
+  }
+
   if (action.type === RESET_FILTERS) {
     state = getState()
     window.localStorage.removeItem("cpccl__dshbd__fltrs")
@@ -127,4 +137,13 @@ export const persistFilters = ({ getState }) => (next) => (action) => {
   }
 
   return result
+}
+
+export const resetOptimizationResult = ({ getState, dispatch }) => (next) => (action) => {
+
+  if (selectLastOptimResult(getState()) && action.type === MODIFY_TASK_LIST_REQUEST) {
+    dispatch(setOptimResult())
+  }
+
+  return next(action)
 }

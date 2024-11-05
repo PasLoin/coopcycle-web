@@ -125,8 +125,8 @@ restaurant.disabledWarning: "Tato restaurace je neaktivní, takže návštěvní
   %restaurantEditUrl%\"> aktivovat v administraci</a>.\n"
 restaurant.closedWarningWithDelay: Objednejte nyní na později. Objednávejte alespoň
   %delay% předem.
-restaurant.temporaryClosedWarning: Tato restaurace je uzavřena do <strong>% date%
-  </strong>. I přesto si můžete objednat na později!
+restaurant.temporaryClosedWarning: Tato restaurace je uzavřena a nedostupná do <strong>%
+  date% </strong>.
 restaurant.noMenuWarning: "Tato restaurace zatím nemá nabídku\n"
 restaurant.quotes_disclaimer.authenticated: Tato restaurace také přijímá objednávky
   na nabídky. Chcete-li vytvořit nabídky, musíte být referenčním zákazníkem. <a href="%contact_us%">
@@ -151,7 +151,6 @@ restaurant.form.quotes_allowed.label: 'Tato restaurace také přijímá nabídky
 restaurant.form.loopeat_enabled.label: Povolit systém vkladu a vrácení peněz LoopEat
 restaurant.form.loopeat_disconnect.label: Odpojit LoopEat
 restaurant.form.featured.label: Tato restaurace je uvedena na domovské stránce
-restaurant.form.giropay_enabled.label: Povolit Giropay
 restaurant.form.fulfillment_methods.label: Způsoby plnění
 restaurant.form.section.general: Obecné
 restaurant.form.section.options: Možnosti
@@ -269,7 +268,7 @@ profile.managedRestaurants: Restaurace spravovaná uživatelem
 profile.accountType: Typ účtu
 order.cart.title: Košík
 order.items.products_with_count: Produkty (%count%)
-order.summary.heading: Objednávka %number% (#%id%)
+order.summary.heading: Objednávka %number%
 order.total_excluding_tax: Celkem (bez DPH)
 order.total_including_tax: Celkem (vč. DPH)
 order.items_total: Celkem produktů
@@ -449,7 +448,7 @@ form.settings.stripe_secret_key.help: "Vytvořte si účet Stripe a získejte <a
   https://stripe.com/docs/dashboard#api-keys\"> veřejný klíč </a>\n"
 form.settings.stripe_connect_client_id.label: identifikátor Stripe Connect
 form.settings.stripe_connect_client_id.help: "Identifikátor získáte na stránce <a\
-  \ href=\"https://dashboard.stripe.com/account/applications/settings\"> parametry\
+  \ href=\"https://dashboard.stripe.com/settings/connect/onboarding-options/oauth\"> parametry\
   \ </a>\n"
 form.settings.latlng.label: Zeměpisné souřadnice
 form.settings.latlng.help: "Určete výchozí zeměpisnou šířku a délku. Můžete ji získat\
@@ -1112,7 +1111,7 @@ profile.edenred.connected: Účet Edenred připojen
 notifications.tap_to_open: Klepnutím otevřete
 notifications.tasks_changed_today: Vaše dnešní úkoly byly aktualizovány
 notifications.delivery_created: Byla vytvořena dodávka k vyzvednutí %date%
-ordering_delay.admin_reminder: Nakonfigurovali jste globální zpoždění objednávek
+ordering_delay.admin_reminder: Nastavili jste globální zpoždění vyzvednutí Foodtech
 ordering_delay.disclaimer: V současné době dostáváme spoustu objednávek, dodací lhůty
   se prodlužují!
 form.fulfillment_method.options.range_duration.label: Rozsah dosahu
@@ -1186,11 +1185,6 @@ restaurant_promotion.items_total: Na základě celkového počtu položek
 products.on_demand_delivery.name: Dodávka na vyžádání
 form.settings.geocoding_provider.help: Používá se v rozhraní API a při importu tabulek
 form.settings.geocoding_provider.label: Poskytovatel geokódování
-form.payment.refund_breakdown: Částka vratná kartou %card%, částka vratná Edenred
-  %edenred%
-form.payment.edenred_disclaimer: Tato objednávka byla zaplacena kreditní kartou Edenred
-  a doplatkem. Vrácení peněz bude provedeno přednostně z částky zaplacené kreditní
-  kartou a v případě potřeby z částky Edenred.
 form.settings.google_api_key_custom.label: Google API Key
 form.settings.autocomplete_provider.label: Poskytovatel návrhů
 form.settings.addresses.title: Adresy
@@ -1211,3 +1205,38 @@ form.store_type.multi_drop_enabled.help: Umožnit uživatelům přidávat dalš�
   při vytváření dodávky
 form.store_type.multi_drop_enabled.label: Povolení vícenásobného předání
 promotion_rule.is_items_total_above: Součet položek je vyšší než %amount%
+form.api_app.type.label: Mechanismus ověřování API
+form.api_app.type.oauth.label: OAuth - pro WordPress
+form.api_app.type.api_key.label: Klíč API - pro Urbantz
+form.settings.mercadopago.client_secret.label: Tajemství klienta
+localBusiness.form.business_address.help: Tato adresa bude použita v účtenkách
+form.local_business.mercadopago.connected: Připojeno
+restaurant.form.section.en_boite_le_plat: Konzervované jídlo
+restaurant.form.en_boite_le_plat_enabled.label: Povolit zálohový systém na misky pro
+  jídlo
+form.checkout_address.reusable_packaging_en_boite_le_plat_enabled.label: Chci <a href="https://www.rekrabicka.cz/"
+  target="_blank">Rekrabičky </a> jako zálohované misky na jídlo.
+order.cart.donation: Dary
+order.export.heading.nonprofit: Neziskové organizace
+adminDashboard.nonprofits.createNew: Přidat novou neziskovou organizaci
+adminDashboard.nonprofits.title: Neziskovky
+adminDashboard.nonprofits.confirm_delete: Opravdu chcete tuto neziskovou organizaci
+  smazat?
+order.cart.donation.disclaimer: Nabízíme vám možnost věnovat %percentage% z příjmů
+  z vaší objednávky jednomu z našich partnerských sdružení. Nebudete platit více.
+form.checkout_address.nonprofit.placeholder: Vyberte si svou oblíbenou neziskovou
+  organizaci
+form.delivery.arbitrary_price.label: Definujte cenu ručně
+adminDashboard.users.confirmDeleteUser: Opravdu chcete odstranit uživatele s e-mailem
+  %email%?
+adminDashboard.users.userHasBeenDeleted: Uživatel byl smazán.
+restaurants.pre_order: Předobjednávka
+restaurant.closedOpensTodayLaterWarning: Tato restaurace je nyní zavřená, ale otevírá
+  dnes v <strong>%time%</strong>.
+restaurant.canOrderForLater: Stále si však můžete objednat na pozdější dobu!
+restaurant.closedOpensTomorrowWarning: Tato restaurace je dnes zavřená, ale zítra
+  se otevře v <strong>%time%</strong>.
+restaurant.canOrderForTomorrow: Stále si však můžete objednat na zítřek!
+restaurant.closedOpensAfterTomorrowWarning: Tato restaurace je uzavřena do <strong>%date%</strong>.
+restaurant.canOrderForOtherDay: Na tento den si však stále můžete objednat!
+restaurant.closedNowWarning: Tato restaurace je nyní zavřená.

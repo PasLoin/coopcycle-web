@@ -8,6 +8,7 @@ use AppBundle\Entity\Delivery;
 use AppBundle\Entity\DeliveryForm;
 use AppBundle\Entity\DeliveryFormSubmission;
 use AppBundle\Entity\Delivery\PricingRuleSet;
+use AppBundle\Entity\Sylius\PricingRulesBasedPrice;
 use AppBundle\Exception\Pricing\NoRuleMatchedException;
 use AppBundle\Form\Checkout\CheckoutPayment;
 use AppBundle\Form\Checkout\CheckoutPaymentType;
@@ -273,8 +274,6 @@ class EmbedController extends AbstractController
 
                 if ($paymentForm->isSubmitted() && $paymentForm->isValid()) {
 
-                    $payment = $order->getLastPayment(PaymentInterface::STATE_CART);
-
                     $data = [
                         'stripeToken' => $paymentForm->get('stripePayment')->get('stripeToken')->getData()
                     ];
@@ -290,19 +289,28 @@ class EmbedController extends AbstractController
                         $order->setDelivery($delivery);
                     }
 
+                    // Keep a copy of the payments before trying authorization
+                    $payments = $order->getPayments()->filter(
+                        fn (PaymentInterface $payment): bool => $payment->getState() === PaymentInterface::STATE_CART);
+
                     $orderManager->checkout($order, $data);
                     $objectManager->flush();
 
-                    if (PaymentInterface::STATE_FAILED === $payment->getState()) {
+                    $failedPayments = $payments->filter(
+                        fn (PaymentInterface $payment): bool => $payment->getState() === PaymentInterface::STATE_FAILED);
+
+                    if (count($failedPayments) > 0) {
+                        $errors = $failedPayments->map(fn (PaymentInterface $payment): string => $payment->getLastError());
+                        $error = implode("\n", $errors->toArray());
+
                         return $this->render('embed/delivery/summary.html.twig', [
                             'hashid' => $hashid,
                             'delivery' => $delivery,
                             'price' => $price,
                             'price_excluding_tax' => ($order->getTotal() - $order->getTaxTotal()),
                             'form' => $paymentForm->createView(),
-                            'payment' => $payment,
                             'order' => $order,
-                            'error' => $payment->getLastError(),
+                            'error' => $error,
                             'submission_hashid' => $request->query->get('data'),
                         ]);
                     }
@@ -324,7 +332,6 @@ class EmbedController extends AbstractController
                         'price' => $price,
                         'price_excluding_tax' => ($order->getTotal() - $order->getTaxTotal()),
                         'form' => $paymentForm->createView(),
-                        'payment' => $order->getLastPayment(PaymentInterface::STATE_CART),
                         'order' => $order,
                         'submission_hashid' => $request->query->get('data'),
                     ]);
@@ -335,7 +342,7 @@ class EmbedController extends AbstractController
             $telephone = $form->get('telephone')->getData();
 
             $customer = $this->findOrCreateCustomer($email, $telephone, $canonicalizer);
-            $order    = $this->createOrderForDelivery($orderFactory, $delivery, $price, $customer, $attach = false);
+            $order    = $this->createOrderForDelivery($orderFactory, $delivery, new PricingRulesBasedPrice($price), $customer, $attach = false);
 
             $checkoutPayment = new CheckoutPayment($order);
             $paymentForm = $this->createForm(CheckoutPaymentType::class, $checkoutPayment, [
@@ -351,15 +358,12 @@ class EmbedController extends AbstractController
             $objectManager->persist($order);
             $objectManager->flush();
 
-            $payment = $order->getLastPayment(PaymentInterface::STATE_CART);
-
             return $this->render('embed/delivery/summary.html.twig', [
                 'hashid' => $hashid,
                 'delivery' => $delivery,
                 'price' => $price,
                 'price_excluding_tax' => ($order->getTotal() - $order->getTaxTotal()),
                 'form' => $paymentForm->createView(),
-                'payment' => $payment,
                 'order' => $order,
                 'submission_hashid' => $request->query->get('data'),
             ]);

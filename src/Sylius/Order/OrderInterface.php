@@ -252,4 +252,17 @@ interface OrderInterface extends
      * @return Collection
      */
     public function getPickupAddresses(): Collection;
+
+    /**
+     * To get bookmarks that current user has access to use OrderManager::hasBookmark instead
+     * @return Collection all bookmarks set by different users
+     */
+    public function getBookmarks(): Collection;
+
+    /**
+     * @param string|null $state
+     *
+     * @return PaymentInterface|null
+     */
+    public function getLastPaymentByMethod(string $method, ?string $state = null): ?PaymentInterface;
 }

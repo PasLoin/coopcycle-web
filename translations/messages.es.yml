@@ -212,7 +212,7 @@ profile.orders: Pedidos
 profile.configuration: Configuración
 order.cart.title: Cesta
 order.items.products_with_count: Productos (%count%)
-order.summary.heading: Pedido %number% (#%id%)
+order.summary.heading: Pedido %number%
 order.total_including_tax: Total (IVA incl.)
 order.items_total: Total productos
 order.total_tax: IVA
@@ -362,7 +362,7 @@ form.settings.stripe_secret_key.help: "Crea una cuenta Stripe para obtener tu <a
   https://stripe.com/docs/dashboard#api-keys\">clave secreta</a>\n"
 form.settings.stripe_connect_client_id.label: Identificador de Stripe Connect
 form.settings.stripe_connect_client_id.help: "Puedes encontrar tu identificador en\
-  \ <a href=\"https://dashboard.stripe.com/account/applications/settings\">la página\
+  \ <a href=\"https://dashboard.stripe.com/settings/connect/onboarding-options/oauth\">la página\
   \ de parámetros</a>\n"
 form.settings.latlng.label: Coordinadas geográficas
 form.settings.latlng.help: "Especifica la latitud y longitud por defecto del mapa.\
@@ -538,10 +538,13 @@ stores.createNewDelivery: Crear entrega
 stores.users: Usuarios
 stores.pricing_rule_set: Tarificación
 stores.deliveries: Entregas
-stores.deliveries.heading: 'Entrega #%delivery_id% - %delivery_distance%'
+stores.deliveries.heading: 'Entrega %delivery_id% - %delivery_distance%'
+stores.deliveries.heading2: 'Entrega %delivery_id%'
 stores.api_keys: Llaves API
 stores.deliveries.task_unassigned: No asignada
 stores.addresses: Direcciones
+stores.deliveries.bookmarks: Pedidos guardados
+stores.deliveries.bookmarks.empty_message: Marca los pedidos en la página de Entrega para encontrarlos fácilmente más tarde
 meta.title: Plataforma de logística para cooperativas
 admin.settings.missing_mandatory_settings: "Algunos ajustes obligatorios no han sido\
   \ configurados.\nVes a la <a href=\"%settings_url%\">página de ajustes</a> para\
@@ -562,7 +565,7 @@ activity.task.cancelled: "@%owner% ha cancelado la tarea #task/%aggregate_id%\n"
 activity.order.created: "El pedido #order/%aggregate_id% ha sido creado por @%owner%\n"
 activity.order.accepted: "El pedido #order/%aggregate_id% ha sido aceptado\n"
 activity.order.refused: "El pedido #order/%aggregate_id% ha sido rechazado\n"
-activity.order.picked: "@%owner% ha recuperado el pedido #order/%aggregate_id%\n"
+activity.order.picked: "@%owner% ha recogido el pedido #order/%aggregate_id%\n"
 activity.order.dropped: "@%owner% ha entregado el pedido #order/%aggregate_id%\n"
 activity.order.fulfilled: "El pedido #order/%aggregate_id% esta terminado\n"
 activity.order.delayed: "El pedido #order/%aggregate_id% has sido atrasado\n"
@@ -586,6 +589,9 @@ basics.are_you_sure: ¿Estás segur@?
 basics.no_entries: Ningun elemento por el momento
 basics.select_all: Seleccionar todo
 basics.delete_selected: Eliminar seleccionados
+basics.address: Dirección
+warehouses.breadcrumb: Almacenes
+warehouses.breadcrumb.help: Definir almacenes
 profile.password.change: Cambiar la contraseña
 authentication.forgot_password: ¿Contraseña olvidada?
 authentication.not_registered_yet: ¿Todavía no estas registrado?
@@ -678,6 +684,10 @@ adminDashboard.tags.confirm_delete: "¿Estás seguro de eliminar esta etiqueta? 
 adminDashboard.time_slots.title: Franja horaria
 delivery.tracking_link: Enlace de seguimiento
 delivery.with_id: 'Entrega #%id%'
+subscriptions.title: Abonnements
+subscription.title: 'Abonnement #%id%'
+subscription.generated_order: Cette commande a été générée par un abonnement
+subscription.view: Voir l'abonnement
 help.title: Ayuda
 help.home: Casa
 restaurant.stats.order_number: Número de pedido
@@ -740,7 +750,16 @@ form.time_slot_choice.start_time.label: Hora de inicio
 form.time_slot_choice.end_time.label: Hora de finalización
 form.package_set.name.label: Nombre
 form.package_set.packages.label: Paquetes
+form.package.enter_details: Mostrar/ocultar detalles
 form.package.name.label: Nombre
+form.package.description.label: Descripción para el cliente
+form.package.average_volume_units.label: Unidades de volumen promedio (VU)
+form.package.max_volume_units.label: Unidades de volumen máximo (VU)
+form.package.average_estimation: Estimado al 75 % del máximo si no se establece
+form.package.max_volume_units: Este valor se utilizará para calcular los precios en función del volumen
+form.package.average_weight.label: Peso promedio (kg)
+form.package.max_weight.label: Peso máximo (kg)
+form.package.shortCode.label: Código de 2 letras
 form.package.volume_units.label: Unidades de volumen
 basics.date_range: Desde %start% hasta %end%
 basics.total_including_tax: Total incluyendo todos los impuestos
@@ -784,7 +803,7 @@ receipt.footer_item.total_products: Total productos
 receipt.footer_item.total_excl_tax: Total (sin IVA)
 receipt.footer_item.total_incl_tax: Total (IVA incl.)
 receipt.total: Total (IVA incl.)
-receipt.billing_details: Pedido pagado con tarjeta de crédito/débito el %date%
+receipt.billing_details: Pedido pagado con %payment_method% el %date%
 receipt.emitter_details: Pedido en el restaurante <strong>%restaurant_name%</strong>
 notifications.restaurant.new_order: Nuevo pedido por confirmar
 form.checkout_address.quote.label: Solicitar presupuesto
@@ -884,7 +903,6 @@ form.offer_delivery.coupon_code.help: Es su responsabilidad comunicar este códi
   al cliente, ya sea personalmente o a través de las redes sociales
 users.all: Todos los usuarios
 basics.allow_edit: Permitir edición
-restaurant.form.giropay_enabled.label: Habilitar Giropay
 restaurant.form.section.general: General
 restaurant.form.section.options: Opciones
 restaurant.form.section.fulfillment: Cumplimiento
@@ -918,6 +936,7 @@ form.delivery.pickup.address_placeholder: Número de casa y nombre de la calle, 
   código postal, ciudad
 form.delivery.dropoff.address_placeholder: Número de casa y nombre de la calle, área,
   código postal, ciudad
+form.delivery.bookmark.label: Añadir a Pedidos guardados
 form.order.refuse.label: Rechazar
 form.order.refuse.refund.alert: Este pedido se pagó con un método de pago que no gestiona
   las autorizaciones previas. Si lo rechaza, se reembolsará el pago. ¿Estás seguro?
@@ -955,6 +974,7 @@ activity.task.started: "@%owner% comenzó tarea #task/%aggregate_id%\n"
 basics.updated_at: Actualizado en %date%
 deliveries.sort.oldest: Los más viejos primero
 orders.new: Nuevo pedido
+orders.duplicate: Duplicar un pedido
 orders.payment_link.send_by_email: Enviar enlace de pago por correo electrónico
 orders.payment_link.sent: Email enviado con éxito
 form.min_max.upper.label: Número máximo
@@ -1049,6 +1069,9 @@ guest_checkout.user_with_same_email_exists: Ya existe una cuenta con el mismo co
 guest_checkout.use_another_email: Usar otro correo electrónico
 form.store_type.package_set.placeholder: Elija un paquete conjunto
 form.store_type.time_slot.placeholder: Elija una franja horaria
+form.store_type.defaultCourier.label: Mensajero·a predeterminado
+form.store_type.defaultCourier.placeholder: Ninguno
+form.store_type.defaultCourier.help: Los pedidos realizados para esta tienda se asignarán automáticamente a este mensajero·a
 profile.fullName: Nombre completo
 restaurant.form.section.taxonomy: Taxonomía
 localBusiness.form.business_address.label: Dirección comercial
@@ -1241,7 +1264,7 @@ edenred.oauth_connect.success: ¡Cuenta Edenred conectada exitosamente!
 profile.edenred.connect: Conectar mi cuenta Edenred
 profile.edenred.connected: Cuenta Edenred conectada
 notifications.delivery_created: Una entrega para recoger el %date% ha sido creado
-ordering_delay.admin_reminder: Configuró un retraso en todos los pedidos
+ordering_delay.admin_reminder: Ha configurado un retraso de pickup global para pedidos de foodtech
 ordering_delay.disclaimer: ¡Estamos recibiendo muchos pedidos, los tiempos de entrega
   se retrasaran!
 form.fulfillment_method.options.range_duration.label: Margen de tolerancia
@@ -1257,12 +1280,6 @@ order.adjustment_type.reusable_packaging.loopeat.help: Esta cuota cubre los gast
 form.settings.geocoding_provider.help: Utilizado por la API y cuando se importan hojas
   de cálculo
 form.settings.geocoding_provider.label: Proveedor de geocodificación
-form.payment.refund_breakdown: Cantidad reembolsable por tarjeta %card%, cantidad
-  reembolsable por Edenred %edenred%
-form.payment.edenred_disclaimer: Esta orden se pagó con Edenred y se completó con
-  una tarjeta de crédito. El reembolso será hecho basándose en la prioridad de la
-  cantidad pagada por la tarjeta de crédito, y si es necesario en la cantidad pagada
-  por Edenred.
 form.settings.addresses.title: Direcciones
 restaurant.form.vytal_enabled.label: Habilitar el sistema de depósito y reembolso
   de Vytal
@@ -1319,25 +1336,26 @@ import.delivery.price.error.priceCalculation.row: El precio de la entrega no pud
 import.unsuccessful.rows: "Se encontraron errores y no fue posible crear entregas para las filas: %rows%."
 security.login.remember_me: Recordar
 delivery.failure_reason:
-  damaged: "Dañado"
-  lost: "Perdido"
-  late: "Entrega retrasada"
-  incorrect_address: "Dirección incorrecta"
-  customer_refused: "Cliente rechazó la entrega"
-  item_missing: "Artículo faltante"
-  incorrect_item: "Artículo incorrecto"
-  bad_weather: "Condiciones climáticas adversas"
-  vehicle_breakdown: "Avería del vehículo"
-  traffic_delays: "Retrasos por tráfico"
-  routing_problems: "Problemas de enrutamiento"
-  customs_issues: "Problemas aduaneros"
-  inventory_shortage: "Escasez de inventario"
-  address_unreachable: "Dirección inaccesible"
-  insufficient_funds: "Fondos insuficientes"
-  data_entry_error: "Error en la entrada de datos"
-  packaging_problems: "Problemas de embalaje"
-  holiday_closure: "Cierre por vacaciones"
-  closed_store: "Tienda cerrada"
+  default:
+    damaged: "Dañado"
+    lost: "Perdido"
+    late: "Entrega retrasada"
+    incorrect_address: "Dirección incorrecta"
+    customer_refused: "Cliente rechazó la entrega"
+    item_missing: "Artículo faltante"
+    incorrect_item: "Artículo incorrecto"
+    bad_weather: "Condiciones climáticas adversas"
+    vehicle_breakdown: "Avería del vehículo"
+    traffic_delays: "Retrasos por tráfico"
+    routing_problems: "Problemas de enrutamiento"
+    customs_issues: "Problemas aduaneros"
+    inventory_shortage: "Escasez de inventario"
+    address_unreachable: "Dirección inaccesible"
+    insufficient_funds: "Fondos insuficientes"
+    data_entry_error: "Error en la entrada de datos"
+    packaging_problems: "Problemas de embalaje"
+    holiday_closure: "Cierre por vacaciones"
+    closed_store: "Tienda cerrada"
 adminDashboard.failureSet.title: "Motivos de Fallo"
 adminDashboard.failureSet.help: "Establezca los motivos por los cuales sus entregas pueden fallar."
 adminDashboard.failureSet.nofailureSet: "Ningún motivo de fallo"
@@ -1403,6 +1421,8 @@ registration.company.address: "Dirección"
 registration.company.address.different.for.billing: "Usar una dirección diferente para facturación"
 registration.company.billing.address: "Dirección de facturación"
 registration.step.company.name: "Nombre de la empresa"
+registration.step.company.legal_name: "Nombre legal de la empresa"
+registration.step.company.vat_number: "Número de IVA"
 registration.step.invitation.copy.link: "Copia el siguiente enlace y envíalo a tus colegas"
 registration.confirm.invitation.link.title: "Usa el siguiente enlace para invitar a tus colegas de trabajo a unirse"
 registration.step.invitation.copy.button: "Copiar el enlace"
@@ -1453,3 +1473,14 @@ restaurant.businessAccount.notAvilable: "Éste restaurante no está incluído en
   >haciendo click aquí</a>.\n"
 business_account.switch.order_with_business: Pedir con mi empresa
 business_account.switch.ordering_with_business: Pidiendo con mi empresa
+form.store_type.multi_drop_enabled.label: Habilitar entregas multiples
+api_apps.regenerate_secret: Renovar clave secreto
+restaurant.form.cash_on_delivery_enabled.label: Activar el pago con efectivo
+promotion_rule.is_items_total_above: El valor total de los productos está por encima
+  de %amount%
+form.store_type.multi_drop_enabled.help: Permitir usarios añadir varios puntos de
+  entrega al crear un encargo
+api_apps.regenerate_secret_warning: Cualquier app usando esta salida de API con el
+  secreto anterior dejará de funcionar.
+restaurant.form.cash_on_delivery_enabled.help: Esto permitirá clientes pagar en efectivo
+  al repartidor. Use con cuidado.

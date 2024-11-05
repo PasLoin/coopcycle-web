@@ -6,26 +6,25 @@ use AppBundle\Entity\Delivery\FailureReasonSet;
 use AppBundle\Entity\Delivery\PricingRuleSet;
 use AppBundle\Entity\PackageSet;
 use AppBundle\Entity\Store;
-use AppBundle\Entity\TimeSlot;
+use AppBundle\Entity\Urbantz\Hub as UrbantzHub;
+use AppBundle\Entity\User;
 use AppBundle\Form\Type\QueryBuilder\OrderByNameQueryBuilder;
-use Sonata\Form\Type\BooleanType;
 use Symfony\Bridge\Doctrine\Form\Type\EntityType;
-use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
+use Symfony\Component\Form\Extension\Core\Type\HiddenType;
 use Symfony\Component\Form\Extension\Core\Type\SubmitType;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\Form\FormEvents;
 use Symfony\Component\Form\FormEvent;
-use Symfony\Component\Form\FormError;
-use Symfony\Component\Form\FormInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
-use Symfony\Component\Validator\Validation;
-use Symfony\Component\Validator\Constraints;
+
 
 class StoreType extends LocalBusinessType
 {
+
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
         parent::buildForm($builder, $options);
@@ -66,22 +65,6 @@ class StoreType extends LocalBusinessType
                     'help' => 'form.store_type.multi_drop_enabled.help',
                     'required' => false,
                 ])
-                ->add('timeSlot', EntityType::class, [
-                    'label' => 'form.store_type.time_slot.label',
-                    'class' => TimeSlot::class,
-                    'choice_label' => 'name',
-                    'required' => false,
-                    'query_builder' => new OrderByNameQueryBuilder(),
-                ])
-                ->add('timeSlots', EntityType::class, [
-                    'label' => 'form.store_type.time_slots.label',
-                    'class' => TimeSlot::class,
-                    'choice_label' => 'name',
-                    'required' => false,
-                    'expanded' => true,
-                    'multiple' => true,
-                    'query_builder' => new OrderByNameQueryBuilder(),
-                ])
                 ->add('tags', TagsType::class)
                 ->add('failureReasonSet', EntityType::class, array(
                     'label' => 'form.store_type.failure_reason_set.label',
@@ -97,7 +80,10 @@ class StoreType extends LocalBusinessType
                     ],
                     'help_html' => true,
 
-                ));
+                ))
+                ->add('checkExpression', HiddenType::class, [
+                    'label' => 'form.store.check_expression'
+                ]);
 
             if ($this->transportersEnabled) {
                 $transporterConfig = $this->transportersConfig;
@@ -131,6 +117,29 @@ class StoreType extends LocalBusinessType
                     ]);
                 }
             }
+
+            $data = $this->userManager->findUsersByRole('ROLE_COURIER');
+
+            $form->add('defaultCourier', EntityType::class, [
+                'class' => User::class,
+                'choices' => $data,
+                'label' => 'form.store_type.defaultCourier.label',
+                'choice_label' => 'username',
+                'choice_value' => 'username',
+                'placeholder' => 'form.store_type.defaultCourier.placeholder',
+                'help' => 'form.store_type.defaultCourier.help',
+                'required' => false,
+            ]);
+
+            if (null !== $store && null !== $store->getId()) {
+                $urbantzHub = $this->entityManager->getRepository(UrbantzHub::class)->findOneBy(['store' => $store]);
+                $form->add('urbantzHubId', TextType::class, [
+                    'label' => 'form.store.urbantz_hub_id',
+                    'mapped' => false,
+                    'data' => null !== $urbantzHub ? $urbantzHub->getHub() : '',
+                    'required' => false,
+                ]);
+            }
         });
 
         $builder->addEventListener(FormEvents::POST_SUBMIT, function (FormEvent $event) {
@@ -141,6 +150,26 @@ class StoreType extends LocalBusinessType
             if (null === $store->getId()) {
                 $defaultAddress = $store->getAddress();
                 $store->addAddress($defaultAddress);
+            }
+
+            if ($form->has('urbantzHubId')) {
+
+                $hub = $form->get('urbantzHubId')->getData();
+
+                $urbantzHub = $this->entityManager->getRepository(UrbantzHub::class)->findOneBy(['store' => $store]);
+
+                if (empty($hub)) {
+                    if (null !== $urbantzHub) {
+                        $this->entityManager->remove($urbantzHub);
+                    }
+                } else {
+                    if (null === $urbantzHub) {
+                        $urbantzHub = new UrbantzHub();
+                        $urbantzHub->setStore($store);
+                    }
+                    $urbantzHub->setHub($hub);
+                    $this->entityManager->persist($urbantzHub);
+                }
             }
         });
     }

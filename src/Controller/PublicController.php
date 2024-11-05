@@ -58,19 +58,21 @@ class PublicController extends AbstractController
 
         $this->denyAccessUnlessGranted('view_public', $order);
 
-        $lastPayment = $order->getLastPayment();
+        $completedPayment = $order->getPayments()
+            ->filter(fn (PaymentInterface $payment): bool => $payment->getState() === PaymentInterface::STATE_COMPLETED)
+            ->first();
+
+        $failedPayment = $order->getPayments()
+            ->filter(fn (PaymentInterface $payment): bool => $payment->getState() === PaymentInterface::STATE_FAILED)
+            ->first();
 
         $parameters = [
             'order' => $order,
-            'last_payment' => $lastPayment,
+            'completed_payment' => $completedPayment,
+            'failed_payment' => $failedPayment,
         ];
 
-        $paymentStates = [
-            PaymentInterface::STATE_CART,
-            PaymentInterface::STATE_NEW,
-        ];
-
-        if (in_array($lastPayment->getState(), $paymentStates)) {
+        if (!$completedPayment) {
 
             $checkoutPayment = new CheckoutPayment($order);
             $paymentForm = $this->createForm(CheckoutPaymentType::class, $checkoutPayment);
@@ -80,9 +82,13 @@ class PublicController extends AbstractController
 
                 $stripeToken = $paymentForm->get('stripePayment')->get('stripeToken')->getData();
 
-                try {
+                $lastPayment = $order->getPayments()
+                    ->filter(fn (PaymentInterface $payment): bool =>
+                        in_array($payment->getState(), [PaymentInterface::STATE_CART, PaymentInterface::STATE_NEW])
+                    )
+                    ->first();
 
-                    $stripeManager->configure();
+                try {
 
                     if ($lastPayment->requiresUseStripeSDK()) {
                         $stripeManager->confirmIntent($lastPayment);
@@ -95,7 +101,6 @@ class PublicController extends AbstractController
                 } catch (Stripe\Exception\ApiErrorException $e) {
 
                     $lastPayment->setLastError($e->getMessage());
-                    // TODO Create another payment
 
                 } finally {
                     $objectManager->flush();

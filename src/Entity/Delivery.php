@@ -9,7 +9,9 @@ use AppBundle\Action\Delivery\Cancel as CancelDelivery;
 use AppBundle\Action\Delivery\Create as CreateDelivery;
 use AppBundle\Action\Delivery\Drop as DropDelivery;
 use AppBundle\Action\Delivery\Pick as PickDelivery;
+use AppBundle\Action\Delivery\SuggestOptimizations as SuggestOptimizationsController;
 use AppBundle\Api\Dto\DeliveryInput;
+use AppBundle\Api\Dto\OptimizationSuggestions;
 use AppBundle\Api\Filter\DeliveryOrderFilter;
 use AppBundle\Entity\Edifact\EDIFACTMessage;
 use AppBundle\Entity\Edifact\EDIFACTMessageAwareTrait;
@@ -60,7 +62,22 @@ use Symfony\Component\Serializer\Annotation\Groups;
  *       "input"=DeliveryInput::class,
  *       "denormalization_context"={"groups"={"delivery_create_from_tasks"}},
  *       "security"="is_granted('ROLE_ADMIN')"
- *     }
+ *     },
+ *     "suggest_optimizations"={
+ *       "method"="POST",
+ *       "path"="/deliveries/suggest_optimizations",
+ *       "write"=false,
+ *       "status"=200,
+ *       "controller"=SuggestOptimizationsController::class,
+ *       "output"=OptimizationSuggestions::class,
+ *       "denormalization_context"={"groups"={"delivery_create"}},
+ *       "normalization_context"={"groups"={"optimization_suggestions"}, "api_sub_level"=true},
+ *       "security_post_denormalize"="is_granted('create', object)",
+ *       "openapi_context"={
+ *         "summary"="Suggests optimizations for a delivery",
+ *         "parameters"=Delivery::OPENAPI_CONTEXT_POST_PARAMETERS
+ *       }
+ *     },
  *   },
  *   itemOperations={
  *     "get"={
@@ -171,8 +188,12 @@ class Delivery extends TaskCollection implements TaskCollectionInterface, Packag
     public function addTask(Task $task, $position = null)
     {
         $task->setDelivery($this);
+        $taskCollection = parent::addTask($task, $position);
 
-        return parent::addTask($task, $position);
+        $deliveryPosition = $taskCollection->findTaskPosition($task);
+        $task->setMetadata('delivery_position', $deliveryPosition + 1); // we prefer it to be 1-indexed for user display
+
+        return $taskCollection;
     }
 
 
@@ -181,7 +202,7 @@ class Delivery extends TaskCollection implements TaskCollectionInterface, Packag
         return $this->order;
     }
 
-    public function setOrder(OrderInterface $order)
+    public function setOrder(?OrderInterface $order)
     {
         $this->order = $order;
 
@@ -276,47 +297,43 @@ class Delivery extends TaskCollection implements TaskCollectionInterface, Packag
     public static function createWithTasks(Task ...$tasks)
     {
         $delivery = self::create();
+        $delivery->withTasks(...$tasks);
+        return $delivery;
+    }
 
-        $delivery->removeTask($delivery->getPickup());
-        $delivery->removeTask($delivery->getDropoff());
+    public function withTasks(Task ...$tasks)
+    {
+        $this->removeTask($this->getPickup());
+        $this->removeTask($this->getDropoff());
+
+        // reset array keys/indices
+        $this->items->clear();
 
         if (count($tasks) > 2) {
 
-            $delivery = $delivery->withTasks(...$tasks);
+            $pickup = array_shift($tasks);
+
+            // Make sure the first task is a pickup
+            $pickup->setType(Task::TYPE_PICKUP);
+
+            $this->addTask($pickup);
+
+            foreach ($tasks as $dropoff) {
+                $dropoff->setPrevious($pickup);
+                $this->addTask($dropoff);
+            }
 
         } else {
 
             [ $pickup, $dropoff ] = $tasks;
 
             $pickup->setType(Task::TYPE_PICKUP);
-            $pickup->setDelivery($delivery);
+            $pickup->setNext($dropoff);
 
             $dropoff->setType(Task::TYPE_DROPOFF);
-            $dropoff->setDelivery($delivery);
-
-            $pickup->setNext($dropoff);
             $dropoff->setPrevious($pickup);
 
-            $delivery->addTask($pickup);
-            $delivery->addTask($dropoff);
-        }
-
-        return $delivery;
-    }
-
-    public function withTasks(Task ...$tasks)
-    {
-        $this->items->clear();
-
-        $pickup = array_shift($tasks);
-
-        // Make sure the first task is a pickup
-        $pickup->setType(Task::TYPE_PICKUP);
-
-        $this->addTask($pickup);
-
-        foreach ($tasks as $dropoff) {
-            $dropoff->setPrevious($pickup);
+            $this->addTask($pickup);
             $this->addTask($dropoff);
         }
 
@@ -372,6 +389,15 @@ class Delivery extends TaskCollection implements TaskCollectionInterface, Packag
     public function isAssigned()
     {
         return $this->getPickup()->isAssigned() && $this->getDropoff()->isAssigned();
+    }
+
+    public function assignTo(User $user): void
+    {
+        array_walk($this->getTasks(),
+            function (Task $task) use ($user) {
+                $task->assignTo($user);
+            }
+        );
     }
 
     public function isCompleted()

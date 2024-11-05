@@ -16,19 +16,18 @@ import Navbar from './components/Navbar'
 import Modals from './components/Modals'
 import { updateRightPanelSize } from './redux/actions'
 import { recurrenceRulesAdapter } from './redux/selectors'
-import { initialState as settingsInitialState, defaultFilters, defaultSettings } from './redux/settingsReducers'
+import { initialState as settingsInitialState, defaultFilters, defaultSettings, defaultMapFilters } from './redux/settingsReducers'
 
 import 'react-phone-number-input/style.css'
 import './dashboard.scss'
 
-import { organizationAdapter, taskAdapter, taskListAdapter, tourAdapter } from '../coopcycle-frontend-js/logistics/redux'
+import { organizationAdapter, taskAdapter, taskListAdapter, tourAdapter, trailerAdapter, vehicleAdapter, warehouseAdapter } from '../coopcycle-frontend-js/logistics/redux'
 import _ from 'lodash'
-import axios from 'axios'
+import { createClient } from './utils/client'
 
 const dashboardEl = document.getElementById('dashboard')
 const date = moment(dashboardEl.dataset.date)
 const jwtToken = dashboardEl.dataset.jwt
-const baseUrl = location.protocol + '//' + location.host
 
 
 async function start(tasksRequest, tasksListsRequest, toursRequest) {
@@ -39,7 +38,7 @@ async function start(tasksRequest, tasksListsRequest, toursRequest) {
 
   await Promise.all([tasksRequest, tasksListsRequest, toursRequest]).then((values) => {
     const [taskRes, taskListRes, toursRes] = values
-    allTasks = taskRes.data['hydra:member']
+    allTasks = taskRes // paginatedRequest returns data directly 
     taskLists = taskListRes.data['hydra:member']
     tours = toursRes.data['hydra:member']
   })
@@ -67,7 +66,10 @@ async function start(tasksRequest, tasksListsRequest, toursRequest) {
           tourAdapter.getInitialState(),
           tours
         ),
-        organizations: organizationAdapter.getInitialState()
+        organizations: organizationAdapter.getInitialState(),
+        vehicles: vehicleAdapter.getInitialState(),
+        trailers: trailerAdapter.getInitialState(),
+        warehouses: warehouseAdapter.getInitialState(),
       }
     },
     jwt: jwtToken,
@@ -95,9 +97,11 @@ async function start(tasksRequest, tasksListsRequest, toursRequest) {
   }
 
   const persistedFilters = JSON.parse(window.localStorage.getItem("cpccl__dshbd__fltrs"))
+  const persistedMapFilters = JSON.parse(window.localStorage.getItem("cpccl__dshbd__map__fltrs"))
   const persistedSettings = JSON.parse(window.localStorage.getItem("cpccl__dshbd__settings"))
 
   const initialFilters = {...defaultFilters, ...persistedFilters}
+  const initialMapFilters = {...defaultMapFilters, ...persistedMapFilters}
   const initialSettings = {...defaultSettings, ...persistedSettings}
 
   preloadedState = {
@@ -105,6 +109,7 @@ async function start(tasksRequest, tasksListsRequest, toursRequest) {
     settings: {
       ...initialSettings,
       filters: initialFilters,
+      mapFilters: initialMapFilters,
       isDefaultFilters: persistedFilters ? _.isEqual(persistedFilters, defaultFilters) : true
     }
   }
@@ -122,7 +127,10 @@ async function start(tasksRequest, tasksListsRequest, toursRequest) {
         loadingTourPanelsIds: [],
         unassignedTasksIdsOrder: [],
         unassignedToursOrGroupsOrderIds: [],
-        organizationsLoading: true
+        organizationsLoading: true,
+        trailersLoading: true,
+        vehiclesLoading: true,
+        warehousesLoading: true,
       }
     }
   })
@@ -195,9 +203,25 @@ loadingAnim.addEventListener('DOMLoaded', function() {
     'Content-Type': 'application/ld+json'
   }
 
-  const tasksRequest = axios.create({ baseURL: baseUrl }).get(`${ window.Routing.generate('api_tasks_get_collection') }?date=${date.format('YYYY-MM-DD')}`, { headers: headers})
-  const tasksListsRequest = axios.create({ baseURL: baseUrl }).get(`${ window.Routing.generate('api_task_lists_v2_collection') }?date=${date.format('YYYY-MM-DD')}`, {headers: headers})
-  const toursRequest = axios.create({ baseURL: baseUrl }).get(`${ window.Routing.generate('api_tours_get_collection') }?date=${date.format('YYYY-MM-DD')}`, {headers: headers})
+  const client = createClient(() => {}) // do-nothing dispatch function, as we have a fresh token from the initial load + no initialized store yet
+  
+  const tasksRequest = client.paginatedRequest({
+    method: 'GET',
+    url: `${ window.Routing.generate('api_tasks_get_collection') }?date=${date.format('YYYY-MM-DD')}&pagination=true&itemsPerPage=50`,
+    headers: headers
+  })
+
+  const tasksListsRequest = client.request({
+    method: 'GET',
+    url: `${ window.Routing.generate('api_task_lists_v2_collection') }?date=${date.format('YYYY-MM-DD')}`,
+    headers: headers
+  })
+
+  const toursRequest = client.request({
+    method: 'GET',
+    url: `${ window.Routing.generate('api_tours_get_collection') }?date=${date.format('YYYY-MM-DD')}`,
+    headers: headers
+  })
 
   // the delay is here to avoid a glitch in the animation when there is no tasks to load
   // fire the initial loading requests then wait
